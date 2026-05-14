@@ -1,0 +1,40 @@
+cat > .gitignore <<'EOF'
+# Java / Maven
+target/
+*.jar
+*.war
+*.class
+
+# Node / React
+node_modules/
+build/
+dist/
+.env
+.env.local
+.env.production.local
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+
+# Logs
+logs/
+*.log
+
+# Secrets
+*.pem
+*.key
+*.crt
+application-prod.properties
+application-secrets.properties
+
+# Runtime storage
+storage/
+uploads/
+tmp/
+output/
+EOF
