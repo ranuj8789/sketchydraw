@@ -1,0 +1,183 @@
+.sk-auth-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(15, 23, 42, 0.42);
+    backdrop-filter: blur(8px);
+}
+
+.sk-auth-modal {
+    width: 100%;
+    max-width: 440px;
+    position: relative;
+    border-radius: 24px;
+    padding: 28px;
+    background: rgba(255, 255, 255, 0.97);
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 30px 90px rgba(15, 23, 42, 0.22);
+    color: #0f172a;
+}
+
+.sk-auth-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 36px;
+    height: 36px;
+    border: 1px solid #e2e8f0;
+    border-radius: 999px;
+    background: #f8fafc;
+    cursor: pointer;
+    font-size: 24px;
+    color: #334155;
+}
+
+.sk-auth-header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.sk-auth-badge {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 12px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #2563eb, #111827);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 900;
+    box-shadow: 0 16px 34px rgba(37, 99, 235, 0.22);
+}
+
+.sk-auth-header h2 {
+    margin: 0 0 8px;
+    font-size: 25px;
+    letter-spacing: -0.03em;
+}
+
+.sk-auth-header p {
+    margin: 0;
+    color: #64748b;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.sk-auth-google {
+    display: flex;
+    justify-content: center;
+    margin: 16px 0 14px;
+}
+
+.sk-auth-google > div {
+    width: 100% !important;
+}
+
+.sk-auth-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #94a3b8;
+    font-size: 13px;
+    font-weight: 700;
+    margin: 12px 0 16px;
+}
+
+.sk-auth-divider::before,
+.sk-auth-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: #e2e8f0;
+}
+
+.sk-auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.sk-auth-field {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.sk-auth-field span {
+    font-size: 13px;
+    font-weight: 800;
+    color: #334155;
+}
+
+.sk-auth-field input {
+    height: 46px;
+    border: 1px solid #cbd5e1;
+    border-radius: 14px;
+    padding: 0 14px;
+    outline: none;
+    background: #ffffff;
+    color: #0f172a;
+    font-size: 15px;
+}
+
+.sk-auth-field input:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+}
+
+.sk-auth-link {
+    align-self: flex-end;
+    border: none;
+    background: transparent;
+    color: #2563eb;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.sk-auth-message {
+    border-radius: 14px;
+    padding: 11px 13px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    color: #334155;
+    font-size: 14px;
+}
+
+.sk-auth-primary {
+    height: 48px;
+    border: none;
+    border-radius: 15px;
+    background: #2563eb;
+    color: white;
+    font-size: 15px;
+    font-weight: 850;
+    cursor: pointer;
+    box-shadow: 0 14px 30px rgba(37, 99, 235, 0.22);
+}
+
+.sk-auth-primary:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+.sk-auth-switch {
+    margin-top: 18px;
+    text-align: center;
+    color: #64748b;
+    font-size: 14px;
+}
+
+.sk-auth-switch button {
+    border: none;
+    background: transparent;
+    color: #2563eb;
+    font-weight: 850;
+    cursor: pointer;
+}

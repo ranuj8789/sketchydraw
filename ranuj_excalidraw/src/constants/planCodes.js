@@ -1,0 +1,4 @@
+export const PLAN_CODES = Object.freeze({
+    INDIA_MONTHLY: "SKETCHY_MONTHLY_349",
+    GLOBAL_MONTHLY: "SKETCHY_MONTHLY_USD_4",
+});

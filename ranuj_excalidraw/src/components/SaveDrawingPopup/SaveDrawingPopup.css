@@ -1,0 +1,100 @@
+.save-popup-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.save-popup {
+    width: 420px;
+    max-width: calc(100vw - 32px);
+    background: #ffffff;
+    border-radius: 18px;
+    padding: 24px;
+    box-shadow: 0 24px 80px rgba(15, 23, 42, 0.28);
+    position: relative;
+}
+
+.save-popup-close {
+    position: absolute;
+    right: 14px;
+    top: 12px;
+    border: none;
+    background: transparent;
+    font-size: 24px;
+    cursor: pointer;
+}
+
+.save-popup h2 {
+    margin: 0;
+    font-size: 22px;
+    color: #111827;
+}
+
+.save-popup-subtitle {
+    margin: 8px 0 20px;
+    color: #6b7280;
+    font-size: 14px;
+}
+
+.save-popup-field {
+    display: block;
+    margin-bottom: 14px;
+}
+
+.save-popup-field span {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+}
+
+.save-popup-field input,
+.save-popup-field textarea {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 14px;
+    outline: none;
+}
+
+.save-popup-field input:focus,
+.save-popup-field textarea:focus {
+    border-color: #2563eb;
+}
+
+.save-popup-message {
+    margin: 12px 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #f3f4f6;
+    color: #374151;
+    font-size: 14px;
+}
+
+.save-popup-primary,
+.save-popup-secondary {
+    width: 100%;
+    border: none;
+    border-radius: 10px;
+    padding: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 10px;
+}
+
+.save-popup-primary {
+    background: #2563eb;
+    color: white;
+}
+
+.save-popup-secondary {
+    background: #f3f4f6;
+    color: #374151;
+}

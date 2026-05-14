@@ -1,0 +1,119 @@
+.sub-popup-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.48);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.sub-popup {
+    width: 420px;
+    max-width: calc(100vw - 32px);
+    background: #ffffff;
+    border-radius: 22px;
+    padding: 26px;
+    position: relative;
+    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24);
+}
+
+.sub-popup-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 34px;
+    height: 34px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    font-size: 22px;
+    line-height: 1;
+    padding: 0;
+}
+
+.sub-popup-badge {
+    display: inline-flex;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: #111827;
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    margin-bottom: 12px;
+}
+
+.sub-popup h2 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 25px;
+}
+
+.sub-popup-subtitle {
+    margin: 10px 0 18px;
+    color: #475569;
+    line-height: 1.5;
+}
+
+.sub-popup-price {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    margin-bottom: 18px;
+}
+
+.sub-popup-price span {
+    font-size: 26px;
+    font-weight: 900;
+    color: #2563eb;
+}
+
+.sub-popup-price strong {
+    font-size: 52px;
+    line-height: 1;
+    color: #111827;
+}
+
+.sub-popup-price em {
+    font-style: normal;
+    color: #64748b;
+    font-weight: 700;
+}
+
+.sub-popup-features {
+    display: grid;
+    gap: 10px;
+    margin-bottom: 18px;
+    color: #0f172a;
+    font-weight: 700;
+}
+
+.sub-popup-message {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    color: #334155;
+    border-radius: 14px;
+    padding: 10px 12px;
+    margin-bottom: 14px;
+    font-size: 13px;
+}
+
+.sub-popup-primary {
+    width: 100%;
+    background: #2563eb;
+    border-color: #2563eb;
+    color: #ffffff;
+    font-weight: 900;
+    margin-bottom: 10px;
+}
+
+.sub-popup-primary:hover {
+    background: #1d4ed8;
+}
+
+.sub-popup-secondary {
+    width: 100%;
+    background: #ffffff;
+    color: #0f172a;
+}

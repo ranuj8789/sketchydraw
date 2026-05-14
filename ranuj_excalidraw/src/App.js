@@ -1,12 +1,64 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import "./App.css";
+
 import Toolbar from "./components/Toolbar";
 import Sidebar from "./components/Sidebar";
-import CanvasBoard from "./components/CanvasBoard";
+import CanvasBoard from "./components/CanvasBoard/CanvasBoard";
+import { verifyEmail, resetPassword } from "./api/authApi";
 
 const COLORS = ["#111827", "#ef4444", "#2563eb", "#16a34a", "#ca8a04", "#9333ea"];
 
-export default function App() {
+function VerifyPage() {
+  const [status, setStatus] = useState("Verifying your email...");
+  const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+
+    if (!token) {
+      setStatus("Invalid verification link. Token missing.");
+      setSuccess(false);
+      return;
+    }
+
+    verifyEmail(token)
+        .then((data) => {
+          setStatus(data?.message || "Email verified successfully. You can now login.");
+          setSuccess(true);
+        })
+        .catch((err) => {
+          setStatus(err?.message || "Email verification failed.");
+          setSuccess(false);
+        });
+  }, []);
+
+  return (
+      <div className="app-shell">
+        <div className="verify-page">
+          <div className="verify-card">
+            <h1>Sketchy</h1>
+            <h2>Email Verification</h2>
+
+            <p className={success ? "verify-success" : "verify-message"}>
+              {status}
+            </p>
+
+            <button
+                type="button"
+                onClick={() => {
+                  window.location.href = "/";
+                }}
+            >
+              Go to SketchyDraw
+            </button>
+          </div>
+        </div>
+      </div>
+  );
+}
+
+function SketchyDrawPage() {
   const [tool, setTool] = useState("select");
   const [stroke, setStroke] = useState("#111827");
   const [elements, setElements] = useState([]);
@@ -48,6 +100,7 @@ export default function App() {
 
   const undo = () => {
     if (historyIndex === 0) return;
+
     const nextIndex = historyIndex - 1;
     setHistoryIndex(nextIndex);
     setElements(JSON.parse(JSON.stringify(history[nextIndex])));
@@ -56,6 +109,7 @@ export default function App() {
 
   const redo = () => {
     if (historyIndex >= history.length - 1) return;
+
     const nextIndex = historyIndex + 1;
     setHistoryIndex(nextIndex);
     setElements(JSON.parse(JSON.stringify(history[nextIndex])));
@@ -153,6 +207,7 @@ export default function App() {
 
   const exportPNG = (canvas) => {
     if (!canvas) return;
+
     const link = document.createElement("a");
     link.download = "drawing-board.png";
     link.href = canvas.toDataURL("image/png");
@@ -197,4 +252,126 @@ export default function App() {
         </div>
       </div>
   );
+}
+
+function ResetPasswordPage() {
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [status, setStatus] = useState("");
+  const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get("token");
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!token) {
+      setStatus("Invalid reset link. Token missing.");
+      setSuccess(false);
+      return;
+    }
+
+    if (!password || password.length < 6) {
+      setStatus("Password must be at least 6 characters.");
+      setSuccess(false);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setStatus("Passwords do not match.");
+      setSuccess(false);
+      return;
+    }
+
+    setLoading(true);
+    setStatus("");
+
+    try {
+      const data = await resetPassword({
+        token,
+        newPassword: password,
+      });
+
+      setStatus(data?.message || "Password reset successfully. You can now login.");
+      setSuccess(true);
+      setPassword("");
+      setConfirmPassword("");
+    } catch (err) {
+      setStatus(err?.message || "Password reset failed.");
+      setSuccess(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+      <div className="app-shell">
+        <div className="verify-page">
+          <div className="verify-card">
+            <h1>Sketchy</h1>
+            <h2>Reset Password</h2>
+
+            <form onSubmit={handleSubmit}>
+              <label className="reset-field">
+                <span>New password</span>
+                <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter new password"
+                    required
+                />
+              </label>
+
+              <label className="reset-field">
+                <span>Confirm password</span>
+                <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm new password"
+                    required
+                />
+              </label>
+
+              {status && (
+                  <p className={success ? "verify-success" : "verify-message"}>
+                    {status}
+                  </p>
+              )}
+
+              <button type="submit" disabled={loading}>
+                {loading ? "Resetting..." : "Reset Password"}
+              </button>
+            </form>
+
+            <button
+                type="button"
+                style={{ marginTop: 12 }}
+                onClick={() => {
+                  window.location.href = "/";
+                }}
+            >
+              Go to SketchyDraw
+            </button>
+          </div>
+        </div>
+      </div>
+  );
+}
+
+export default function App() {
+  const path = window.location.pathname;
+
+  if (path === "/verify") {
+    return <VerifyPage />;
+  }
+
+  if (path === "/reset-password") {
+    return <ResetPasswordPage />;
+  }
+
+  return <SketchyDrawPage />;
 }

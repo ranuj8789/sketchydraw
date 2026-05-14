@@ -1,63 +1,64 @@
 import React, { useEffect, useRef, useState } from "react";
-import TextEditor from "./TextEditor";
-import { getPointerPosition } from "../utils/geometry";
-import { findBindableShapeNearPoint } from "../canvas/canvasConnectionHelpers";
-import { exportUndoRedoAnimationVideo } from "../canvas/exportAnimationVideo";
+import TextEditor from "./../TextEditor";
+import { getPointerPosition } from "../../utils/geometry";
+import { findBindableShapeNearPoint } from "../../canvas/canvasConnectionHelpers";
+import { exportUndoRedoAnimationVideo } from "../../canvas/exportAnimationVideo";
 import {
     createDrawingJson,
-    downloadDrawingJson,
     readDrawingJsonFile,
     loadDrawingJson,
-} from "../canvas/drawingStorage";
+} from "../../canvas/drawingStorage";
 import {
     getElementBounds,
     getResizeHandleAtPoint,
-} from "../utils/elementBounds";
-import { resizeElement } from "../utils/resize";
+} from "../../utils/elementBounds";
+import { resizeElement } from "../../utils/resize";
 import {
     AUTO_SELECT_TYPES,
     SHAPE_TYPES,
     LINE_TYPES,
     TEXT_CONTAINER_TYPES,
-} from "../canvas/canvasConstants";
+} from "../../canvas/canvasConstants";
 import {
     buildShapeDraft,
     buildLineDraft,
     buildPencilDraft,
-} from "../canvas/canvasFactories";
+} from "../../canvas/canvasFactories";
 import {
     moveElement,
     updateDrawnElement,
-} from "../canvas/canvasElementOps";
+} from "../../canvas/canvasElementOps";
 import {
     findTopElementAtPoint,
     getCurveHandleAtPoint,
-} from "../canvas/canvasHelpers";
+} from "../../canvas/canvasHelpers";
 import {
     normalizeSelectionRect,
     rectsIntersect,
-} from "../canvas/canvasBoardUtils";
-import { getCursorForHandle } from "../canvas/canvasCursor";
+} from "../../canvas/canvasBoardUtils";
+import { getCursorForHandle } from "../../canvas/canvasCursor";
 import {
     createTextElementHelper,
     updateTextElementHelper,
-} from "../canvas/canvasText";
+} from "../../canvas/canvasText";
 import {
     applyArrowStartBinding,
     updateArrowDuringDraw,
     finalizeArrowBinding,
     moveConnectedArrows,
-} from "../canvas/canvasArrowBindings";
-import { useCanvasResize } from "../canvas/useCanvasResize";
-import { useCanvasRender } from "../canvas/useCanvasRender";
-import { useCanvasKeyboardShortcuts } from "../canvas/useCanvasKeyboardShortcuts";
-import { screenToWorld, clampZoom } from "../canvas/canvasViewport";
-import BoardContextMenu from "./BoardContextMenu";
+} from "../../canvas/canvasArrowBindings";
+import { useCanvasResize } from "../../canvas/useCanvasResize";
+import { useCanvasRender } from "../../canvas/useCanvasRender";
+import { useCanvasKeyboardShortcuts } from "../../canvas/useCanvasKeyboardShortcuts";
+import { screenToWorld, clampZoom } from "../../canvas/canvasViewport";
+import BoardContextMenu from "../BoardContextMenu";
 import {
     exportCanvasToPDF,
     exportCanvasToSVG,
     exportCanvasToPNG,
-} from "./../utils/exportBoard";
+} from "../../utils/exportBoard";
+import { isLoggedIn, getUser,isPaidUser } from "../../utils/auth";
+import { saveDrawing } from "../../api/drawingApi";
 
 export default function CanvasBoard({
                                         tool,
@@ -81,6 +82,7 @@ export default function CanvasBoard({
         y: 0,
     });
     const [dragState, setDragState] = useState(null);
+    const [isSavingDrawing, setIsSavingDrawing] = useState(false);
     const [editor, setEditor] = useState(null);
     const [selectionBox, setSelectionBox] = useState(null);
     const [clipboard, setClipboard] = useState([]);
@@ -89,11 +91,13 @@ export default function CanvasBoard({
     const [isVideoExporting, setIsVideoExporting] = useState(false);
     const [videoExportProgress, setVideoExportProgress] = useState(0);
     const videoExportingRef = useRef(false);
+
     const [viewport, setViewport] = useState({
         zoom: 1,
         offsetX: 0,
         offsetY: 0,
     });
+
     const [isSpacePressed, setIsSpacePressed] = useState(false);
 
     useCanvasResize(wrapRef, setCanvasSize);
@@ -193,16 +197,61 @@ export default function CanvasBoard({
         setElements((prev) => prev.map((el) => (el.id === id ? updater(el) : el)));
     };
 
-    const exportDrawingJson = () => {
-        const drawingJson = createDrawingJson({
+    const exportDrawingJson = async () => {
+        if (!isLoggedIn()) {
+            alert("Please login first to save your drawing.");
+            return;
+        }
+
+        if (!isPaidUser()) {
+            alert("Active subscription required to save drawings.");
+            // better: setSubscriptionOpen(true);
+            return;
+        }
+
+        if (isSavingDrawing) {
+            return;
+        }
+
+        const user = getUser();
+
+        const title =
+            prompt("Enter drawing title", `Drawing ${new Date().toLocaleString()}`) ||
+            "Untitled Drawing";
+
+        const localDrawingJson = createDrawingJson({
             elements,
             viewport,
             canvasSize,
-            name: "Sketchy Drawing",
+            name: title,
         });
 
-        downloadDrawingJson(drawingJson, "sketchy-drawing.json");
+        const drawingPayload = {
+            version: 1,
+            app: "SketchyDraw",
+            title,
+            userEmail: user?.email,
+            data: localDrawingJson,
+            savedAt: new Date().toISOString(),
+        };
+
+        setIsSavingDrawing(true);
+
+        try {
+            const saved = await saveDrawing({
+                title,
+                drawingJson: JSON.stringify(drawingPayload),
+            });
+
+            alert(`Drawing saved successfully. ID: ${saved.id}`);
+        } catch (error) {
+            console.error("Drawing save failed:", error);
+            alert(error?.message || "Failed to save drawing.");
+        } finally {
+            setIsSavingDrawing(false);
+        }
     };
+
     const ANIMATION_SPEED_OPTIONS = [
         {
             value: "slow",
@@ -994,12 +1043,15 @@ export default function CanvasBoard({
                 >
                     Export
                 </button>
+
                 <button
                     className="export-btn"
                     onClick={exportDrawingJson}
+                    disabled={isSavingDrawing}
                 >
-                    Save JSON
+                    {isSavingDrawing ? "Saving..." : "Save Drawing"}
                 </button>
+
                 <label className="export-btn">
                     Open JSON
                     <input
@@ -1009,6 +1061,7 @@ export default function CanvasBoard({
                         style={{ display: "none" }}
                     />
                 </label>
+
                 <select
                     className="animation-speed-select"
                     value={animationSpeed}
@@ -1021,6 +1074,7 @@ export default function CanvasBoard({
                         </option>
                     ))}
                 </select>
+
                 <button
                     className="export-btn"
                     onClick={downloadUndoRedoVideo}
