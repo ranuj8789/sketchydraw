@@ -22,6 +22,12 @@ public class SavedDrawing {
     @Column(nullable = false, length = 150)
     private String title;
 
+    @Column(name = "group_name", length = 150)
+    private String groupName = "My Workspace";
+
+    @Column(length = 1000)
+    private String description;
+
     @Column(columnDefinition = "TEXT", nullable = false)
     private String drawingJson;
 

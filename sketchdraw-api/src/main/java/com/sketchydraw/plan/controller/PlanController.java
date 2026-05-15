@@ -19,4 +19,9 @@ public class PlanController {
     public List<Plan> getPlans() {
         return planRepository.findByActiveTrueOrderByPriceAsc();
     }
+
+    @GetMapping("/active")
+    public List<Plan> getActivePlans() {
+        return planRepository.findByActiveTrueOrderByPriceAsc();
+    }
 }

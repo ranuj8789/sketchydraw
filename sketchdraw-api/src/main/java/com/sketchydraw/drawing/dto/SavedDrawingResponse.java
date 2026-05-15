@@ -10,6 +10,9 @@ import java.time.LocalDateTime;
 public class SavedDrawingResponse {
     private Long id;
     private String title;
+    private String groupName;
+    private String workspace;
+    private String description;
     private String drawingJson;
     private String drawingType;
     private LocalDateTime createdAt;

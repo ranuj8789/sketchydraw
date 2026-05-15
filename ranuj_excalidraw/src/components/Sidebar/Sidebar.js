@@ -1,5 +1,5 @@
 import React from "react";
-import { FONT_FAMILY_OPTIONS, FONT_SIZE_OPTIONS } from "../canvas/textStyle";
+import { FONT_FAMILY_OPTIONS, FONT_SIZE_OPTIONS } from "../../canvas/textStyle";
 import {
     Pencil,
     Square,
@@ -8,14 +8,15 @@ import {
     MousePointer2,
     Eraser,
     Type,
-    Trash2,
     MoveRight,
     Diamond,
-    Spline,
+    Hand,
 } from "lucide-react";
+import "./Sidebar.css";
 
 const TOOLS = [
     { id: "select", label: "Select", icon: MousePointer2 },
+    { id: "hand", label: "Hand", icon: Hand },
     { id: "pencil", label: "Pencil", icon: Pencil },
     { id: "line", label: "Line", icon: Slash },
     { id: "arrow", label: "Arrow", icon: MoveRight },
@@ -47,8 +48,15 @@ export default function Sidebar({
 
     return (
         <div className="sidebar">
+            <div className="sidebar-logo-box">
+                <div className="sidebar-logo-text">
+                    <strong>SketchyDraw</strong>
+                    <span>Draw ideas fast</span>
+                </div>
+            </div>
+
             <div className="panel">
-                <h3>Tools</h3>
+                <h3>Sketchydraw Toolbar</h3>
 
                 <div className="tool-grid">
                     {TOOLS.map((item) => {
@@ -57,6 +65,7 @@ export default function Sidebar({
                         return (
                             <button
                                 key={item.id}
+                                type="button"
                                 className={`tool-btn ${tool === item.id ? "active" : ""}`}
                                 onClick={() => setTool(item.id)}
                             >
@@ -75,9 +84,11 @@ export default function Sidebar({
                     {colors.map((color) => (
                         <button
                             key={color}
+                            type="button"
                             className={`color-dot ${stroke === color ? "selected" : ""}`}
                             style={{ backgroundColor: color }}
                             onClick={() => setStroke(color)}
+                            aria-label={`Select ${color}`}
                         />
                     ))}
                 </div>
@@ -90,6 +101,30 @@ export default function Sidebar({
                     <>
                         <p>Type: {selectedElement.type}</p>
                         <p>Color: {selectedElement.stroke}</p>
+
+                        {isLineLike && (
+                            <div className="text-format-panel">
+                                <h4>Line Style</h4>
+
+                                <div className="text-format-row">
+                                    <button
+                                        type="button"
+                                        className={!isCurved ? "active" : ""}
+                                        onClick={toggleSelectedLineCurve}
+                                    >
+                                        Straight
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        className={isCurved ? "active" : ""}
+                                        onClick={toggleSelectedLineCurve}
+                                    >
+                                        Curved
+                                    </button>
+                                </div>
+                            </div>
+                        )}
 
                         {isTextSelected && (
                             <div className="text-format-panel">
@@ -138,40 +173,34 @@ export default function Sidebar({
 
                                 <p>Font size</p>
                                 <div className="text-format-row">
-                                    {Object.entries(FONT_SIZE_OPTIONS).map(
-                                        ([key, option]) => (
-                                            <button
-                                                type="button"
-                                                key={key}
-                                                className={
-                                                    selectedElement.fontSize === option.fontSize
-                                                        ? "active"
-                                                        : ""
-                                                }
-                                                onClick={() =>
-                                                    updateSelectedElementStyle?.({
-                                                        fontSize: option.fontSize,
-                                                        lineHeight: option.lineHeight,
-                                                    })
-                                                }
-                                            >
-                                                {option.label}
-                                            </button>
-                                        )
-                                    )}
+                                    {Object.entries(FONT_SIZE_OPTIONS).map(([key, option]) => (
+                                        <button
+                                            type="button"
+                                            key={key}
+                                            className={
+                                                selectedElement.fontSize === option.fontSize
+                                                    ? "active"
+                                                    : ""
+                                            }
+                                            onClick={() =>
+                                                updateSelectedElementStyle?.({
+                                                    fontSize: option.fontSize,
+                                                    lineHeight: option.lineHeight,
+                                                })
+                                            }
+                                        >
+                                            {option.label}
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
                         )}
 
-                        {isLineLike && (
-                            <button onClick={toggleSelectedLineCurve}>
-                                <Spline size={14} />
-                                {isCurved ? "Convert to Straight" : "Convert to Curved"}
-                            </button>
-                        )}
-
-                        <button onClick={deleteSelected}>
-                            <Trash2 size={14} />
+                        <button
+                            type="button"
+                            className="delete-selected-btn"
+                            onClick={deleteSelected}
+                        >
                             Delete Selected
                         </button>
                     </>

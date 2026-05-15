@@ -1,8 +1,4 @@
-import { apiGet, apiPost, publicGet } from "./apiClient";
-
-export function getPlans() {
-    return publicGet("/api/plans");
-}
+import { apiGet, apiPost } from "./apiClient";
 
 export function getSubscriptionStatus() {
     return apiGet("/api/payment/status");

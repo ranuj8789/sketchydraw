@@ -2,10 +2,16 @@ package com.sketchydraw.payment.dto;
 
 import lombok.Getter;
 import lombok.Setter;
-import com.sketchydraw.plan.enums.PlanCode;
 
 @Getter
 @Setter
 public class CreatePaymentRequest {
-    private PlanCode planCode;
+
+    /*
+     * Frontend sends plain DB plan code:
+     * { "planCode": "SKETCHY_MONTHLY_349" }
+     *
+     * Do not use enum here because plans are DB-driven.
+     */
+    private String planCode;
 }

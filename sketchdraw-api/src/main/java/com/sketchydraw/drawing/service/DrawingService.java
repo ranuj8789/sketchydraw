@@ -21,6 +21,7 @@ public class DrawingService {
     private final UserRepository userRepository;
     private final SavedDrawingRepository savedDrawingRepository;
     private final SubscriptionGuardService subscriptionGuardService;
+    private final DrawingGroupService drawingGroupService;
 
     public SavedDrawingResponse saveDrawing(String email, SaveDrawingRequest request) {
         User user = getUser(email);
@@ -28,6 +29,13 @@ public class DrawingService {
         subscriptionGuardService.requireActiveSubscription(user.getId());
 
         validateRequest(request);
+
+        String groupName = resolveGroupName(request);
+        String description = request.getDescription() == null
+                ? ""
+                : request.getDescription().trim();
+
+        drawingGroupService.createGroupIfMissing(email, groupName);
 
         SavedDrawing drawing;
 
@@ -41,6 +49,8 @@ public class DrawingService {
         }
 
         drawing.setTitle(request.getTitle().trim());
+        drawing.setGroupName(groupName);
+        drawing.setDescription(description);
         drawing.setDrawingJson(request.getDrawingJson());
         drawing.setDrawingType("EXCALIDRAW");
         drawing.setUpdatedAt(LocalDateTime.now());
@@ -60,6 +70,9 @@ public class DrawingService {
                 .map(d -> new DrawingListResponse(
                         d.getId(),
                         d.getTitle(),
+                        normalizeSavedGroup(d.getGroupName()),
+                        normalizeSavedGroup(d.getGroupName()),
+                        d.getDescription(),
                         d.getDrawingType(),
                         d.getUpdatedAt()
                 ))
@@ -107,10 +120,35 @@ public class DrawingService {
         }
     }
 
+    private String resolveGroupName(SaveDrawingRequest request) {
+        if (request.getGroupName() != null && !request.getGroupName().isBlank()) {
+            return request.getGroupName().trim();
+        }
+
+        if (request.getWorkspace() != null && !request.getWorkspace().isBlank()) {
+            return request.getWorkspace().trim();
+        }
+
+        return DrawingGroupService.DEFAULT_GROUP;
+    }
+
+    private String normalizeSavedGroup(String groupName) {
+        if (groupName == null || groupName.isBlank()) {
+            return DrawingGroupService.DEFAULT_GROUP;
+        }
+
+        return groupName.trim();
+    }
+
     private SavedDrawingResponse toResponse(SavedDrawing drawing) {
+        String groupName = normalizeSavedGroup(drawing.getGroupName());
+
         return new SavedDrawingResponse(
                 drawing.getId(),
                 drawing.getTitle(),
+                groupName,
+                groupName,
+                drawing.getDescription(),
                 drawing.getDrawingJson(),
                 drawing.getDrawingType(),
                 drawing.getCreatedAt(),

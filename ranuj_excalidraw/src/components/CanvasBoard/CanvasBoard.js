@@ -1,13 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
+import MyDrawingsPopup from "../MyDrawingsPopup/MyDrawingsPopup";
 import TextEditor from "./../TextEditor";
 import { getPointerPosition } from "../../utils/geometry";
 import { findBindableShapeNearPoint } from "../../canvas/canvasConnectionHelpers";
-import { exportUndoRedoAnimationVideo } from "../../canvas/exportAnimationVideo";
-import {
-    createDrawingJson,
-    readDrawingJsonFile,
-    loadDrawingJson,
-} from "../../canvas/drawingStorage";
 import {
     getElementBounds,
     getResizeHandleAtPoint,
@@ -50,15 +45,20 @@ import {
 import { useCanvasResize } from "../../canvas/useCanvasResize";
 import { useCanvasRender } from "../../canvas/useCanvasRender";
 import { useCanvasKeyboardShortcuts } from "../../canvas/useCanvasKeyboardShortcuts";
-import { screenToWorld, clampZoom } from "../../canvas/canvasViewport";
+import { screenToWorld } from "../../canvas/canvasViewport";
 import BoardContextMenu from "../BoardContextMenu";
 import {
     exportCanvasToPDF,
     exportCanvasToSVG,
     exportCanvasToPNG,
 } from "../../utils/exportBoard";
-import { isLoggedIn, getUser,isPaidUser } from "../../utils/auth";
-import { saveDrawing } from "../../api/drawingApi";
+
+import CanvasBoardActions from "./CanvasBoardActions/CanvasBoardActions";
+import { useSaveDrawing } from "./useSaveDrawing";
+import { useVideoExport } from "./useVideoExport";
+import { useDrawingImport } from "./useDrawingImport";
+import SaveDrawingPopup from "../SaveDrawingPopup/SaveDrawingPopup";
+import { DEFAULT_GROUP, DEFAULT_TITLE } from "../DrawingGroupStore/drawingGroupStore";
 
 export default function CanvasBoard({
                                         tool,
@@ -70,27 +70,34 @@ export default function CanvasBoard({
                                         setSelectedIds,
                                         commitHistory,
                                         onExport,
-                                        history
+                                        history,
+                                        showGrid,
                                     }) {
     const canvasRef = useRef(null);
     const wrapRef = useRef(null);
 
     const [canvasSize, setCanvasSize] = useState({ width: 1200, height: 700 });
+
     const [contextMenu, setContextMenu] = useState({
         visible: false,
         x: 0,
         y: 0,
     });
+
     const [dragState, setDragState] = useState(null);
-    const [isSavingDrawing, setIsSavingDrawing] = useState(false);
     const [editor, setEditor] = useState(null);
     const [selectionBox, setSelectionBox] = useState(null);
     const [clipboard, setClipboard] = useState([]);
     const [connectionHint, setConnectionHint] = useState(null);
-    const [animationSpeed, setAnimationSpeed] = useState("normal");
-    const [isVideoExporting, setIsVideoExporting] = useState(false);
-    const [videoExportProgress, setVideoExportProgress] = useState(0);
-    const videoExportingRef = useRef(false);
+    const [isSpacePressed, setIsSpacePressed] = useState(false);
+    const [myDrawingsOpen, setMyDrawingsOpen] = useState(false);
+
+    const [currentDrawingMeta, setCurrentDrawingMeta] = useState({
+        id: null,
+        title: DEFAULT_TITLE,
+        groupName: DEFAULT_GROUP,
+        description: "",
+    });
 
     const [viewport, setViewport] = useState({
         zoom: 1,
@@ -98,7 +105,41 @@ export default function CanvasBoard({
         offsetY: 0,
     });
 
-    const [isSpacePressed, setIsSpacePressed] = useState(false);
+    const {
+        isSavingDrawing,
+        savePopupOpen,
+        saveMessage,
+        openSavePopup,
+        closeSavePopup,
+        saveCurrentDrawing,
+    } = useSaveDrawing({
+        elements,
+        viewport,
+        canvasSize,
+        currentDrawingMeta,
+        setCurrentDrawingMeta,
+    });
+
+    const {
+        animationSpeed,
+        setAnimationSpeed,
+        animationSpeedOptions,
+        isVideoExporting,
+        videoExportProgress,
+        downloadUndoRedoVideo,
+    } = useVideoExport({
+        history,
+        elements,
+        canvasSize,
+    });
+
+    const { importDrawingJson } = useDrawingImport({
+        setElements,
+        setSelectedIds,
+        setViewport,
+        setCanvasSize,
+        commitHistory,
+    });
 
     useCanvasResize(wrapRef, setCanvasSize);
 
@@ -119,18 +160,16 @@ export default function CanvasBoard({
         selectedIds: renderSelectedIds,
         connectionHint,
         viewport,
+        showGrid,
     });
 
-    useCanvasKeyboardShortcuts({
-        editor,
-        selectedIds,
-        elements,
-        clipboard,
-        setClipboard,
-        setElements,
-        setSelectedIds,
-        commitHistory,
-    });
+    const closeContextMenu = () => {
+        setContextMenu({
+            visible: false,
+            x: 0,
+            y: 0,
+        });
+    };
 
     useEffect(() => {
         const onKeyDown = (e) => {
@@ -150,6 +189,7 @@ export default function CanvasBoard({
                 closeContextMenu();
             }
         };
+
 
         const onKeyUp = (e) => {
             const isTyping =
@@ -182,7 +222,7 @@ export default function CanvasBoard({
 
             const canvas = canvasRef.current;
             if (canvas) {
-                canvas.style.cursor = isSpacePressed ? "grab" : "default";
+                canvas.style.cursor = isSpacePressed || tool === "hand" ? "grab" : "default";
             }
 
             setSelectionBox(null);
@@ -191,122 +231,154 @@ export default function CanvasBoard({
 
         window.addEventListener("mouseup", handleWindowMouseUp);
         return () => window.removeEventListener("mouseup", handleWindowMouseUp);
-    }, [isSpacePressed]);
+    }, [isSpacePressed, tool]);
 
-    const updateElement = (id, updater) => {
-        setElements((prev) => prev.map((el) => (el.id === id ? updater(el) : el)));
-    };
+    useEffect(() => {
+        const handleAlignSelected = (event) => {
+            const type = event.detail?.type;
 
-    const exportDrawingJson = async () => {
-        if (!isLoggedIn()) {
-            alert("Please login first to save your drawing.");
-            return;
-        }
+            if (!type || selectedIds.length < 2) {
+                alert("Please select at least 2 items to align.");
+                return;
+            }
 
-        if (!isPaidUser()) {
-            alert("Active subscription required to save drawings.");
-            // better: setSubscriptionOpen(true);
-            return;
-        }
+            const selectedSet = new Set(selectedIds);
+            const selectedElements = elements.filter((el) => selectedSet.has(el.id));
 
-        if (isSavingDrawing) {
-            return;
-        }
+            if (selectedElements.length < 2) {
+                alert("Please select at least 2 items to align.");
+                return;
+            }
 
-        const user = getUser();
+            const getBounds = (el) => {
+                const bounds = getElementBounds(el);
 
-        const title =
-            prompt("Enter drawing title", `Drawing ${new Date().toLocaleString()}`) ||
-            "Untitled Drawing";
+                if (bounds) {
+                    return bounds;
+                }
 
-        const localDrawingJson = createDrawingJson({
-            elements,
-            viewport,
-            canvasSize,
-            name: title,
-        });
+                if (el.type === "line" || el.type === "arrow") {
+                    const minX = Math.min(el.x1 || 0, el.x2 || 0);
+                    const minY = Math.min(el.y1 || 0, el.y2 || 0);
+                    const maxX = Math.max(el.x1 || 0, el.x2 || 0);
+                    const maxY = Math.max(el.y1 || 0, el.y2 || 0);
 
-        const drawingPayload = {
-            version: 1,
-            app: "SketchyDraw",
-            title,
-            userEmail: user?.email,
-            data: localDrawingJson,
-            savedAt: new Date().toISOString(),
+                    return {
+                        x: minX,
+                        y: minY,
+                        w: maxX - minX,
+                        h: maxY - minY,
+                    };
+                }
+
+                return {
+                    x: el.x || 0,
+                    y: el.y || 0,
+                    w: el.w || 0,
+                    h: el.h || 0,
+                };
+            };
+
+            const moveBy = (el, dx, dy) => {
+                if (el.type === "line" || el.type === "arrow") {
+                    return {
+                        ...el,
+                        x1: (el.x1 || 0) + dx,
+                        y1: (el.y1 || 0) + dy,
+                        x2: (el.x2 || 0) + dx,
+                        y2: (el.y2 || 0) + dy,
+                    };
+                }
+
+                if (el.type === "pencil") {
+                    return {
+                        ...el,
+                        points: (el.points || []).map((point) => ({
+                            ...point,
+                            x: point.x + dx,
+                            y: point.y + dy,
+                        })),
+                    };
+                }
+
+                return {
+                    ...el,
+                    x: (el.x || 0) + dx,
+                    y: (el.y || 0) + dy,
+                };
+            };
+
+            const boundsList = selectedElements.map((el) => ({
+                id: el.id,
+                bounds: getBounds(el),
+            }));
+
+            const minX = Math.min(...boundsList.map((item) => item.bounds.x));
+            const minY = Math.min(...boundsList.map((item) => item.bounds.y));
+            const maxX = Math.max(
+                ...boundsList.map((item) => item.bounds.x + item.bounds.w)
+            );
+            const maxY = Math.max(
+                ...boundsList.map((item) => item.bounds.y + item.bounds.h)
+            );
+
+            const centerX = (minX + maxX) / 2;
+            const centerY = (minY + maxY) / 2;
+
+            const next = elements.map((el) => {
+                if (!selectedSet.has(el.id)) {
+                    return el;
+                }
+
+                const bounds = getBounds(el);
+
+                let dx = 0;
+                let dy = 0;
+
+                if (type === "left") {
+                    dx = minX - bounds.x;
+                }
+
+                if (type === "center") {
+                    dx = centerX - (bounds.x + bounds.w / 2);
+                }
+
+                if (type === "right") {
+                    dx = maxX - (bounds.x + bounds.w);
+                }
+
+                if (type === "top") {
+                    dy = minY - bounds.y;
+                }
+
+                if (type === "middle") {
+                    dy = centerY - (bounds.y + bounds.h / 2);
+                }
+
+                if (type === "bottom") {
+                    dy = maxY - (bounds.y + bounds.h);
+                }
+
+                return moveBy(el, dx, dy);
+            });
+
+            setElements(next);
+            commitHistory(next);
         };
 
-        setIsSavingDrawing(true);
+        window.addEventListener("sketchydraw:align-selected", handleAlignSelected);
 
-        try {
-            const saved = await saveDrawing({
-                title,
-                drawingJson: JSON.stringify(drawingPayload),
-            });
-
-            alert(`Drawing saved successfully. ID: ${saved.id}`);
-        } catch (error) {
-            console.error("Drawing save failed:", error);
-            alert(error?.message || "Failed to save drawing.");
-        } finally {
-            setIsSavingDrawing(false);
-        }
-    };
-
-    const ANIMATION_SPEED_OPTIONS = [
-        {
-            value: "slow",
-            label: "Slow",
-            frameDelayMs: 800,
-        },
-        {
-            value: "normal",
-            label: "Normal",
-            frameDelayMs: 450,
-        },
-        {
-            value: "fast",
-            label: "Fast",
-            frameDelayMs: 220,
-        },
-        {
-            value: "superFast",
-            label: "Super Fast",
-            frameDelayMs: 100,
-        },
-    ];
-
-    const downloadUndoRedoVideo = async () => {
-        if (videoExportingRef.current) return;
-
-        const selectedSpeed =
-            ANIMATION_SPEED_OPTIONS.find(
-                (option) => option.value === animationSpeed
-            ) || ANIMATION_SPEED_OPTIONS[1];
-
-        videoExportingRef.current = true;
-        setIsVideoExporting(true);
-        setVideoExportProgress(0);
-
-        try {
-            await exportUndoRedoAnimationVideo({
-                historyStates: history || [],
-                currentElements: elements,
-                canvasSize,
-                fileName: `sketchy-animation-${selectedSpeed.value}.webm`,
-                fps: 30,
-                frameDelayMs: selectedSpeed.frameDelayMs,
-                onProgress: (progress) => {
-                    setVideoExportProgress(progress);
-                },
-            });
-        } catch (error) {
-            console.error("Video export failed:", error);
-            alert("Video export failed. Check browser console.");
-        } finally {
-            videoExportingRef.current = false;
-            setIsVideoExporting(false);
-            setVideoExportProgress(0);
-        }
+        return () => {
+            window.removeEventListener(
+                "sketchydraw:align-selected",
+                handleAlignSelected
+            );
+        };
+    }, [elements, selectedIds, setElements, commitHistory]);
+    const updateElement = (id, updater) => {
+        setElements((prev) =>
+            prev.map((el) => (el.id === id ? updater(el) : el))
+        );
     };
 
     const handleBoardRightClick = (e) => {
@@ -316,14 +388,6 @@ export default function CanvasBoard({
             visible: true,
             x: e.clientX,
             y: e.clientY,
-        });
-    };
-
-    const closeContextMenu = () => {
-        setContextMenu({
-            visible: false,
-            x: 0,
-            y: 0,
         });
     };
 
@@ -360,6 +424,7 @@ export default function CanvasBoard({
         const bounds = getElementBounds(target);
 
         setSelectedIds([target.id]);
+
         setDragState({
             mode: "resize",
             id: target.id,
@@ -378,9 +443,12 @@ export default function CanvasBoard({
     };
 
     const startMove = (target, point) => {
-        const idsToMove = selectedIds.includes(target.id) ? selectedIds : [target.id];
+        const idsToMove = selectedIds.includes(target.id)
+            ? selectedIds
+            : [target.id];
 
         setSelectedIds(idsToMove);
+
         setDragState({
             mode: "move",
             ids: idsToMove,
@@ -403,8 +471,20 @@ export default function CanvasBoard({
         });
     };
 
+    useCanvasKeyboardShortcuts({
+        editor,
+        selectedIds,
+        elements,
+        clipboard,
+        setClipboard,
+        setElements,
+        setSelectedIds,
+        commitHistory,
+    });
+
     const startMarqueeSelection = (point) => {
         setSelectedIds([]);
+
         setSelectionBox({
             x: point.x,
             y: point.y,
@@ -421,7 +501,10 @@ export default function CanvasBoard({
 
     const handleSelectModeMouseDown = (point) => {
         if (selectedIds.length === 1) {
-            const selectedElementObj = elements.find((el) => el.id === selectedIds[0]);
+            const selectedElementObj = elements.find(
+                (el) => el.id === selectedIds[0]
+            );
+
             const selectedHandle = getResizeHandleAtPoint(
                 selectedElementObj,
                 point.x,
@@ -478,33 +561,13 @@ export default function CanvasBoard({
 
         setElements((prev) => [...prev, finalDraft]);
         setSelectedIds([finalDraft.id]);
+
         setDragState({
             mode: "draw",
             id: finalDraft.id,
             startX: point.x,
             startY: point.y,
         });
-    };
-
-    const importDrawingJson = async (event) => {
-        const file = event.target.files?.[0];
-        if (!file) return;
-
-        try {
-            const json = await readDrawingJsonFile(file);
-            const loaded = loadDrawingJson(json);
-
-            setElements(loaded.elements);
-            setSelectedIds([]);
-            setViewport(loaded.viewport);
-            setCanvasSize(loaded.canvasSize);
-            commitHistory(loaded.elements);
-        } catch (error) {
-            alert("Invalid drawing JSON file");
-            console.error(error);
-        } finally {
-            event.target.value = "";
-        }
     };
 
     const onMouseDown = (event) => {
@@ -518,22 +581,40 @@ export default function CanvasBoard({
 
         if (event.button === 1) {
             event.preventDefault();
+
             setDragState({
                 mode: "pan",
                 startScreenX: rawPoint.x,
                 startScreenY: rawPoint.y,
             });
-            canvas.style.cursor = "grab";
+
+            canvas.style.cursor = "grabbing";
+            return;
+        }
+
+        if (tool === "hand" && event.button === 0) {
+            event.preventDefault();
+
+            setDragState({
+                mode: "pan",
+                startScreenX: rawPoint.x,
+                startScreenY: rawPoint.y,
+            });
+
+            canvas.style.cursor = "grabbing";
             return;
         }
 
         if (isSpacePressed && event.button === 0) {
+            event.preventDefault();
+
             setDragState({
                 mode: "pan",
                 startScreenX: rawPoint.x,
                 startScreenY: rawPoint.y,
             });
-            canvas.style.cursor = "grab";
+
+            canvas.style.cursor = "grabbing";
             return;
         }
 
@@ -545,6 +626,7 @@ export default function CanvasBoard({
             if (!target) return;
 
             const next = elements.filter((el) => el.id !== target.id);
+
             setElements(next);
             setSelectedIds([]);
             commitHistory(next);
@@ -583,7 +665,7 @@ export default function CanvasBoard({
         const rawPoint = getPointerPosition(event, canvas);
         const point = screenToWorld(rawPoint, viewport);
 
-        if (!dragState && isSpacePressed) {
+        if (!dragState && (isSpacePressed || tool === "hand")) {
             canvas.style.cursor = "grab";
         }
 
@@ -591,9 +673,14 @@ export default function CanvasBoard({
             let cursor = "default";
 
             if (selectedIds.length === 1) {
-                const selectedElementObj = elements.find((el) => el.id === selectedIds[0]);
+                const selectedElementObj = elements.find(
+                    (el) => el.id === selectedIds[0]
+                );
 
-                if (selectedElementObj?.type === "line" || selectedElementObj?.type === "arrow") {
+                if (
+                    selectedElementObj?.type === "line" ||
+                    selectedElementObj?.type === "arrow"
+                ) {
                     const curveHandle = getCurveHandleAtPoint(
                         selectedElementObj,
                         point,
@@ -618,7 +705,11 @@ export default function CanvasBoard({
                     }
                 } else {
                     const handle = selectedElementObj
-                        ? getResizeHandleAtPoint(selectedElementObj, point.x, point.y)
+                        ? getResizeHandleAtPoint(
+                            selectedElementObj,
+                            point.x,
+                            point.y
+                        )
                         : null;
 
                     if (handle) {
@@ -653,6 +744,7 @@ export default function CanvasBoard({
                 if (hint) {
                     snapPoint = hint.point;
                     snapShapeId = hint.shapeId;
+
                     setConnectionHint({
                         shapeId: hint.shapeId,
                         bindPoint: hint.point,
@@ -665,7 +757,9 @@ export default function CanvasBoard({
             }
 
             updateElement(dragState.id, (el) => {
-                if (!el || (el.type !== "line" && el.type !== "arrow")) return el;
+                if (!el || (el.type !== "line" && el.type !== "arrow")) {
+                    return el;
+                }
 
                 if (dragState.handle === "start") {
                     return {
@@ -706,6 +800,7 @@ export default function CanvasBoard({
                         cy2: point.y,
                     };
                 }
+
 
                 return el;
             });
@@ -812,7 +907,7 @@ export default function CanvasBoard({
 
             const canvas = canvasRef.current;
             if (canvas) {
-                canvas.style.cursor = isSpacePressed ? "grab" : "default";
+                canvas.style.cursor = isSpacePressed || tool === "hand" ? "grab" : "default";
             }
 
             return;
@@ -824,7 +919,9 @@ export default function CanvasBoard({
             setConnectionHint(null);
 
             const canvas = canvasRef.current;
-            if (canvas) canvas.style.cursor = "default";
+            if (canvas) {
+                canvas.style.cursor = "default";
+            }
 
             return;
         }
@@ -838,7 +935,7 @@ export default function CanvasBoard({
 
             const canvas = canvasRef.current;
             if (canvas) {
-                canvas.style.cursor = isSpacePressed ? "grab" : "default";
+                canvas.style.cursor = isSpacePressed || tool === "hand" ? "grab" : "default";
             }
 
             return;
@@ -870,7 +967,7 @@ export default function CanvasBoard({
 
         const canvas = canvasRef.current;
         if (canvas) {
-            canvas.style.cursor = isSpacePressed ? "grab" : "default";
+            canvas.style.cursor = isSpacePressed || tool === "hand" ? "grab" : "default";
         }
     };
 
@@ -932,6 +1029,74 @@ export default function CanvasBoard({
         });
     };
 
+    const getLocalSavedDrawingById = (id) => {
+        try {
+            const rows = JSON.parse(
+                localStorage.getItem("sketchydraw_saved_drawings_cache") || "[]"
+            );
+
+            return rows.find((item) => String(item.id) === String(id));
+        } catch {
+            return null;
+        }
+    };
+
+    const handleOpenSavedDrawing = (drawing) => {
+        try {
+            const localDrawing = getLocalSavedDrawingById(drawing.id);
+
+            const raw =
+                drawing.drawingJson ||
+                drawing.drawing_json ||
+                drawing.content ||
+                drawing.data ||
+                drawing.json ||
+                localDrawing?.drawingJson;
+
+            if (!raw) {
+                alert("Drawing data missing. Please save this drawing again once.");
+                return;
+            }
+
+            const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+            const actualDrawing = parsed.data || parsed;
+
+            setCurrentDrawingMeta({
+                id: drawing.id || parsed.id || null,
+                title: drawing.title || parsed.title || actualDrawing.name || DEFAULT_TITLE,
+                groupName:
+                    drawing.groupName ||
+                    parsed.groupName ||
+                    drawing.workspace ||
+                    parsed.workspace ||
+                    DEFAULT_GROUP,
+                description: drawing.description || parsed.description || "",
+            });
+
+            const nextElements = actualDrawing.elements || [];
+
+            setElements(nextElements);
+            setSelectedIds([]);
+
+            if (actualDrawing.viewport) {
+                setViewport(actualDrawing.viewport);
+            }
+
+            if (actualDrawing.canvas) {
+                setCanvasSize({
+                    width: actualDrawing.canvas.width || 1200,
+                    height: actualDrawing.canvas.height || 700,
+                });
+            }
+
+            commitHistory(nextElements);
+            setMyDrawingsOpen(false);
+        } catch (error) {
+            console.error("Open drawing failed", error);
+            alert("Unable to open drawing.");
+        }
+    };
+
     return (
         <div className="canvas-wrap" ref={wrapRef}>
             <div className="canvas-stage">
@@ -984,107 +1149,44 @@ export default function CanvasBoard({
                 />
             </div>
 
-            <div className="canvas-actions">
-                <div className="zoom-control">
-                    <button
-                        className="zoom-btn"
-                        onClick={() =>
-                            setViewport((v) => ({
-                                ...v,
-                                zoom: clampZoom(v.zoom * 0.9),
-                            }))
-                        }
-                    >
-                        −
-                    </button>
+            <CanvasBoardActions
+                viewport={viewport}
+                setViewport={setViewport}
+                onExport={onExport}
+                canvasRef={canvasRef}
+                drawingTitle={currentDrawingMeta.title || DEFAULT_TITLE}
+                onDrawingTitleChange={(title) =>
+                    setCurrentDrawingMeta((prev) => ({
+                        ...prev,
+                        title: title || "Untitled",
+                    }))
+                }
+                saveCurrentDrawing={openSavePopup}
+                openMyDrawings={() => setMyDrawingsOpen(true)}
+                importDrawingJson={importDrawingJson}
+                animationSpeed={animationSpeed}
+                setAnimationSpeed={setAnimationSpeed}
+                animationSpeedOptions={animationSpeedOptions}
+                downloadUndoRedoVideo={downloadUndoRedoVideo}
+                isVideoExporting={isVideoExporting}
+                videoExportProgress={videoExportProgress}
+            />
 
-                    <span
-                        className="zoom-value"
-                        onClick={() =>
-                            setViewport((v) => ({
-                                ...v,
-                                zoom: 1,
-                            }))
-                        }
-                        title="Click to reset zoom"
-                    >
-                        {Math.round(viewport.zoom * 100)}%
-                    </span>
+            <SaveDrawingPopup
+                open={savePopupOpen}
+                onClose={closeSavePopup}
+                onSave={saveCurrentDrawing}
+                onOpenDrawing={handleOpenSavedDrawing}
+                initialValues={currentDrawingMeta}
+                loading={isSavingDrawing}
+                message={saveMessage}
+            />
 
-                    <button
-                        className="zoom-btn"
-                        onClick={() =>
-                            setViewport((v) => ({
-                                ...v,
-                                zoom: clampZoom(v.zoom * 1.1),
-                            }))
-                        }
-                    >
-                        +
-                    </button>
-                </div>
-
-                <button
-                    className="reset-btn"
-                    onClick={() =>
-                        setViewport({
-                            zoom: 1,
-                            offsetX: 0,
-                            offsetY: 0,
-                        })
-                    }
-                >
-                    Reset
-                </button>
-
-                <button
-                    className="export-btn"
-                    onClick={() => onExport(canvasRef.current)}
-                >
-                    Export
-                </button>
-
-                <button
-                    className="export-btn"
-                    onClick={exportDrawingJson}
-                    disabled={isSavingDrawing}
-                >
-                    {isSavingDrawing ? "Saving..." : "Save Drawing"}
-                </button>
-
-                <label className="export-btn">
-                    Open JSON
-                    <input
-                        type="file"
-                        accept="application/json"
-                        onChange={importDrawingJson}
-                        style={{ display: "none" }}
-                    />
-                </label>
-
-                <select
-                    className="animation-speed-select"
-                    value={animationSpeed}
-                    onChange={(e) => setAnimationSpeed(e.target.value)}
-                    title="Animation speed"
-                >
-                    {ANIMATION_SPEED_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                            {option.label}
-                        </option>
-                    ))}
-                </select>
-
-                <button
-                    className="export-btn"
-                    onClick={downloadUndoRedoVideo}
-                    disabled={isVideoExporting}
-                >
-                    {isVideoExporting
-                        ? `Processing ${videoExportProgress}%`
-                        : "Download Video"}
-                </button>
-            </div>
+            <MyDrawingsPopup
+                open={myDrawingsOpen}
+                onClose={() => setMyDrawingsOpen(false)}
+                onOpenDrawing={handleOpenSavedDrawing}
+            />
         </div>
     );
 }

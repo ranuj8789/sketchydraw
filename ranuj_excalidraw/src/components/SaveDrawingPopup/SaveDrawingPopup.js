@@ -1,24 +1,68 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import {
+    DEFAULT_GROUP,
+    DEFAULT_TITLE,
+    getStoredGroups,
+    saveStoredGroup,
+} from "../DrawingGroupStore/drawingGroupStore";
 import "./SaveDrawingPopup.css";
 
 export default function SaveDrawingPopup({
                                              open,
                                              onClose,
                                              onSave,
+                                             initialValues,
                                              loading = false,
                                              message = "",
                                          }) {
-    const [title, setTitle] = useState("");
-    const [groupName, setGroupName] = useState("");
+    const [title, setTitle] = useState(DEFAULT_TITLE);
+    const [groupName, setGroupName] = useState(DEFAULT_GROUP);
     const [description, setDescription] = useState("");
+    const [groups, setGroups] = useState([DEFAULT_GROUP]);
+    const [showNewGroup, setShowNewGroup] = useState(false);
+    const [newGroupName, setNewGroupName] = useState("");
+
+    useEffect(() => {
+        if (!open) return;
+
+        setTitle(initialValues?.title || DEFAULT_TITLE);
+        setGroupName(initialValues?.groupName || DEFAULT_GROUP);
+        setDescription(initialValues?.description || "");
+        setGroups(getStoredGroups());
+        setShowNewGroup(false);
+        setNewGroupName("");
+    }, [open, initialValues]);
 
     if (!open) return null;
+
+    const finalTitle = title.trim() || DEFAULT_TITLE;
+    const finalGroup = groupName.trim() || DEFAULT_GROUP;
+
+    const handleAddGroup = () => {
+        const name = newGroupName.trim();
+        if (!name) return;
+
+        const nextGroups = saveStoredGroup(name);
+        setGroups(nextGroups);
+        setGroupName(name);
+        setNewGroupName("");
+        setShowNewGroup(false);
+    };
 
     const handleSubmit = (e) => {
         e.preventDefault();
 
-        const finalTitle = title.trim() || `Drawing ${new Date().toLocaleString()}`;
-        const finalGroup = groupName.trim() || "My Drawings";
+        saveStoredGroup(finalGroup);
+
+        onSave?.({
+            title: finalTitle,
+            groupName: finalGroup,
+            description: description.trim(),
+        });
+    };
+
+    const handleQuickSave = () => {
+        saveStoredGroup(finalGroup);
 
         onSave?.({
             title: finalTitle,
@@ -29,62 +73,96 @@ export default function SaveDrawingPopup({
 
     return (
         <div className="save-popup-backdrop" onMouseDown={onClose}>
-            <div className="save-popup" onMouseDown={(e) => e.stopPropagation()}>
-                <button className="save-popup-close" type="button" onClick={onClose}>
+            <div className="save-modal" onMouseDown={(e) => e.stopPropagation()}>
+                <button className="save-close" type="button" onClick={onClose}>
                     ×
                 </button>
 
-                <h2>Save your drawing</h2>
+                <div className="save-modal-header">
+                    <div className="save-icon">S</div>
+                    <div>
+                        <span>SketchyDraw Library</span>
+                        <h2>Save Drawing</h2>
+                        <p>Save this drawing inside a group/workspace.</p>
+                    </div>
+                </div>
 
-                <p className="save-popup-subtitle">
-                    Give your drawing a title and organize it inside a group.
-                </p>
+                <div className="save-preview-card">
+                    <div>
+                        <strong>{finalTitle}</strong>
+                        <span>{finalGroup}</span>
+                    </div>
 
-                <form onSubmit={handleSubmit}>
-                    <label className="save-popup-field">
+                    <button type="button" onClick={handleQuickSave} disabled={loading}>
+                        {loading ? "Saving..." : "Quick Save"}
+                    </button>
+                </div>
+
+                <form className="save-form" onSubmit={handleSubmit}>
+                    <label>
                         <span>Drawing title</span>
                         <input
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
-                            placeholder="Example: Login flow diagram"
+                            placeholder={DEFAULT_TITLE}
                             autoFocus
                         />
                     </label>
 
-                    <label className="save-popup-field">
-                        <span>Group / Folder</span>
-                        <input
-                            value={groupName}
-                            onChange={(e) => setGroupName(e.target.value)}
-                            placeholder="Example: System Design"
-                        />
+                    <label>
+                        <span>Group / Workspace</span>
+                        <div className="save-group-row">
+                            <select
+                                value={groupName}
+                                onChange={(e) => setGroupName(e.target.value)}
+                            >
+                                {groups.map((group) => (
+                                    <option key={group} value={group}>
+                                        {group}
+                                    </option>
+                                ))}
+                            </select>
+
+                            <button
+                                type="button"
+                                onClick={() => setShowNewGroup((v) => !v)}
+                            >
+                                + Group
+                            </button>
+                        </div>
                     </label>
 
-                    <label className="save-popup-field">
+                    {showNewGroup && (
+                        <div className="save-new-group-row">
+                            <input
+                                value={newGroupName}
+                                onChange={(e) => setNewGroupName(e.target.value)}
+                                placeholder="Example: Career, System Design, Display"
+                            />
+
+                            <button type="button" onClick={handleAddGroup}>
+                                Add
+                            </button>
+                        </div>
+                    )}
+
+                    <label>
                         <span>Description</span>
                         <textarea
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
-                            placeholder="Optional notes about this drawing"
+                            placeholder="Optional notes"
                             rows={3}
                         />
                     </label>
 
-                    {message && (
-                        <div className="save-popup-message">
-                            {message}
-                        </div>
-                    )}
+                    {message && <div className="save-message">{message}</div>}
 
-                    <button className="save-popup-primary" type="submit" disabled={loading}>
+                    <button className="save-primary" type="submit" disabled={loading}>
                         {loading ? "Saving..." : "Save Drawing"}
                     </button>
 
-                    <button
-                        className="save-popup-secondary"
-                        type="button"
-                        onClick={onClose}
-                    >
+                    <button className="save-secondary" type="button" onClick={onClose}>
                         Cancel
                     </button>
                 </form>

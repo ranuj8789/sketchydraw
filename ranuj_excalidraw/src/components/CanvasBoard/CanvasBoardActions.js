@@ -1,26 +1,60 @@
-import React from "react";
-import { clampZoom } from "../../canvas/canvasViewport";
+import React, { useEffect } from "react";
+import "./CanvasBoardActions.css";
+import { clampZoom } from "../../../canvas/canvasViewport";
 
 export default function CanvasBoardActions({
                                                viewport,
                                                setViewport,
                                                onExport,
                                                canvasRef,
+                                               drawingTitle = "Untitled",
+                                               onDrawingTitleChange,
                                                saveCurrentDrawing,
-                                               isSavingDrawing,
+                                               openMyDrawings,
                                                importDrawingJson,
                                                animationSpeed,
                                                setAnimationSpeed,
-                                               animationSpeedOptions,
+                                               animationSpeedOptions = [],
                                                downloadUndoRedoVideo,
                                                isVideoExporting,
                                                videoExportProgress,
                                            }) {
+    useEffect(() => {
+        const handleSaveDrawing = () => {
+            saveCurrentDrawing?.();
+        };
+
+        const handleOpenMyDrawings = () => {
+            openMyDrawings?.();
+        };
+
+        window.addEventListener("sketchydraw:save-drawing", handleSaveDrawing);
+        window.addEventListener("sketchydraw:open-my-drawings", handleOpenMyDrawings);
+
+        return () => {
+            window.removeEventListener("sketchydraw:save-drawing", handleSaveDrawing);
+            window.removeEventListener("sketchydraw:open-my-drawings", handleOpenMyDrawings);
+        };
+    }, [saveCurrentDrawing, openMyDrawings]);
+
     return (
         <div className="canvas-actions">
+            <div className="drawing-name-field">
+                <span>Drawing</span>
+
+                <input
+                    type="text"
+                    value={drawingTitle}
+                    onChange={(e) => onDrawingTitleChange?.(e.target.value)}
+                    placeholder="Untitled"
+                    title="Drawing name"
+                />
+            </div>
+
             <div className="zoom-control">
                 <button
                     className="zoom-btn"
+                    type="button"
                     onClick={() =>
                         setViewport((v) => ({
                             ...v,
@@ -46,6 +80,7 @@ export default function CanvasBoardActions({
 
                 <button
                     className="zoom-btn"
+                    type="button"
                     onClick={() =>
                         setViewport((v) => ({
                             ...v,
@@ -59,6 +94,7 @@ export default function CanvasBoardActions({
 
             <button
                 className="reset-btn"
+                type="button"
                 onClick={() =>
                     setViewport({
                         zoom: 1,
@@ -72,20 +108,13 @@ export default function CanvasBoardActions({
 
             <button
                 className="export-btn"
-                onClick={() => onExport(canvasRef.current)}
+                type="button"
+                onClick={() => onExport?.(canvasRef.current)}
             >
                 Export
             </button>
 
-            <button
-                className="export-btn"
-                onClick={saveCurrentDrawing}
-                disabled={isSavingDrawing}
-            >
-                {isSavingDrawing ? "Saving..." : "Save Drawing"}
-            </button>
-
-            <label className="export-btn">
+            <label className="export-btn open-json-btn">
                 Open JSON
                 <input
                     type="file"
@@ -109,7 +138,8 @@ export default function CanvasBoardActions({
             </select>
 
             <button
-                className="export-btn"
+                className="export-btn video-btn"
+                type="button"
                 onClick={downloadUndoRedoVideo}
                 disabled={isVideoExporting}
             >

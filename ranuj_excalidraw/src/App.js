@@ -1,10 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
-import Toolbar from "./components/Toolbar";
-import Sidebar from "./components/Sidebar";
+import Toolbar from "./components/Toolbar/Toolbar";
+import Sidebar from "./components/Sidebar/Sidebar";
 import CanvasBoard from "./components/CanvasBoard/CanvasBoard";
 import { verifyEmail, resetPassword } from "./api/authApi";
+import {
+  TermsPage,
+  PrivacyPolicyPage,
+  RefundPolicyPage,
+  CancellationPolicyPage,
+  DeliveryPolicyPage,
+  ContactUsPage,
+} from "./components/LegalPages/LegalPages";
 
 const COLORS = ["#111827", "#ef4444", "#2563eb", "#16a34a", "#ca8a04", "#9333ea"];
 
@@ -59,6 +67,7 @@ function VerifyPage() {
 }
 
 function SketchyDrawPage() {
+  const [showGrid, setShowGrid] = useState(true);
   const [tool, setTool] = useState("select");
   const [stroke, setStroke] = useState("#111827");
   const [elements, setElements] = useState([]);
@@ -216,14 +225,6 @@ function SketchyDrawPage() {
 
   return (
       <div className="app-shell">
-        <Toolbar
-            undo={undo}
-            redo={redo}
-            clearCanvas={clearCanvas}
-            canUndo={historyIndex > 0}
-            canRedo={historyIndex < history.length - 1}
-        />
-
         <div className="layout">
           <Sidebar
               tool={tool}
@@ -237,18 +238,30 @@ function SketchyDrawPage() {
               updateSelectedElementStyle={updateSelectedElementStyle}
           />
 
-          <CanvasBoard
-              tool={tool}
-              setTool={setTool}
-              stroke={stroke}
-              elements={elements}
-              setElements={setElements}
-              selectedIds={selectedIds}
-              setSelectedIds={setSelectedIds}
-              commitHistory={commitHistory}
-              onExport={exportPNG}
-              history={history}
-          />
+          <div className="work-area">
+            <Toolbar
+                undo={undo}
+                redo={redo}
+                clearCanvas={clearCanvas}
+                canUndo={historyIndex > 0}
+                canRedo={historyIndex < history.length - 1}
+                showGrid={showGrid}
+                setShowGrid={setShowGrid}
+            />
+            <CanvasBoard
+                tool={tool}
+                setTool={setTool}
+                stroke={stroke}
+                elements={elements}
+                setElements={setElements}
+                selectedIds={selectedIds}
+                setSelectedIds={setSelectedIds}
+                commitHistory={commitHistory}
+                onExport={exportPNG}
+                history={history}
+                showGrid={showGrid}
+            />
+          </div>
         </div>
       </div>
   );
@@ -371,6 +384,30 @@ export default function App() {
 
   if (path === "/reset-password") {
     return <ResetPasswordPage />;
+  }
+
+  if (path === "/terms") {
+    return <TermsPage />;
+  }
+
+  if (path === "/privacy-policy") {
+    return <PrivacyPolicyPage />;
+  }
+
+  if (path === "/refund-policy") {
+    return <RefundPolicyPage />;
+  }
+
+  if (path === "/cancellation-policy") {
+    return <CancellationPolicyPage />;
+  }
+
+  if (path === "/delivery-policy") {
+    return <DeliveryPolicyPage />;
+  }
+
+  if (path === "/contact-us") {
+    return <ContactUsPage />;
   }
 
   return <SketchyDrawPage />;

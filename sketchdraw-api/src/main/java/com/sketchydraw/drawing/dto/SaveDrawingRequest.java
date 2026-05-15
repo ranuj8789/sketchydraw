@@ -8,5 +8,8 @@ import lombok.Setter;
 public class SaveDrawingRequest {
     private Long id;
     private String title;
+    private String groupName;
+    private String workspace;
+    private String description;
     private String drawingJson;
 }

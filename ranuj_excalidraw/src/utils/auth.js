@@ -7,11 +7,6 @@ export function saveAuth(token, user) {
     localStorage.setItem(USER_KEY, JSON.stringify(user || {}));
 }
 
-export function isPaidUser() {
-    const user = getUser();
-    return user?.subscription?.active === true;
-}
-
 export function saveUser(user) {
     localStorage.setItem(USER_KEY, JSON.stringify(user || {}));
 }
@@ -37,6 +32,11 @@ export function isLoggedIn() {
     return Boolean(getToken());
 }
 
+export function isPaidUser() {
+    const user = getUser();
+    return user?.subscription?.active === true;
+}
+
 export function authHeaders() {
     const token = getToken();
 
@@ -48,11 +48,11 @@ export function authHeaders() {
 }
 
 function getOrCreateSessionId() {
-    let sessionId = localStorage.getItem("sketchydraw_session_id");
+    let sessionId = localStorage.getItem(SESSION_KEY);
 
     if (!sessionId) {
         sessionId = crypto.randomUUID();
-        localStorage.setItem("sketchydraw_session_id", sessionId);
+        localStorage.setItem(SESSION_KEY, sessionId);
     }
 
     return sessionId;

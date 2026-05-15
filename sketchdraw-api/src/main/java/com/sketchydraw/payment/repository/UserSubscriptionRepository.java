@@ -1,6 +1,6 @@
 package com.sketchydraw.payment.repository;
 
-import com.sketchydraw.plan.entity.UserSubscription;
+import com.sketchydraw.payment.entity.UserSubscription;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDateTime;

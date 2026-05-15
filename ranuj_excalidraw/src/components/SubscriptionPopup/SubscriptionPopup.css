@@ -6,11 +6,15 @@
     align-items: center;
     justify-content: center;
     z-index: 9999;
+    padding: 18px;
+    box-sizing: border-box;
 }
 
 .sub-popup {
-    width: 420px;
+    width: 460px;
     max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 36px);
+    overflow-y: auto;
     background: #ffffff;
     border-radius: 22px;
     padding: 26px;
@@ -30,6 +34,7 @@
     font-size: 22px;
     line-height: 1;
     padding: 0;
+    cursor: pointer;
 }
 
 .sub-popup-badge {
@@ -48,6 +53,7 @@
     margin: 0;
     color: #0f172a;
     font-size: 25px;
+    line-height: 1.2;
 }
 
 .sub-popup-subtitle {
@@ -56,29 +62,68 @@
     line-height: 1.5;
 }
 
-.sub-popup-price {
+.sub-plan-list {
     display: flex;
-    align-items: baseline;
-    gap: 4px;
-    margin-bottom: 18px;
+    flex-direction: column;
+    gap: 12px;
+    margin: 18px 0;
 }
 
-.sub-popup-price span {
-    font-size: 26px;
-    font-weight: 900;
-    color: #2563eb;
+.sub-plan-card {
+    width: 100%;
+    border: 1px solid #dbeafe;
+    background: #ffffff;
+    border-radius: 18px;
+    padding: 14px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    text-align: left;
+    transition: 0.18s ease;
 }
 
-.sub-popup-price strong {
-    font-size: 52px;
-    line-height: 1;
-    color: #111827;
+.sub-plan-card:hover {
+    border-color: #2563eb;
+    box-shadow: 0 10px 28px rgba(37, 99, 235, 0.12);
 }
 
-.sub-popup-price em {
-    font-style: normal;
+.sub-plan-card.active {
+    border-color: #2563eb;
+    background: linear-gradient(135deg, #eff6ff, #faf5ff);
+    box-shadow: 0 10px 30px rgba(37, 99, 235, 0.16);
+}
+
+.sub-plan-card strong {
+    display: block;
+    color: #0f172a;
+    font-size: 15px;
+    margin-bottom: 5px;
+}
+
+.sub-plan-card span {
+    display: block;
     color: #64748b;
-    font-weight: 700;
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.sub-plan-price {
+    min-width: 104px;
+    text-align: right;
+}
+
+.sub-plan-price b {
+    display: block;
+    color: #111827;
+    font-size: 18px;
+}
+
+.sub-plan-price em {
+    display: block;
+    color: #64748b;
+    font-size: 12px;
+    font-style: normal;
 }
 
 .sub-popup-features {
@@ -99,12 +144,19 @@
     font-size: 13px;
 }
 
-.sub-popup-primary {
+.sub-popup-primary,
+.sub-popup-secondary {
     width: 100%;
-    background: #2563eb;
-    border-color: #2563eb;
-    color: #ffffff;
+    height: 44px;
+    border-radius: 12px;
+    cursor: pointer;
     font-weight: 900;
+}
+
+.sub-popup-primary {
+    background: #2563eb;
+    border: 1px solid #2563eb;
+    color: #ffffff;
     margin-bottom: 10px;
 }
 
@@ -112,8 +164,13 @@
     background: #1d4ed8;
 }
 
+.sub-popup-primary:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
 .sub-popup-secondary {
-    width: 100%;
     background: #ffffff;
+    border: 1px solid #cbd5e1;
     color: #0f172a;
 }

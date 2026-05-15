@@ -9,6 +9,7 @@ export function renderCanvas({
                                  selectedIds,
                                  connectionHint,
                                  viewport,
+                                 showGrid = true,
                              }) {
     if (!canvas) return;
 
@@ -20,6 +21,7 @@ export function renderCanvas({
     canvas.style.height = `${canvasSize.height}px`;
 
     const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(dpr, dpr);
@@ -32,7 +34,9 @@ export function renderCanvas({
     ctx.translate(viewport.offsetX, viewport.offsetY);
     ctx.scale(viewport.zoom, viewport.zoom);
 
-    drawCanvasGrid(ctx, canvasSize, viewport);
+    if (showGrid) {
+        drawCanvasGrid(ctx, canvasSize, viewport);
+    }
 
     elements.forEach((element) => {
         const isSelected = selectedIds.includes(element.id);
@@ -40,9 +44,9 @@ export function renderCanvas({
 
         drawElement(ctx, element, isSelected);
 
-        // ⭐ highlight shape (THIS IS NEW)
         if (isHighlighted) {
             const bounds = getElementBounds(element);
+
             if (bounds) {
                 ctx.save();
                 ctx.strokeStyle = "#3b82f6";
@@ -60,13 +64,11 @@ export function renderCanvas({
             }
         }
 
-        // curve handles
         if (isSelected && (element.type === "line" || element.type === "arrow")) {
             drawCurveControls(ctx, element, viewport);
         }
     });
 
-    // connection point dot
     if (connectionHint?.bindPoint) {
         ctx.save();
         ctx.fillStyle = "#3b82f6";
