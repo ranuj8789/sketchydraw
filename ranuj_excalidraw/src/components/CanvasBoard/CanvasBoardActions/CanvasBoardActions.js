@@ -119,48 +119,48 @@ export default function CanvasBoardActions({
                 Reset
             </button>
 
-            <button
-                className="export-btn"
-                type="button"
-                onClick={() => onExport?.(canvasRef.current)}
-            >
-                Export
-            </button>
+            {/*<button*/}
+            {/*    className="export-btn"*/}
+            {/*    type="button"*/}
+            {/*    onClick={() => onExport?.(canvasRef.current)}*/}
+            {/*>*/}
+            {/*    Export*/}
+            {/*</button>*/}
 
-            <label className="export-btn open-json-btn">
-                Open JSON
-                <input
-                    type="file"
-                    accept="application/json"
-                    onChange={importDrawingJson}
-                    style={{ display: "none" }}
-                />
-            </label>
+            {/*<label className="export-btn open-json-btn">*/}
+            {/*    Open JSON*/}
+            {/*    <input*/}
+            {/*        type="file"*/}
+            {/*        accept="application/json"*/}
+            {/*        onChange={importDrawingJson}*/}
+            {/*        style={{ display: "none" }}*/}
+            {/*    />*/}
+            {/*</label>*/}
 
-            <select
-                className="animation-speed-select"
-                value={animationSpeed}
-                onChange={(e) => setAnimationSpeed(e.target.value)}
-                title="Animation speed"
-            >
-                {animationSpeedOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                        {option.label}
-                    </option>
-                ))}
-            </select>
+            {/*<select*/}
+            {/*    className="animation-speed-select"*/}
+            {/*    value={animationSpeed}*/}
+            {/*    onChange={(e) => setAnimationSpeed(e.target.value)}*/}
+            {/*    title="Animation speed"*/}
+            {/*>*/}
+            {/*    {animationSpeedOptions.map((option) => (*/}
+            {/*        <option key={option.value} value={option.value}>*/}
+            {/*            {option.label}*/}
+            {/*        </option>*/}
+            {/*    ))}*/}
+            {/*</select>*/}
 
-            <button
-                className="export-btn video-btn"
-                type="button"
-                onClick={handleDownloadVideo}
-                disabled={isVideoExporting}
-                title="Pro feature"
-            >
-                {isVideoExporting
-                    ? `Processing ${videoExportProgress}%`
-                    : "Download Video PRO"}
-            </button>
+            {/*<button*/}
+            {/*    className="export-btn video-btn"*/}
+            {/*    type="button"*/}
+            {/*    onClick={handleDownloadVideo}*/}
+            {/*    disabled={isVideoExporting}*/}
+            {/*    title="Pro feature"*/}
+            {/*>*/}
+            {/*    {isVideoExporting*/}
+            {/*        ? `Processing ${videoExportProgress}%`*/}
+            {/*        : "Download Video PRO"}*/}
+            {/*</button>*/}
         </div>
     );
 }

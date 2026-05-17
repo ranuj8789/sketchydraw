@@ -42,58 +42,49 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
 
-                        // Browser preflight
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                         // Auth public APIs
                         .requestMatchers("/api/auth/**").permitAll()
 
-                        // Public health only
+                        // Public health
                         .requestMatchers(
-                                "/api/health/ping",
-                                "/api/health/status",
-                                "/api/health/test-mail",
-                                "/api/audio/health",
-                                "/api/video/health"
+                                "/api/health/**",
+                                "/actuator/health"
                         ).permitAll()
 
-                        // Public media output download
-                        .requestMatchers("/media/**").permitAll()
+                        // Public announcements
+                        .requestMatchers(
+                                "/api/announcement/active"
+                        ).permitAll()
 
-                        // Public analytics tracking
-                        .requestMatchers("/api/analytics/track").permitAll()
-
-                        // Public plans
+                        // Public plans for Subscribe popup
                         .requestMatchers(
                                 "/api/plans",
                                 "/api/plans/**"
                         ).permitAll()
 
-                        // Payment webhook must be public because Razorpay/Cashfree will call it
-                        .requestMatchers("/api/payment/webhook").permitAll()
-
-                        // Admin must always be authenticated.
-                        // Real admin check will happen in AdminAccessService using admin_profile.active=true.
-                        .requestMatchers("/api/admin/**").authenticated()
-
-                        // Payment APIs
-                        .requestMatchers("/api/payment/**").authenticated()
-
-                        // Audio/video tools
+                        // Payment webhook public
                         .requestMatchers(
-                                "/api/audio/**",
-                                "/api/video/**"
+                                "/api/payment/webhook"
+                        ).permitAll()
+
+                        // Payment APIs need login
+                        .requestMatchers(
+                                "/api/payment/**"
                         ).authenticated()
 
-                        // Analytics read APIs
+                        // Drawing APIs need login
                         .requestMatchers(
-                                "/api/analytics/latest",
-                                "/api/analytics/summary",
-                                "/api/analytics/user/**",
-                                "/api/analytics/session/**"
+                                "/api/drawings/**",
+                                "/api/drawing-groups/**"
                         ).authenticated()
 
-                        // Everything else blocked behind login
+                        // Admin APIs need login
+                        .requestMatchers(
+                                "/api/admin/**"
+                        ).authenticated()
+
                         .anyRequest().authenticated()
                 )
 

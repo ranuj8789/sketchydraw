@@ -13,6 +13,7 @@ import {
   DeliveryPolicyPage,
   ContactUsPage,
 } from "./components/LegalPages/LegalPages";
+import { useSketchyBoardActions } from "./hooks/useSketchyBoardActions";
 
 const COLORS = ["#111827", "#ef4444", "#2563eb", "#16a34a", "#ca8a04", "#9333ea"];
 
@@ -75,6 +76,36 @@ function SketchyDrawPage() {
   const [history, setHistory] = useState([[]]);
   const [historyIndex, setHistoryIndex] = useState(0);
 
+  const [canvasSize, setCanvasSize] = useState({ width: 1200, height: 700 });
+
+  const [viewport, setViewport] = useState({
+    zoom: 1,
+    offsetX: 0,
+    offsetY: 0,
+  });
+
+  const commitHistory = (nextElements) => {
+    const snapshot = JSON.parse(JSON.stringify(nextElements));
+    const trimmed = history.slice(0, historyIndex + 1);
+    trimmed.push(snapshot);
+    setHistory(trimmed);
+    setHistoryIndex(trimmed.length - 1);
+  };
+
+  const {
+    canvasRef,
+    jsonInputRef,
+    exportPNG,
+    importDrawingJson,
+    openJsonPicker,
+  } = useSketchyBoardActions({
+    setElements,
+    setSelectedIds,
+    setViewport,
+    setCanvasSize,
+    commitHistory,
+  });
+
   const selectedElements = useMemo(
       () => elements.filter((el) => selectedIds.includes(el.id)),
       [elements, selectedIds]
@@ -97,14 +128,6 @@ function SketchyDrawPage() {
 
     setElements(next);
     commitHistory(next);
-  };
-
-  const commitHistory = (nextElements) => {
-    const snapshot = JSON.parse(JSON.stringify(nextElements));
-    const trimmed = history.slice(0, historyIndex + 1);
-    trimmed.push(snapshot);
-    setHistory(trimmed);
-    setHistoryIndex(trimmed.length - 1);
   };
 
   const undo = () => {
@@ -214,15 +237,6 @@ function SketchyDrawPage() {
     commitHistory(next);
   };
 
-  const exportPNG = (canvas) => {
-    if (!canvas) return;
-
-    const link = document.createElement("a");
-    link.download = "drawing-board.png";
-    link.href = canvas.toDataURL("image/png");
-    link.click();
-  };
-
   return (
       <div className="app-shell">
         <div className="layout">
@@ -239,6 +253,14 @@ function SketchyDrawPage() {
           />
 
           <div className="work-area">
+            <input
+                ref={jsonInputRef}
+                type="file"
+                accept="application/json"
+                onChange={importDrawingJson}
+                style={{ display: "none" }}
+            />
+
             <Toolbar
                 undo={undo}
                 redo={redo}
@@ -247,7 +269,10 @@ function SketchyDrawPage() {
                 canRedo={historyIndex < history.length - 1}
                 showGrid={showGrid}
                 setShowGrid={setShowGrid}
+                onExport={exportPNG}
+                openJsonPicker={openJsonPicker}
             />
+
             <CanvasBoard
                 tool={tool}
                 setTool={setTool}
@@ -260,6 +285,11 @@ function SketchyDrawPage() {
                 onExport={exportPNG}
                 history={history}
                 showGrid={showGrid}
+                canvasRef={canvasRef}
+                viewport={viewport}
+                setViewport={setViewport}
+                canvasSize={canvasSize}
+                setCanvasSize={setCanvasSize}
             />
           </div>
         </div>

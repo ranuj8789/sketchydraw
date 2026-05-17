@@ -51,12 +51,13 @@ import {
     exportCanvasToPDF,
     exportCanvasToSVG,
     exportCanvasToPNG,
+    copyCanvasToClipboard,
+    copyCanvasAreaToClipboard,
 } from "../../utils/exportBoard";
 
 import CanvasBoardActions from "./CanvasBoardActions/CanvasBoardActions";
 import { useSaveDrawing } from "./useSaveDrawing";
 import { useVideoExport } from "./useVideoExport";
-import { useDrawingImport } from "./useDrawingImport";
 import SaveDrawingPopup from "../SaveDrawingPopup/SaveDrawingPopup";
 import { DEFAULT_GROUP, DEFAULT_TITLE } from "../DrawingGroupStore/drawingGroupStore";
 
@@ -72,11 +73,13 @@ export default function CanvasBoard({
                                         onExport,
                                         history,
                                         showGrid,
+                                        canvasRef,
+                                        viewport,
+                                        setViewport,
+                                        canvasSize,
+                                        setCanvasSize,
                                     }) {
-    const canvasRef = useRef(null);
     const wrapRef = useRef(null);
-
-    const [canvasSize, setCanvasSize] = useState({ width: 1200, height: 700 });
 
     const [contextMenu, setContextMenu] = useState({
         visible: false,
@@ -97,12 +100,6 @@ export default function CanvasBoard({
         title: DEFAULT_TITLE,
         groupName: DEFAULT_GROUP,
         description: "",
-    });
-
-    const [viewport, setViewport] = useState({
-        zoom: 1,
-        offsetX: 0,
-        offsetY: 0,
     });
 
     const {
@@ -131,14 +128,6 @@ export default function CanvasBoard({
         history,
         elements,
         canvasSize,
-    });
-
-    const { importDrawingJson } = useDrawingImport({
-        setElements,
-        setSelectedIds,
-        setViewport,
-        setCanvasSize,
-        commitHistory,
     });
 
     useCanvasResize(wrapRef, setCanvasSize);
@@ -190,7 +179,6 @@ export default function CanvasBoard({
             }
         };
 
-
         const onKeyUp = (e) => {
             const isTyping =
                 e.target instanceof HTMLInputElement ||
@@ -222,7 +210,8 @@ export default function CanvasBoard({
 
             const canvas = canvasRef.current;
             if (canvas) {
-                canvas.style.cursor = isSpacePressed || tool === "hand" ? "grab" : "default";
+                canvas.style.cursor =
+                    isSpacePressed || tool === "hand" ? "grab" : "default";
             }
 
             setSelectionBox(null);
@@ -231,7 +220,7 @@ export default function CanvasBoard({
 
         window.addEventListener("mouseup", handleWindowMouseUp);
         return () => window.removeEventListener("mouseup", handleWindowMouseUp);
-    }, [isSpacePressed, tool]);
+    }, [isSpacePressed, tool, canvasRef]);
 
     useEffect(() => {
         const handleAlignSelected = (event) => {
@@ -243,7 +232,9 @@ export default function CanvasBoard({
             }
 
             const selectedSet = new Set(selectedIds);
-            const selectedElements = elements.filter((el) => selectedSet.has(el.id));
+            const selectedElements = elements.filter((el) =>
+                selectedSet.has(el.id)
+            );
 
             if (selectedElements.length < 2) {
                 alert("Please select at least 2 items to align.");
@@ -375,6 +366,7 @@ export default function CanvasBoard({
             );
         };
     }, [elements, selectedIds, setElements, commitHistory]);
+
     const updateElement = (id, updater) => {
         setElements((prev) =>
             prev.map((el) => (el.id === id ? updater(el) : el))
@@ -389,6 +381,105 @@ export default function CanvasBoard({
             x: e.clientX,
             y: e.clientY,
         });
+    };
+
+    const getSelectedElements = () => {
+        const selectedSet = new Set(selectedIds || []);
+        return elements.filter((el) => selectedSet.has(el.id));
+    };
+
+    const getSelectedScreenCrop = () => {
+        const selectedElements = getSelectedElements();
+
+        if (!selectedElements.length) {
+            return null;
+        }
+
+        const boundsList = selectedElements
+            .map((el) => getElementBounds(el))
+            .filter(Boolean);
+
+        if (!boundsList.length) {
+            return null;
+        }
+
+        const minX = Math.min(...boundsList.map((b) => b.x));
+        const minY = Math.min(...boundsList.map((b) => b.y));
+        const maxX = Math.max(...boundsList.map((b) => b.x + b.w));
+        const maxY = Math.max(...boundsList.map((b) => b.y + b.h));
+
+        return {
+            x: minX * viewport.zoom + viewport.offsetX,
+            y: minY * viewport.zoom + viewport.offsetY,
+            w: (maxX - minX) * viewport.zoom,
+            h: (maxY - minY) * viewport.zoom,
+        };
+    };
+
+    const handleCopyWholePNG = async () => {
+        try {
+            await copyCanvasToClipboard(canvasRef.current, "image/png");
+        } catch (error) {
+            console.error("Copy whole PNG failed", error);
+            alert("Copy PNG failed. Use HTTPS or localhost.");
+        }
+    };
+
+    const handleCopyWholeJPEG = async () => {
+        try {
+            await copyCanvasToClipboard(canvasRef.current, "image/jpeg");
+        } catch (error) {
+            console.error("Copy whole JPEG failed", error);
+            alert("Copy JPEG failed. Use HTTPS or localhost.");
+        }
+    };
+
+    const handleCopyWholeSVG = async () => {
+        try {
+            alert("SVG copy needs one small exportBoard refactor. PNG/JPEG copy is ready.");
+        } catch (error) {
+            console.error("Copy whole SVG failed", error);
+        }
+    };
+
+    const handleCopySelectedPNG = async () => {
+        try {
+            const crop = getSelectedScreenCrop();
+
+            if (!crop) {
+                alert("Select something first.");
+                return;
+            }
+
+            await copyCanvasAreaToClipboard(canvasRef.current, crop, "image/png");
+        } catch (error) {
+            console.error("Copy selected PNG failed", error);
+            alert("Copy selected PNG failed. Use HTTPS or localhost.");
+        }
+    };
+
+    const handleCopySelectedJPEG = async () => {
+        try {
+            const crop = getSelectedScreenCrop();
+
+            if (!crop) {
+                alert("Select something first.");
+                return;
+            }
+
+            await copyCanvasAreaToClipboard(canvasRef.current, crop, "image/jpeg");
+        } catch (error) {
+            console.error("Copy selected JPEG failed", error);
+            alert("Copy selected JPEG failed. Use HTTPS or localhost.");
+        }
+    };
+
+    const handleCopySelectedSVG = async () => {
+        try {
+            alert("SVG selected copy needs one small exportBoard refactor. PNG/JPEG copy is ready.");
+        } catch (error) {
+            console.error("Copy selected SVG failed", error);
+        }
     };
 
     const createTextElement = ({ x, y, text, stroke, parentId = null }) => {
@@ -801,7 +892,6 @@ export default function CanvasBoard({
                     };
                 }
 
-
                 return el;
             });
 
@@ -907,7 +997,8 @@ export default function CanvasBoard({
 
             const canvas = canvasRef.current;
             if (canvas) {
-                canvas.style.cursor = isSpacePressed || tool === "hand" ? "grab" : "default";
+                canvas.style.cursor =
+                    isSpacePressed || tool === "hand" ? "grab" : "default";
             }
 
             return;
@@ -935,7 +1026,8 @@ export default function CanvasBoard({
 
             const canvas = canvasRef.current;
             if (canvas) {
-                canvas.style.cursor = isSpacePressed || tool === "hand" ? "grab" : "default";
+                canvas.style.cursor =
+                    isSpacePressed || tool === "hand" ? "grab" : "default";
             }
 
             return;
@@ -967,7 +1059,8 @@ export default function CanvasBoard({
 
         const canvas = canvasRef.current;
         if (canvas) {
-            canvas.style.cursor = isSpacePressed || tool === "hand" ? "grab" : "default";
+            canvas.style.cursor =
+                isSpacePressed || tool === "hand" ? "grab" : "default";
         }
     };
 
@@ -1146,6 +1239,13 @@ export default function CanvasBoard({
                         )
                     }
                     onExportPNG={() => exportCanvasToPNG(canvasRef.current)}
+                    onCopyWholePNG={handleCopyWholePNG}
+                    onCopyWholeJPEG={handleCopyWholeJPEG}
+                    onCopyWholeSVG={handleCopyWholeSVG}
+                    onCopySelectedPNG={handleCopySelectedPNG}
+                    onCopySelectedJPEG={handleCopySelectedJPEG}
+                    onCopySelectedSVG={handleCopySelectedSVG}
+                    hasSelection={selectedIds.length > 0}
                 />
             </div>
 
@@ -1163,7 +1263,6 @@ export default function CanvasBoard({
                 }
                 saveCurrentDrawing={openSavePopup}
                 openMyDrawings={() => setMyDrawingsOpen(true)}
-                importDrawingJson={importDrawingJson}
                 animationSpeed={animationSpeed}
                 setAnimationSpeed={setAnimationSpeed}
                 animationSpeedOptions={animationSpeedOptions}

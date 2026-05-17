@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import "./Toolbar.css";
-import { getUser, isLoggedIn, logout, getToken } from "../../utils/auth";
+import { getUser, isLoggedIn, logout } from "../../utils/auth";
 import SketchyLoginModal from "../SketchyLoginModal/SketchyLoginModal";
 import SubscriptionPopup from "../SubscriptionPopup/SubscriptionPopup";
 import { getActiveAnnouncement } from "../../api/announcementApi";
@@ -13,6 +13,8 @@ export default function Toolbar({
                                     canRedo,
                                     showGrid,
                                     setShowGrid,
+                                    onExport,
+                                    openJsonPicker,
                                 }) {
     const [loginOpen, setLoginOpen] = useState(false);
     const [subscriptionOpen, setSubscriptionOpen] = useState(false);
@@ -23,7 +25,6 @@ export default function Toolbar({
 
     const [user, setUser] = useState(getUser());
     const [loggedIn, setLoggedIn] = useState(isLoggedIn());
-    const [token, setToken] = useState(getToken());
     const [announcement, setAnnouncement] = useState("");
 
     const profileRef = useRef(null);
@@ -98,7 +99,6 @@ export default function Toolbar({
     const refreshAuthState = () => {
         setUser(getUser());
         setLoggedIn(isLoggedIn());
-        setToken(getToken());
     };
 
     const loadAnnouncement = async () => {
@@ -119,7 +119,6 @@ export default function Toolbar({
         logout();
         setUser(null);
         setLoggedIn(false);
-        setToken(null);
         setProfileOpen(false);
     };
 
@@ -222,6 +221,22 @@ export default function Toolbar({
                         Clear
                     </button>
 
+                    <button
+                        type="button"
+                        className="toolbar-dark-action"
+                        onClick={onExport}
+                    >
+                        Export
+                    </button>
+
+                    <button
+                        type="button"
+                        className="toolbar-dark-action"
+                        onClick={openJsonPicker}
+                    >
+                        Open JSON
+                    </button>
+
                     <span className="topbar-separator" />
 
                     <div className="save-menu-wrap" ref={saveRef}>
@@ -307,7 +322,7 @@ export default function Toolbar({
                 </div>
 
                 <div className="topbar-title">
-                    {announcement ? announcement : "Editing Untitled"}
+
                 </div>
 
                 <div className="topbar-auth">
@@ -410,7 +425,6 @@ export default function Toolbar({
                 onLoginSuccess={(u) => {
                     setUser(u);
                     setLoggedIn(true);
-                    setToken(getToken());
                     setLoginOpen(false);
                 }}
             />
