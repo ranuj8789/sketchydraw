@@ -28,6 +28,16 @@ function buildLocalId() {
     return `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function safeSetLocalStorage(key, value) {
+    try {
+        localStorage.setItem(key, value);
+        return true;
+    } catch (error) {
+        console.error("Local drawing save failed:", error);
+        return false;
+    }
+}
+
 export function listLocalDrawings() {
     if (typeof window === "undefined") return [];
 
@@ -57,6 +67,11 @@ export function getLocalDrawingById(id) {
     return listLocalDrawings().find(
         (item) => String(item.id) === String(id)
     );
+}
+
+export function getLatestLocalDrawing() {
+    const rows = listLocalDrawings();
+    return rows.length > 0 ? rows[0] : null;
 }
 
 export function saveLocalDrawing({
@@ -126,9 +141,12 @@ export function saveLocalDrawing({
         ...existingRows.filter((item) => String(item.id) !== String(finalId)),
     ];
 
-    localStorage.setItem(LOCAL_DRAWINGS_KEY, JSON.stringify(nextRows));
+    const saved = safeSetLocalStorage(
+        LOCAL_DRAWINGS_KEY,
+        JSON.stringify(nextRows)
+    );
 
-    return row;
+    return saved ? row : null;
 }
 
 export function saveServerDrawingToLocalCache(savedDrawing) {
@@ -151,7 +169,7 @@ export function deleteLocalDrawing(id) {
         (item) => String(item.id) !== String(id)
     );
 
-    localStorage.setItem(LOCAL_DRAWINGS_KEY, JSON.stringify(nextRows));
+    safeSetLocalStorage(LOCAL_DRAWINGS_KEY, JSON.stringify(nextRows));
 }
 
 export function mergeLocalAndServerDrawings(serverDrawings = []) {
@@ -185,8 +203,4 @@ export function mergeLocalAndServerDrawings(serverDrawings = []) {
         const bTime = new Date(b.updatedAt || b.createdAt || 0).getTime();
         return bTime - aTime;
     });
-}
-export function getLatestLocalDrawing() {
-    const rows = listLocalDrawings();
-    return rows.length > 0 ? rows[0] : null;
 }

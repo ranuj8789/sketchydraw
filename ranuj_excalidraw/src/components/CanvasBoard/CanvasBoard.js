@@ -189,9 +189,13 @@ export default function CanvasBoard({
             setElements(nextElements);
             setSelectedIds([]);
 
+            const restoredId = latestDrawing.id || parsed.id || null;
+            const isRestoredLocalId =
+                restoredId && String(restoredId).startsWith("local_");
+
             setCurrentDrawingMeta((prev) => ({
                 ...prev,
-                id: latestDrawing.id,
+                id: isRestoredLocalId ? null : restoredId,
                 title:
                     latestDrawing.title ||
                     parsed.title ||
@@ -1298,8 +1302,12 @@ export default function CanvasBoard({
             localDraftIdRef.current = drawing.id || parsed.id || null;
             const actualDrawing = parsed.data || parsed;
 
+            const openedId = drawing.id || parsed.id || null;
+            const isOpenedLocalId =
+                openedId && String(openedId).startsWith("local_");
+
             setCurrentDrawingMeta({
-                id: drawing.id || parsed.id || null,
+                id: isOpenedLocalId ? null : openedId,
                 title: drawing.title || parsed.title || actualDrawing.name || DEFAULT_TITLE,
                 groupName:
                     drawing.groupName ||

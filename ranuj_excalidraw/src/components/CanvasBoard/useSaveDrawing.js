@@ -20,6 +20,16 @@ function normalizeTitle(title) {
     return value || DEFAULT_TITLE;
 }
 
+function isLocalId(id) {
+    return !!id && String(id).startsWith("local_");
+}
+
+function getServerSafeId(id) {
+    if (!id) return undefined;
+    if (isLocalId(id)) return undefined;
+    return id;
+}
+
 export function useSaveDrawing({
                                    elements,
                                    viewport,
@@ -78,6 +88,8 @@ export function useSaveDrawing({
             savedAt: new Date().toISOString(),
         };
 
+        const currentServerSafeId = getServerSafeId(currentDrawingMeta?.id);
+
         const localRow = saveLocalDrawing({
             id: saveAsNew ? undefined : currentDrawingMeta?.id,
             title: finalTitle,
@@ -91,7 +103,10 @@ export function useSaveDrawing({
         });
 
         const localMeta = {
-            id: localRow?.id || currentDrawingMeta?.id || null,
+            // IMPORTANT:
+            // Do not put local_ id into currentDrawingMeta.id.
+            // Backend may expect numeric/server id.
+            id: saveAsNew ? null : currentServerSafeId || null,
             title: localRow?.title || finalTitle,
             groupName: localRow?.groupName || finalGroup,
             description: localRow?.description || finalDescription,
@@ -103,11 +118,13 @@ export function useSaveDrawing({
         if (!isLoggedIn()) {
             setSaveMessage("Saved locally. Login to sync this drawing.");
             window.dispatchEvent(new Event("sketchydraw:open-login"));
+
             setTimeout(() => {
                 setSavePopupOpen(false);
                 setSaveMessage("");
                 setSaveAsNewMode(false);
             }, 900);
+
             return;
         }
 
@@ -115,11 +132,13 @@ export function useSaveDrawing({
 
         if (!allowed) {
             setSaveMessage("Saved locally. Upgrade to sync this drawing.");
+
             setTimeout(() => {
                 setSavePopupOpen(false);
                 setSaveMessage("");
                 setSaveAsNewMode(false);
             }, 900);
+
             return;
         }
 
@@ -130,7 +149,7 @@ export function useSaveDrawing({
             upsertDrawingGroup(finalGroup);
 
             const saved = await saveDrawing({
-                id: saveAsNew ? undefined : currentDrawingMeta?.id || undefined,
+                id: saveAsNew ? undefined : currentServerSafeId,
                 title: finalTitle,
                 groupName: finalGroup,
                 workspace: finalGroup,
@@ -141,8 +160,8 @@ export function useSaveDrawing({
             const savedId =
                 saved?.id ||
                 saved?.drawingId ||
-                (!saveAsNew ? currentDrawingMeta?.id : undefined) ||
-                localRow?.id;
+                (!saveAsNew ? currentServerSafeId : undefined) ||
+                null;
 
             const serverGroup = normalizeGroupName(
                 saved?.groupName ||
@@ -161,7 +180,7 @@ export function useSaveDrawing({
             setCurrentDrawingMeta?.(nextMeta);
 
             saveLocalDrawing({
-                id: savedId,
+                id: savedId || localRow?.id,
                 title: nextMeta.title,
                 groupName: nextMeta.groupName,
                 description: nextMeta.description,
