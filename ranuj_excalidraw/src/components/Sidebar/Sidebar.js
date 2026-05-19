@@ -37,6 +37,8 @@ export default function Sidebar({
                                     deleteSelected,
                                     toggleSelectedLineCurve,
                                     updateSelectedElementStyle,
+                                    canvasProps,
+                                    updateCanvasProps,
                                 }) {
     return (
         <div className="sidebar">
@@ -75,6 +77,8 @@ export default function Sidebar({
                 updateSelectedElementStyle={updateSelectedElementStyle}
                 deleteSelected={deleteSelected}
                 toggleSelectedLineCurve={toggleSelectedLineCurve}
+                canvasProps={canvasProps}
+                updateCanvasProps={updateCanvasProps}
             />
         </div>
     );

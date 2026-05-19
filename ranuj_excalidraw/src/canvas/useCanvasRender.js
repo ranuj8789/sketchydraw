@@ -9,6 +9,7 @@ export function useCanvasRender({
                                     connectionHint,
                                     viewport,
                                     showGrid = true,
+                                    canvasProps = {},
                                 }) {
     useEffect(() => {
         renderCanvas({
@@ -19,6 +20,7 @@ export function useCanvasRender({
             connectionHint,
             viewport,
             showGrid,
+            canvasProps,
         });
     }, [
         canvasRef,
@@ -28,5 +30,6 @@ export function useCanvasRender({
         connectionHint,
         viewport,
         showGrid,
+        canvasProps,
     ]);
 }

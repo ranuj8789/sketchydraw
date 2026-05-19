@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import "./App.css";
 
 import Toolbar from "./components/Toolbar/Toolbar";
@@ -15,9 +15,25 @@ import {
   ContactUsPage,
 } from "./components/LegalPages/LegalPages";
 import { useSketchyBoardActions } from "./hooks/useSketchyBoardActions";
-import { DEFAULT_GROUP, DEFAULT_TITLE } from "./components/DrawingGroupStore/drawingGroupStore";
+import {
+  DEFAULT_GROUP,
+  DEFAULT_TITLE,
+} from "./components/DrawingGroupStore/drawingGroupStore";
 
-const COLORS = ["#111827", "#ef4444", "#2563eb", "#16a34a", "#ca8a04", "#9333ea"];
+const COLORS = [
+  "#111827",
+  "#ef4444",
+  "#2563eb",
+  "#16a34a",
+  "#d97706",
+  "#9333ea",
+];
+
+const DEFAULT_CANVAS_PROPS = {
+  backgroundColor: "#ffffff",
+  pattern: "blank",
+  cornerRadius: 16,
+};
 
 function VerifyPage() {
   const [status, setStatus] = useState("Verifying your email...");
@@ -35,7 +51,9 @@ function VerifyPage() {
 
     verifyEmail(token)
         .then((data) => {
-          setStatus(data?.message || "Email verified successfully. You can now login.");
+          setStatus(
+              data?.message || "Email verified successfully. You can now login."
+          );
           setSuccess(true);
         })
         .catch((err) => {
@@ -78,7 +96,19 @@ function SketchyDrawPage() {
   const [history, setHistory] = useState([[]]);
   const [historyIndex, setHistoryIndex] = useState(0);
 
-  const [canvasSize, setCanvasSize] = useState({ width: 1200, height: 700 });
+  const [canvasSize, setCanvasSize] = useState({
+    width: 1200,
+    height: 700,
+  });
+
+  const [canvasProps, setCanvasProps] = useState(DEFAULT_CANVAS_PROPS);
+
+  const updateCanvasProps = (patch) => {
+    setCanvasProps((prev) => ({
+      ...prev,
+      ...patch,
+    }));
+  };
 
   const [viewport, setViewport] = useState({
     zoom: 1,
@@ -86,19 +116,22 @@ function SketchyDrawPage() {
     offsetY: 0,
   });
 
-  const commitHistory = (nextElements) => {
-    const snapshot = JSON.parse(JSON.stringify(nextElements));
-    const trimmed = history.slice(0, historyIndex + 1);
-    trimmed.push(snapshot);
-    setHistory(trimmed);
-    setHistoryIndex(trimmed.length - 1);
-  };
   const [currentDrawingMeta, setCurrentDrawingMeta] = useState({
     id: null,
     title: DEFAULT_TITLE,
     groupName: DEFAULT_GROUP,
     description: "",
   });
+
+  const commitHistory = (nextElements) => {
+    const snapshot = JSON.parse(JSON.stringify(nextElements));
+    const trimmed = history.slice(0, historyIndex + 1);
+
+    trimmed.push(snapshot);
+
+    setHistory(trimmed);
+    setHistoryIndex(trimmed.length - 1);
+  };
 
   const {
     canvasRef,
@@ -122,11 +155,27 @@ function SketchyDrawPage() {
   const selectedElement =
       selectedElements.length === 1 ? selectedElements[0] : null;
 
+  const activeSelection =
+      selectedElements.length > 0
+          ? selectedElements.length === 1
+              ? selectedElements[0]
+              : {
+                id: "__multi__",
+                type: "multiple",
+                selectedCount: selectedElements.length,
+                stroke: selectedElements[0]?.stroke || stroke,
+                strokeWidth: selectedElements[0]?.strokeWidth || 2,
+                strokeDash: selectedElements[0]?.strokeDash || "solid",
+              }
+          : null;
+
   const updateSelectedElementStyle = (patch) => {
-    if (!selectedElement) return;
+    if (!selectedIds.length) return;
+
+    const selectedSet = new Set(selectedIds);
 
     const next = elements.map((el) => {
-      if (el.id !== selectedElement.id) return el;
+      if (!selectedSet.has(el.id)) return el;
 
       const updated = {
         ...el,
@@ -163,6 +212,7 @@ function SketchyDrawPage() {
     if (historyIndex === 0) return;
 
     const nextIndex = historyIndex - 1;
+
     setHistoryIndex(nextIndex);
     setElements(JSON.parse(JSON.stringify(history[nextIndex])));
     setSelectedIds([]);
@@ -172,24 +222,10 @@ function SketchyDrawPage() {
     if (historyIndex >= history.length - 1) return;
 
     const nextIndex = historyIndex + 1;
+
     setHistoryIndex(nextIndex);
     setElements(JSON.parse(JSON.stringify(history[nextIndex])));
     setSelectedIds([]);
-  };
-
-  const changeSelectedColor = (color) => {
-    setStroke(color);
-
-    if (selectedIds.length === 0) return;
-
-    const next = elements.map((el) =>
-        selectedIds.includes(el.id)
-            ? { ...el, stroke: color }
-            : el
-    );
-
-    setElements(next);
-    commitHistory(next);
   };
 
   const clearCanvas = () => {
@@ -227,7 +263,9 @@ function SketchyDrawPage() {
 
   const toggleSelectedLineCurve = () => {
     if (!selectedElement) return;
-    if (selectedElement.type !== "line" && selectedElement.type !== "arrow") return;
+    if (selectedElement.type !== "line" && selectedElement.type !== "arrow") {
+      return;
+    }
 
     const next = elements.map((el) => {
       if (el.id !== selectedElement.id) return el;
@@ -273,12 +311,14 @@ function SketchyDrawPage() {
               tool={tool}
               setTool={setTool}
               stroke={stroke}
-              setStroke={changeSelectedColor}
+              setStroke={setStroke}
               colors={COLORS}
-              selectedElement={selectedElement}
+              selectedElement={activeSelection}
               deleteSelected={deleteSelected}
               toggleSelectedLineCurve={toggleSelectedLineCurve}
               updateSelectedElementStyle={updateSelectedElementStyle}
+              canvasProps={canvasProps}
+              updateCanvasProps={updateCanvasProps}
           />
 
           <div className="work-area">
@@ -328,6 +368,8 @@ function SketchyDrawPage() {
                 setCanvasSize={setCanvasSize}
                 currentDrawingMeta={currentDrawingMeta}
                 setCurrentDrawingMeta={setCurrentDrawingMeta}
+                canvasProps={canvasProps}
+                setCanvasProps={setCanvasProps}
             />
           </div>
         </div>
@@ -375,7 +417,9 @@ function ResetPasswordPage() {
         newPassword: password,
       });
 
-      setStatus(data?.message || "Password reset successfully. You can now login.");
+      setStatus(
+          data?.message || "Password reset successfully. You can now login."
+      );
       setSuccess(true);
       setPassword("");
       setConfirmPassword("");

@@ -6,6 +6,15 @@ const LINE_WIDTHS = [1, 2, 3, 4, 6, 8];
 
 const CORNER_RADIUS_OPTIONS = [0, 6, 10, 14, 20, 28];
 
+const CANVAS_RADIUS_OPTIONS = [0, 8, 16, 24, 32];
+
+const CANVAS_PATTERNS = [
+    { label: "Blank", value: "blank" },
+    { label: "Grid", value: "grid" },
+    { label: "Dots", value: "dots" },
+    { label: "Blocks", value: "blocks" },
+];
+
 const DASH_OPTIONS = [
     { label: "Solid", value: "solid" },
     { label: "Dashed", value: "dashed" },
@@ -66,6 +75,9 @@ export default function PropertiesPanel({
                                             updateSelectedElementStyle,
                                             deleteSelected,
                                             toggleSelectedLineCurve,
+
+                                            canvasProps = {},
+                                            updateCanvasProps,
                                         }) {
     const isText = selectedElement?.type === "text";
 
@@ -86,6 +98,10 @@ export default function PropertiesPanel({
 
     const isCurved = selectedElement?.lineStyle === "curved";
 
+    const canvasBackgroundColor = canvasProps.backgroundColor || "#ffffff";
+    const canvasPattern = canvasProps.pattern || "blank";
+    const canvasCornerRadius = canvasProps.cornerRadius ?? 16;
+
     return (
         <div className="properties-panel">
             <div className="properties-header">
@@ -94,23 +110,143 @@ export default function PropertiesPanel({
                     <p>
                         {selectedElement
                             ? `Selected: ${selectedElement.type}`
-                            : "Select one item to edit"}
+                            : "Canvas settings"}
                     </p>
                 </div>
             </div>
 
             {!selectedElement && (
-                <div className="empty-properties">
-                    Select text, line, arrow, pencil, or shape.
-                </div>
+                <>
+                    <div className="property-section">
+                        <label>Canvas color</label>
+
+                        <div className="custom-color-row">
+                            <input
+                                type="color"
+                                value={canvasBackgroundColor}
+                                onChange={(e) =>
+                                    updateCanvasProps?.({
+                                        backgroundColor: e.target.value,
+                                    })
+                                }
+                            />
+
+                            <input
+                                type="text"
+                                value={canvasBackgroundColor}
+                                onChange={(e) =>
+                                    updateCanvasProps?.({
+                                        backgroundColor: e.target.value,
+                                    })
+                                }
+                            />
+                        </div>
+                    </div>
+
+                    <div className="property-section">
+                        <label>Canvas pattern</label>
+
+                        <div className="segmented-row">
+                            {CANVAS_PATTERNS.map((item) => (
+                                <button
+                                    key={item.value}
+                                    type="button"
+                                    className={canvasPattern === item.value ? "active" : ""}
+                                    onClick={() =>
+                                        updateCanvasProps?.({
+                                            pattern: item.value,
+                                        })
+                                    }
+                                >
+                                    {item.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="property-section">
+                        <label>Canvas round corner</label>
+
+                        <div className="segmented-row">
+                            {CANVAS_RADIUS_OPTIONS.map((radius) => (
+                                <button
+                                    key={radius}
+                                    type="button"
+                                    className={canvasCornerRadius === radius ? "active" : ""}
+                                    onClick={() =>
+                                        updateCanvasProps?.({
+                                            cornerRadius: radius,
+                                        })
+                                    }
+                                >
+                                    {radius === 0 ? "Sharp" : radius}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="property-section">
+                        <label>Quick canvas colors</label>
+
+                        <div className="property-color-row">
+                            {[
+                                "#ffffff",
+                                "#f8fafc",
+                                "#fff7ed",
+                                "#fefce8",
+                                "#ecfeff",
+                                "#f0fdf4",
+                                "#fdf2f8",
+                                "#111827",
+                            ].map((color) => (
+                                <button
+                                    key={color}
+                                    type="button"
+                                    className={`property-color ${
+                                        canvasBackgroundColor === color ? "selected" : ""
+                                    }`}
+                                    style={{ backgroundColor: color }}
+                                    onClick={() =>
+                                        updateCanvasProps?.({
+                                            backgroundColor: color,
+                                        })
+                                    }
+                                    aria-label={`Set canvas color ${color}`}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                </>
             )}
 
             {selectedElement && (
                 <>
                     <div className="property-section">
-                        <label>Color</label>
+                        <label>{isText ? "Text color" : "Stroke color"}</label>
 
-                        <div className="property-color-row">
+                        <div className="custom-color-row">
+                            <input
+                                type="color"
+                                value={selectedElement.stroke || "#111827"}
+                                onChange={(e) =>
+                                    updateSelectedElementStyle?.({
+                                        stroke: e.target.value,
+                                    })
+                                }
+                            />
+
+                            <input
+                                type="text"
+                                value={selectedElement.stroke || "#111827"}
+                                onChange={(e) =>
+                                    updateSelectedElementStyle?.({
+                                        stroke: e.target.value,
+                                    })
+                                }
+                            />
+                        </div>
+
+                        <div className="property-color-row property-color-row-spaced">
                             {colors.map((color) => (
                                 <button
                                     key={color}
@@ -129,6 +265,41 @@ export default function PropertiesPanel({
                             ))}
                         </div>
                     </div>
+
+                    {isShape && (
+                        <div className="property-section">
+                            <label>Fill color</label>
+
+                            <div className="custom-color-row">
+                                <input
+                                    type="color"
+                                    value={
+                                        selectedElement.fill &&
+                                        selectedElement.fill !== "transparent"
+                                            ? selectedElement.fill
+                                            : "#ffffff"
+                                    }
+                                    onChange={(e) =>
+                                        updateSelectedElementStyle?.({
+                                            fill: e.target.value,
+                                        })
+                                    }
+                                />
+
+                                <button
+                                    type="button"
+                                    className="mini-action-btn"
+                                    onClick={() =>
+                                        updateSelectedElementStyle?.({
+                                            fill: "transparent",
+                                        })
+                                    }
+                                >
+                                    Transparent
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                     {(isLineLike || isShape) && (
                         <>
@@ -323,8 +494,7 @@ export default function PropertiesPanel({
                                                 key={key}
                                                 type="button"
                                                 className={
-                                                    selectedElement.fontSize ===
-                                                    option.fontSize
+                                                    selectedElement.fontSize === option.fontSize
                                                         ? "active"
                                                         : ""
                                                 }

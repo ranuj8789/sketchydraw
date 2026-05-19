@@ -111,3 +111,89 @@
     font-weight: 800;
     cursor: pointer;
 }
+.delete-selected-btn {
+    margin-top: 14px;
+    width: 100%;
+    border: 0;
+    border-radius: 12px;
+    background: #ef4444;
+    color: #ffffff;
+    padding: 10px 12px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.delete-selected-btn:hover {
+    background: #dc2626;
+    color: #ffffff;
+    box-shadow: 0 8px 18px rgba(239, 68, 68, 0.25);
+    transform: translateY(-1px);
+}
+
+.delete-selected-btn:active {
+    background: #b91c1c;
+    color: #ffffff;
+    transform: translateY(0);
+}
+
+.delete-selected-btn:focus {
+    outline: 2px solid rgba(239, 68, 68, 0.35);
+    outline-offset: 2px;
+}
+
+.delete-selected-btn:disabled {
+    background: #fca5a5;
+    color: #ffffff;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+}
+.custom-color-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.custom-color-row input[type="color"] {
+    width: 40px;
+    height: 34px;
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    padding: 2px;
+    background: #ffffff;
+    cursor: pointer;
+}
+
+.custom-color-row input[type="text"] {
+    flex: 1;
+    height: 34px;
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    padding: 0 9px;
+    color: #111827;
+    background: #ffffff;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.property-color-row-spaced {
+    margin-top: 10px;
+}
+
+.mini-action-btn {
+    height: 34px;
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    padding: 0 10px;
+    background: #f8fafc;
+    color: #334155;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.mini-action-btn:hover {
+    background: #e2e8f0;
+    color: #111827;
+}

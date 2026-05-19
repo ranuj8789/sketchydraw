@@ -2,6 +2,12 @@ import { DEFAULT_GROUP, DEFAULT_TITLE } from "./drawingGroupStore";
 
 export const LOCAL_DRAWINGS_KEY = "sketchydraw_saved_drawings_cache";
 
+export const DEFAULT_CANVAS_PROPS = {
+    backgroundColor: "#ffffff",
+    pattern: "blank",
+    cornerRadius: 16,
+};
+
 function safeParse(value, fallback) {
     try {
         return JSON.parse(value);
@@ -22,6 +28,13 @@ function normalizeTitle(title) {
 function normalizeGroupName(groupName) {
     const value = String(groupName || "").trim();
     return value || DEFAULT_GROUP;
+}
+
+function normalizeCanvasProps(canvasProps) {
+    return {
+        ...DEFAULT_CANVAS_PROPS,
+        ...(canvasProps || {}),
+    };
 }
 
 function buildLocalId() {
@@ -82,6 +95,7 @@ export function saveLocalDrawing({
                                      elements,
                                      viewport,
                                      canvasSize,
+                                     canvasProps,
                                      drawingJson,
                                      userEmail,
                                  }) {
@@ -91,6 +105,7 @@ export function saveLocalDrawing({
     const finalId = id || buildLocalId();
     const finalTitle = normalizeTitle(title);
     const finalGroup = normalizeGroupName(groupName);
+    const finalCanvasProps = normalizeCanvasProps(canvasProps);
 
     const existingRows = listLocalDrawings();
 
@@ -120,6 +135,7 @@ export function saveLocalDrawing({
                     width: canvasSize?.width || 1200,
                     height: canvasSize?.height || 700,
                 },
+                canvasProps: finalCanvasProps,
             },
         });
 

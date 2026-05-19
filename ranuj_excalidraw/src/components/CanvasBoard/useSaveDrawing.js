@@ -8,7 +8,10 @@ import {
     DEFAULT_TITLE,
     upsertDrawingGroup,
 } from "../DrawingGroupStore/drawingGroupStore";
-import { saveLocalDrawing } from "../DrawingGroupStore/localDrawingStore";
+import {
+    DEFAULT_CANVAS_PROPS,
+    saveLocalDrawing,
+} from "../DrawingGroupStore/localDrawingStore";
 
 function normalizeGroupName(groupName) {
     const value = String(groupName || "").trim();
@@ -18,6 +21,13 @@ function normalizeGroupName(groupName) {
 function normalizeTitle(title) {
     const value = String(title || "").trim();
     return value || DEFAULT_TITLE;
+}
+
+function normalizeCanvasProps(canvasProps) {
+    return {
+        ...DEFAULT_CANVAS_PROPS,
+        ...(canvasProps || {}),
+    };
 }
 
 function isLocalId(id) {
@@ -34,6 +44,7 @@ export function useSaveDrawing({
                                    elements,
                                    viewport,
                                    canvasSize,
+                                   canvasProps,
                                    currentDrawingMeta,
                                    setCurrentDrawingMeta,
                                }) {
@@ -50,6 +61,7 @@ export function useSaveDrawing({
 
     const closeSavePopup = () => {
         if (isSavingDrawing) return;
+
         setSavePopupOpen(false);
         setSaveMessage("");
     };
@@ -69,6 +81,8 @@ export function useSaveDrawing({
         const finalDescription =
             String(description || currentDrawingMeta?.description || "").trim();
 
+        const finalCanvasProps = normalizeCanvasProps(canvasProps);
+
         const localDrawingJson = createDrawingJson({
             elements,
             viewport,
@@ -84,8 +98,12 @@ export function useSaveDrawing({
             workspace: finalGroup,
             description: finalDescription,
             userEmail: user?.email || "",
-            data: localDrawingJson,
             savedAt: new Date().toISOString(),
+
+            data: {
+                ...localDrawingJson,
+                canvasProps: finalCanvasProps,
+            },
         };
 
         const currentServerSafeId = getServerSafeId(currentDrawingMeta?.id);
@@ -98,13 +116,13 @@ export function useSaveDrawing({
             elements,
             viewport,
             canvasSize,
+            canvasProps: finalCanvasProps,
             drawingJson: JSON.stringify(drawingPayload),
             userEmail: user?.email || "",
         });
 
         const localMeta = {
-            // IMPORTANT:
-            // Do not put local_ id into currentDrawingMeta.id.
+            // Do not store local_ id in currentDrawingMeta.id.
             // Backend may expect numeric/server id.
             id: saveAsNew ? null : currentServerSafeId || null,
             title: localRow?.title || finalTitle,
@@ -128,7 +146,9 @@ export function useSaveDrawing({
             return;
         }
 
-        const allowed = await requireProAccess(saveAsNew ? "Save As New" : "Save Drawing");
+        const allowed = await requireProAccess(
+            saveAsNew ? "Save As New" : "Save Drawing"
+        );
 
         if (!allowed) {
             setSaveMessage("Saved locally. Upgrade to sync this drawing.");
@@ -184,6 +204,7 @@ export function useSaveDrawing({
                 title: nextMeta.title,
                 groupName: nextMeta.groupName,
                 description: nextMeta.description,
+                canvasProps: finalCanvasProps,
                 drawingJson: JSON.stringify({
                     ...drawingPayload,
                     id: savedId,
@@ -191,6 +212,10 @@ export function useSaveDrawing({
                     groupName: nextMeta.groupName,
                     workspace: nextMeta.groupName,
                     description: nextMeta.description,
+                    data: {
+                        ...drawingPayload.data,
+                        canvasProps: finalCanvasProps,
+                    },
                 }),
                 userEmail: user?.email || "",
             });

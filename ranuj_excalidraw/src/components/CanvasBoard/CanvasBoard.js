@@ -66,6 +66,7 @@ import {
     getLatestLocalDrawing,
     saveLocalDrawing,
 } from "../DrawingGroupStore/localDrawingStore";
+
 export default function CanvasBoard({
                                         tool,
                                         setTool,
@@ -85,11 +86,12 @@ export default function CanvasBoard({
                                         setCanvasSize,
                                         currentDrawingMeta,
                                         setCurrentDrawingMeta,
+                                        canvasProps = {},
+                                        setCanvasProps,
                                     }) {
     const wrapRef = useRef(null);
     const localDraftIdRef = useRef(null);
     const hasRestoredLocalDraftRef = useRef(false);
-
 
     const [contextMenu, setContextMenu] = useState({
         visible: false,
@@ -105,13 +107,6 @@ export default function CanvasBoard({
     const [isSpacePressed, setIsSpacePressed] = useState(false);
     const [myDrawingsOpen, setMyDrawingsOpen] = useState(false);
 
-    // const [currentDrawingMeta, setCurrentDrawingMeta] = useState({
-    //     id: null,
-    //     title: DEFAULT_TITLE,
-    //     groupName: DEFAULT_GROUP,
-    //     description: "",
-    // });
-
     const {
         isSavingDrawing,
         savePopupOpen,
@@ -123,6 +118,7 @@ export default function CanvasBoard({
         elements,
         viewport,
         canvasSize,
+        canvasProps,
         currentDrawingMeta,
         setCurrentDrawingMeta,
     });
@@ -152,7 +148,6 @@ export default function CanvasBoard({
             ? selectedIds.filter((id) => id !== editor.id)
             : selectedIds;
 
-
     useCanvasRender({
         canvasRef,
         canvasSize,
@@ -161,7 +156,9 @@ export default function CanvasBoard({
         connectionHint,
         viewport,
         showGrid,
+        canvasProps,
     });
+
     useEffect(() => {
         if (hasRestoredLocalDraftRef.current) return;
         hasRestoredLocalDraftRef.current = true;
@@ -179,7 +176,6 @@ export default function CanvasBoard({
                     : latestDrawing.drawingJson;
 
             const actualDrawing = parsed.data || parsed;
-
             const nextElements = actualDrawing.elements || [];
 
             if (!nextElements.length) return;
@@ -223,11 +219,16 @@ export default function CanvasBoard({
                 });
             }
 
+            if (actualDrawing.canvasProps && setCanvasProps) {
+                setCanvasProps(actualDrawing.canvasProps);
+            }
+
             commitHistory(nextElements);
         } catch (error) {
             console.error("Local drawing restore failed", error);
         }
     }, []);
+
     useEffect(() => {
         if (!elements || elements.length === 0) return;
 
@@ -247,6 +248,7 @@ export default function CanvasBoard({
                 elements,
                 viewport,
                 canvasSize,
+                canvasProps,
             });
 
             if (!localDraftIdRef.current && localRow?.id) {
@@ -263,6 +265,7 @@ export default function CanvasBoard({
         elements,
         viewport,
         canvasSize,
+        canvasProps,
         currentDrawingMeta?.id,
         currentDrawingMeta?.title,
         currentDrawingMeta?.groupName,
@@ -697,7 +700,6 @@ export default function CanvasBoard({
             value: "",
             stroke: forcedStroke,
             parentId,
-
             fontSize: DEFAULT_TEXT_STYLE.fontSize,
             lineHeight: DEFAULT_TEXT_STYLE.lineHeight,
             fontFamily: DEFAULT_TEXT_STYLE.fontFamily,
@@ -1281,7 +1283,6 @@ export default function CanvasBoard({
     };
 
     const handleOpenSavedDrawing = (drawing) => {
-
         try {
             const localDrawing = getLocalSavedDrawingById(drawing.id);
 
@@ -1332,6 +1333,10 @@ export default function CanvasBoard({
                     width: actualDrawing.canvas.width || 1200,
                     height: actualDrawing.canvas.height || 700,
                 });
+            }
+
+            if (actualDrawing.canvasProps && setCanvasProps) {
+                setCanvasProps(actualDrawing.canvasProps);
             }
 
             commitHistory(nextElements);
