@@ -1,12 +1,27 @@
 export const DRAWING_SCHEMA_VERSION = 1;
 
+export const DEFAULT_CANVAS_PROPS = {
+    backgroundColor: "#ffffff",
+    pattern: "blank",
+    cornerRadius: 16,
+};
+
+function normalizeCanvasProps(canvasProps = {}) {
+    return {
+        ...DEFAULT_CANVAS_PROPS,
+        ...(canvasProps || {}),
+    };
+}
+
 export function createDrawingJson({
                                       elements = [],
                                       viewport = { zoom: 1, offsetX: 0, offsetY: 0 },
                                       canvasSize = { width: 1200, height: 700 },
+                                      canvasProps = DEFAULT_CANVAS_PROPS,
                                       name = "Untitled Drawing",
                                   }) {
     const now = new Date().toISOString();
+    const finalCanvasProps = normalizeCanvasProps(canvasProps);
 
     return {
         schemaVersion: DRAWING_SCHEMA_VERSION,
@@ -17,8 +32,9 @@ export function createDrawingJson({
         canvas: {
             width: canvasSize.width,
             height: canvasSize.height,
-            background: "grid",
+            background: finalCanvasProps.pattern || "blank",
         },
+        canvasProps: finalCanvasProps,
         viewport: {
             zoom: viewport.zoom,
             offsetX: viewport.offsetX,
@@ -33,6 +49,9 @@ export function normalizeElementForSave(element) {
         id: element.id,
         type: element.type,
         stroke: element.stroke || "#111827",
+        fill: element.fill || "transparent",
+        strokeWidth: element.strokeWidth || 2,
+        strokeDash: element.strokeDash || "solid",
     };
 
     if (
@@ -47,6 +66,7 @@ export function normalizeElementForSave(element) {
             y: element.y,
             w: element.w,
             h: element.h,
+            cornerRadius: element.cornerRadius ?? 14,
         };
     }
 
@@ -61,6 +81,10 @@ export function normalizeElementForSave(element) {
             fontSize: element.fontSize || 20,
             lineHeight: element.lineHeight || 24,
             fontFamily: element.fontFamily || "Arial",
+            bold: !!element.bold,
+            italic: !!element.italic,
+            underline: !!element.underline,
+            textAlign: element.textAlign || "left",
             parentId: element.parentId || null,
         };
     }
@@ -77,6 +101,11 @@ export function normalizeElementForSave(element) {
             cx2: element.cx2 ?? element.x2,
             cy2: element.cy2 ?? element.y2,
             lineStyle: element.lineStyle || "straight",
+            arrowStart: !!element.arrowStart,
+            arrowEnd:
+                element.type === "arrow"
+                    ? element.arrowEnd !== false
+                    : !!element.arrowEnd,
             startBinding: element.startBinding || null,
             endBinding: element.endBinding || null,
         };
@@ -100,7 +129,9 @@ export function validateDrawingJson(json) {
         throw new Error("Invalid drawing JSON");
     }
 
-    if (!Array.isArray(json.elements)) {
+    const actualDrawing = json.data || json;
+
+    if (!Array.isArray(actualDrawing.elements)) {
         throw new Error("Drawing JSON must contain elements array");
     }
 
@@ -110,14 +141,24 @@ export function validateDrawingJson(json) {
 export function loadDrawingJson(json) {
     validateDrawingJson(json);
 
+    const actualDrawing = json.data || json;
+
     return {
-        elements: json.elements || [],
-        viewport: json.viewport || { zoom: 1, offsetX: 0, offsetY: 0 },
+        elements: actualDrawing.elements || [],
+        viewport: actualDrawing.viewport || { zoom: 1, offsetX: 0, offsetY: 0 },
         canvasSize: {
-            width: json.canvas?.width || 1200,
-            height: json.canvas?.height || 700,
+            width: actualDrawing.canvas?.width || 1200,
+            height: actualDrawing.canvas?.height || 700,
         },
-        name: json.name || "Untitled Drawing",
+        canvasProps:
+            actualDrawing.canvasProps ||
+            json.canvasProps ||
+            DEFAULT_CANVAS_PROPS,
+        name:
+            actualDrawing.name ||
+            json.title ||
+            json.name ||
+            "Untitled Drawing",
     };
 }
 

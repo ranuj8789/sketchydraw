@@ -137,16 +137,24 @@ function SketchyDrawPage() {
     canvasRef,
     jsonInputRef,
     exportPNG,
+    exportJPEG,
+    exportSVG,
+    exportJSON,
     importDrawingJson,
     openJsonPicker,
   } = useSketchyBoardActions({
+    elements,
+    viewport,
+    canvasSize,
+    canvasProps,
+    drawingTitle: currentDrawingMeta.title,
     setElements,
     setSelectedIds,
     setViewport,
     setCanvasSize,
+    setCanvasProps,
     commitHistory,
   });
-
   const selectedElements = useMemo(
       () => elements.filter((el) => selectedIds.includes(el.id)),
       [elements, selectedIds]
@@ -338,7 +346,10 @@ function SketchyDrawPage() {
                 canRedo={historyIndex < history.length - 1}
                 showGrid={showGrid}
                 setShowGrid={setShowGrid}
-                onExport={exportPNG}
+                exportPNG={exportPNG}
+                exportJPEG={exportJPEG}
+                exportSVG={exportSVG}
+                exportJSON={exportJSON}
                 openJsonPicker={openJsonPicker}
                 drawingTitle={currentDrawingMeta.title}
                 onDrawingTitleChange={(title) =>

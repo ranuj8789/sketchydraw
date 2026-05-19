@@ -10,6 +10,7 @@ import {
     MoveRight,
     Diamond,
     Hand,
+    FolderOpen,
 } from "lucide-react";
 import PropertiesPanel from "../PropertiesPanel/PropertiesPanel";
 import "./Sidebar.css";
@@ -40,6 +41,10 @@ export default function Sidebar({
                                     canvasProps,
                                     updateCanvasProps,
                                 }) {
+    const openMyDrawings = () => {
+        window.dispatchEvent(new Event("sketchydraw:open-my-drawings"));
+    };
+
     return (
         <div className="sidebar">
             <div className="sidebar-logo-box">
@@ -80,6 +85,24 @@ export default function Sidebar({
                 canvasProps={canvasProps}
                 updateCanvasProps={updateCanvasProps}
             />
+
+            <div className="panel drawings-sidebar-card">
+                <button
+                    type="button"
+                    className="my-drawings-side-btn"
+                    onClick={openMyDrawings}
+                    title="Open your saved drawings"
+                >
+                    <span className="my-drawings-icon">
+                        <FolderOpen size={18} />
+                    </span>
+
+                    <span className="my-drawings-text">
+                        <strong>My Drawings</strong>
+                        <em>Open saved drawings</em>
+                    </span>
+                </button>
+            </div>
         </div>
     );
 }

@@ -148,3 +148,56 @@
         min-width: 0;
     }
 }
+.drawings-sidebar-card {
+    padding: 12px;
+}
+
+.my-drawings-side-btn {
+    width: 100%;
+    border: 1px solid #dbeafe;
+    background: linear-gradient(135deg, #eff6ff, #ffffff);
+    border-radius: 14px;
+    padding: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-align: left;
+    box-shadow: 0 8px 18px rgba(37, 99, 235, 0.08);
+}
+
+.my-drawings-side-btn:hover {
+    background: linear-gradient(135deg, #dbeafe, #ffffff);
+    border-color: #93c5fd;
+}
+
+.my-drawings-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 12px;
+    background: #2563eb;
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.my-drawings-text {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.my-drawings-text strong {
+    color: #111827;
+    font-size: 14px;
+    font-weight: 900;
+}
+
+.my-drawings-text em {
+    color: #64748b;
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 700;
+}

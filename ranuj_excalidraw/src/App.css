@@ -2,31 +2,53 @@
   box-sizing: border-box;
 }
 
-body {
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
   margin: 0;
+}
+
+body {
   font-family: Arial, sans-serif;
   background: #f1f5f9;
+  overflow: hidden;
 }
 
 .app-shell {
-  min-height: 100vh;
-  padding: 18px 8px 12px 8px;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  padding: 0;
 }
 
 .layout {
+  height: 100vh;
+  width: 100vw;
   display: flex;
-  gap: 16px;
-  min-height: calc(100vh - 30px);
-  box-sizing: border-box;
-  align-items: flex-start;
+  gap: 14px;
+  padding: 10px 8px 0 8px;
+  overflow: hidden;
+  align-items: stretch;
+}
+
+.sidebar {
+  flex-shrink: 0;
 }
 
 .work-area {
   flex: 1;
   min-width: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.topbar {
+  flex-shrink: 0;
 }
 
 /* Global button base */
@@ -56,23 +78,34 @@ button.danger {
 
 /* Canvas */
 .canvas-wrap {
-  background: #ffffff;
-  border-radius: 16px;
-  padding: 12px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
-  overflow: auto;
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  background: transparent;
+  border-radius: 16px 16px 0 0;
+  padding: 0;
+  box-shadow: none;
+  overflow: hidden;
 }
 
 .canvas-stage {
   position: relative;
-  width: fit-content;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 16px 16px 0 0;
+  background: transparent;
 }
 
 .board-canvas {
   display: block;
+  width: 100%;
+  height: 100%;
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  border-radius: 16px 16px 0 0;
 }
 
 .canvas-text-editor {
@@ -110,11 +143,13 @@ button.danger {
 .zoom-control {
   display: flex;
   align-items: center;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(226, 232, 240, 0.78);
+  border-radius: 14px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
   overflow: hidden;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 
 .zoom-btn {
@@ -127,8 +162,8 @@ button.danger {
 }
 
 .zoom-btn:hover {
-  background: #f3f4f6;
-  transform: scale(1.1);
+  background: rgba(241, 245, 249, 0.85);
+  transform: scale(1.05);
 }
 
 .zoom-value {
@@ -140,24 +175,26 @@ button.danger {
 }
 
 .zoom-value:hover {
-  background: #f9fafb;
+  background: rgba(248, 250, 252, 0.85);
 }
 
 .reset-btn,
 .export-btn {
   border: none;
-  background: #111827;
+  background: rgba(17, 24, 39, 0.84);
   color: #ffffff;
   padding: 8px 14px;
-  border-radius: 10px;
+  border-radius: 12px;
   cursor: pointer;
   font-size: 13px;
   transition: all 0.2s;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .reset-btn:hover,
 .export-btn:hover {
-  background: #374151;
+  background: rgba(17, 24, 39, 0.94);
 }
 
 .export-btn:disabled {
@@ -231,9 +268,15 @@ button.danger {
 @media (max-width: 900px) {
   .layout {
     flex-direction: column;
+    overflow: auto;
   }
 
   .work-area {
     width: 100%;
+    min-height: 700px;
+  }
+
+  body {
+    overflow: auto;
   }
 }

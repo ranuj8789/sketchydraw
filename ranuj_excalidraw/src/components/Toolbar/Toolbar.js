@@ -13,7 +13,10 @@ export default function Toolbar({
                                     canRedo,
                                     showGrid,
                                     setShowGrid,
-                                    onExport,
+                                    exportPNG,
+                                    exportJPEG,
+                                    exportSVG,
+                                    exportJSON,
                                     openJsonPicker,
                                     drawingTitle,
                                     onDrawingTitleChange,
@@ -23,6 +26,7 @@ export default function Toolbar({
     const [profileOpen, setProfileOpen] = useState(false);
     const [alignOpen, setAlignOpen] = useState(false);
     const [saveOpen, setSaveOpen] = useState(false);
+    const [exportOpen, setExportOpen] = useState(false);
     const [legalOpen, setLegalOpen] = useState(false);
 
     const [user, setUser] = useState(getUser());
@@ -32,6 +36,7 @@ export default function Toolbar({
     const profileRef = useRef(null);
     const alignRef = useRef(null);
     const saveRef = useRef(null);
+    const exportRef = useRef(null);
     const legalRef = useRef(null);
 
     useEffect(() => {
@@ -62,6 +67,10 @@ export default function Toolbar({
                 setSaveOpen(false);
             }
 
+            if (exportRef.current && !exportRef.current.contains(e.target)) {
+                setExportOpen(false);
+            }
+
             if (legalRef.current && !legalRef.current.contains(e.target)) {
                 setLegalOpen(false);
             }
@@ -79,6 +88,7 @@ export default function Toolbar({
             setSubscriptionOpen(true);
             setProfileOpen(false);
             setSaveOpen(false);
+            setExportOpen(false);
             setLegalOpen(false);
         };
 
@@ -86,6 +96,7 @@ export default function Toolbar({
             setLoginOpen(true);
             setProfileOpen(false);
             setSaveOpen(false);
+            setExportOpen(false);
             setLegalOpen(false);
         };
 
@@ -163,6 +174,11 @@ export default function Toolbar({
         setAlignOpen(false);
     };
 
+    const runExport = (fn) => {
+        fn?.();
+        setExportOpen(false);
+    };
+
     return (
         <>
             <div className="legal-floating-menu-wrap" ref={legalRef}>
@@ -211,54 +227,39 @@ export default function Toolbar({
 
             <div className="topbar">
                 <div className="topbar-actions">
-                    <button type="button" onClick={undo} disabled={!canUndo}>
+                    <button type="button" onClick={undo} disabled={!canUndo} title="Undo last action">
                         Undo
                     </button>
 
-                    <button type="button" onClick={redo} disabled={!canRedo}>
+                    <button type="button" onClick={redo} disabled={!canRedo} title="Redo last action">
                         Redo
                     </button>
 
-                    <button type="button" onClick={clearCanvas} className="danger">
+                    <button type="button" onClick={clearCanvas} className="danger" title="Clear current canvas">
                         Clear
-                    </button>
-
-                    <button
-                        type="button"
-                        className="toolbar-dark-action"
-                        onClick={onExport}
-                    >
-                        Export
-                    </button>
-
-                    <button
-                        type="button"
-                        className="toolbar-dark-action"
-                        onClick={openJsonPicker}
-                    >
-                        Open JSON
                     </button>
 
                     <span className="topbar-separator" />
 
-                    <div className="save-menu-wrap" ref={saveRef}>
+                    <div className="save-menu-wrap"   title="Save this drawing"ref={saveRef}>
                         <button
                             type="button"
                             className="toolbar-primary-action save-trigger-btn"
                             onClick={() => setSaveOpen((v) => !v)}
+                            title="Save this drawing"
                         >
-                            Save
-                            <span>⌄</span>
+                            Save as
+                            <span  title="Save this drawing"> ⌄ </span>
                         </button>
 
                         {saveOpen && (
                             <div className="save-dropdown">
                                 <button type="button" onClick={triggerSaveExisting}>
-                                    💾 Save Existing
+                                    💾 Save Current
                                 </button>
 
                                 <button type="button" onClick={triggerSaveAsNew}>
-                                    🆕 Save As New
+                                    🆕 Save as New
                                 </button>
                             </div>
                         )}
@@ -267,10 +268,43 @@ export default function Toolbar({
                     <button
                         type="button"
                         className="toolbar-dark-action"
-                        onClick={triggerMyDrawings}
+                        onClick={openJsonPicker}
+                        title="Import a SketchyDraw JSON file"
                     >
-                        My Drawings
+                        Import json
                     </button>
+
+                    <div className="export-menu-wrap" ref={exportRef}>
+                        <button
+                            type="button"
+                            className="toolbar-dark-action export-trigger-btn"
+                            onClick={() => setExportOpen((v) => !v)}
+                            title="Export this drawing"
+                        >
+                            Export as
+                            <span>⌄</span>
+                        </button>
+
+                        {exportOpen && (
+                            <div className="export-dropdown">
+                                <button type="button" onClick={() => runExport(exportPNG)}>
+                                    🖼️ Export as PNG
+                                </button>
+
+                                <button type="button" onClick={() => runExport(exportJPEG)}>
+                                    🖼️ Export as JPEG
+                                </button>
+
+                                <button type="button" onClick={() => runExport(exportSVG)}>
+                                    🧩 Export as SVG
+                                </button>
+
+                                <button type="button" onClick={() => runExport(exportJSON)}>
+                                    📄 Export as JSON
+                                </button>
+                            </div>
+                        )}
+                    </div>
 
                     <div className="align-menu-wrap" ref={alignRef}>
                         <button
@@ -321,6 +355,7 @@ export default function Toolbar({
                         />
                         <span>Gridlines</span>
                     </label>
+
                     <div className="topbar-title">
                         <label className="toolbar-drawing-title-card">
                             <span>Drawing</span>
@@ -331,7 +366,6 @@ export default function Toolbar({
                             />
                         </label>
                     </div>
-
                 </div>
 
                 <div className="topbar-auth">

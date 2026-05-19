@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import MyDrawingsPopup from "../MyDrawingsPopup/MyDrawingsPopup";
+import "./CanvasBoard.css";
 import TextEditor from "./../TextEditor";
 import { getPointerPosition } from "../../utils/geometry";
 import { findBindableShapeNearPoint } from "../../canvas/canvasConnectionHelpers";
