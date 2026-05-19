@@ -2,8 +2,10 @@ import React, { useEffect, useRef } from "react";
 import {
     TEXT_FONT_SIZE,
     TEXT_LINE_HEIGHT,
+    TEXT_FONT_FAMILY,
     measureTextBox,
 } from "../canvas/textMetrics";
+import { DEFAULT_TEXT_STYLE } from "../canvas/textStyle";
 import { worldToScreen } from "../canvas/canvasViewport";
 
 export default function TextEditor({
@@ -20,7 +22,6 @@ export default function TextEditor({
 
         inputRef.current.focus();
 
-        // Only move cursor to end when editor opens
         const len = inputRef.current.value.length;
         inputRef.current.setSelectionRange(len, len);
     }, [editor?.id, editor?.mode]);
@@ -29,12 +30,36 @@ export default function TextEditor({
 
     const zoom = viewport?.zoom || 1;
 
+    const fontSize =
+        editor.fontSize ||
+        DEFAULT_TEXT_STYLE.fontSize ||
+        TEXT_FONT_SIZE;
+
+    const lineHeight =
+        editor.lineHeight ||
+        DEFAULT_TEXT_STYLE.lineHeight ||
+        TEXT_LINE_HEIGHT;
+
+    const fontFamily =
+        editor.fontFamily ||
+        DEFAULT_TEXT_STYLE.fontFamily ||
+        TEXT_FONT_FAMILY;
+
+    const bold = !!editor.bold;
+    const italic = !!editor.italic;
+
     const screenPoint = worldToScreen(
         { x: editor.x, y: editor.y },
         viewport || { zoom: 1, offsetX: 0, offsetY: 0 }
     );
 
-    const liveBox = measureTextBox(editor.value || "");
+    const liveBox = measureTextBox(editor.value || "", {
+        fontSize,
+        lineHeight,
+        fontFamily,
+        bold,
+        italic,
+    });
 
     const finishEditing = () => {
         const value = editor.value.trim();
@@ -51,9 +76,25 @@ export default function TextEditor({
                 text: value,
                 stroke: editor.stroke,
                 parentId: editor.parentId || null,
+
+                fontSize,
+                lineHeight,
+                fontFamily,
+                bold,
+                italic,
+                underline: !!editor.underline,
+                textAlign: editor.textAlign || "left",
             });
         } else if (editor.mode === "edit") {
-            updateTextElement(editor.id, value);
+            updateTextElement(editor.id, value, {
+                fontSize,
+                lineHeight,
+                fontFamily,
+                bold,
+                italic,
+                underline: !!editor.underline,
+                textAlign: editor.textAlign || "left",
+            });
         }
 
         setEditor(null);
@@ -66,7 +107,6 @@ export default function TextEditor({
             setEditor(null);
             return;
         }
-
 
         if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
             e.preventDefault();
@@ -87,8 +127,10 @@ export default function TextEditor({
                 height: liveBox.h * zoom + 4,
 
                 color: editor.stroke || "#111827",
-                font: `${TEXT_FONT_SIZE * zoom}px Arial`,
-                lineHeight: `${TEXT_LINE_HEIGHT * zoom}px`,
+                font: `${italic ? "italic" : "normal"} ${
+                    bold ? "700" : "400"
+                } ${fontSize * zoom}px ${fontFamily}`,
+                lineHeight: `${lineHeight * zoom}px`,
 
                 padding: 0,
                 margin: 0,

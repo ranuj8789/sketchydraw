@@ -8,6 +8,11 @@ import {
     mergeGroupsFromDrawings,
     getGroupNameFromDrawing,
 } from "../DrawingGroupStore/drawingGroupStore";
+import {
+    deleteLocalDrawing,
+    getLocalDrawingById,
+    mergeLocalAndServerDrawings,
+} from "../DrawingGroupStore/localDrawingStore";
 import "./MyDrawingsPopup.css";
 
 export default function MyDrawingsPopup({
@@ -51,13 +56,23 @@ export default function MyDrawingsPopup({
                         : [];
 
             const normalizedRows = normalizeRows(rows);
+            const mergedRows = mergeLocalAndServerDrawings(normalizedRows);
 
-            setDrawings(normalizedRows);
-            setGroups(mergeGroupsFromDrawings(normalizedRows));
+            setDrawings(mergedRows);
+            setGroups(mergeGroupsFromDrawings(mergedRows));
         } catch (error) {
-            console.error("Failed to load drawings", error);
-            setMessage(error?.message || "Failed to load drawings.");
-            setGroups(getStoredGroups());
+            console.error("Failed to load server drawings", error);
+
+            const localOnlyRows = mergeLocalAndServerDrawings([]);
+
+            setDrawings(localOnlyRows);
+            setGroups(
+                localOnlyRows.length
+                    ? mergeGroupsFromDrawings(localOnlyRows)
+                    : getStoredGroups()
+            );
+
+            setMessage("Showing local drawings. Server drawings could not be loaded.");
         } finally {
             setLoading(false);
         }
@@ -121,11 +136,20 @@ export default function MyDrawingsPopup({
         setMessage("");
 
         try {
+            if (drawing.source === "local") {
+                const localDrawing = getLocalDrawingById(drawing.id) || drawing;
+                saveStoredGroup(getGroupNameFromDrawing(localDrawing));
+                onOpenDrawing?.(localDrawing);
+                onClose?.();
+                return;
+            }
+
             const fullDrawing = await getDrawing(drawing.id);
 
             const normalizedFullDrawing = {
                 ...fullDrawing,
                 groupName: getGroupNameFromDrawing(fullDrawing),
+                source: "server",
             };
 
             saveStoredGroup(normalizedFullDrawing.groupName);
@@ -133,14 +157,31 @@ export default function MyDrawingsPopup({
             onOpenDrawing?.(normalizedFullDrawing);
             onClose?.();
         } catch (error) {
-            console.error("Open drawing failed", error);
+            console.error("Open server drawing failed", error);
+
+            const localDrawing = getLocalDrawingById(drawing.id);
+
+            if (localDrawing) {
+                saveStoredGroup(getGroupNameFromDrawing(localDrawing));
+                onOpenDrawing?.(localDrawing);
+                onClose?.();
+                return;
+            }
+
             setMessage(error?.message || "Failed to open drawing.");
         } finally {
             setOpeningId(null);
         }
     };
 
-    const handleDelete = async (drawingId) => {
+    const handleDelete = async (drawing) => {
+        const drawingId = drawing?.id;
+
+        if (!drawingId) {
+            setMessage("Drawing id missing.");
+            return;
+        }
+
         const ok = window.confirm("Delete this drawing?");
         if (!ok) return;
 
@@ -148,12 +189,25 @@ export default function MyDrawingsPopup({
         setMessage("");
 
         try {
-            await deleteDrawing(drawingId);
-            setDrawings((prev) => prev.filter((d) => d.id !== drawingId));
+            deleteLocalDrawing(drawingId);
+
+            if (drawing.source !== "local") {
+                await deleteDrawing(drawingId);
+            }
+
+            setDrawings((prev) =>
+                prev.filter((d) => String(d.id) !== String(drawingId))
+            );
+
             setMessage("Drawing deleted.");
         } catch (error) {
             console.error("Delete failed", error);
-            setMessage(error?.message || "Failed to delete drawing.");
+
+            setDrawings((prev) =>
+                prev.filter((d) => String(d.id) !== String(drawingId))
+            );
+
+            setMessage("Deleted locally. Server delete failed.");
         } finally {
             setDeletingId(null);
         }
@@ -226,8 +280,8 @@ export default function MyDrawingsPopup({
                     </div>
 
                     <div className="drawings-version-card">
-                        <strong>Coming next</strong>
-                        <p>Auto-save, versions and Git-style drawing diff.</p>
+                        <strong>Local backup active</strong>
+                        <p>Your drawings are saved in this browser also.</p>
                     </div>
                 </aside>
 
@@ -295,7 +349,11 @@ export default function MyDrawingsPopup({
                                         <div className="drawing-card-body">
                                             <div className="drawing-badges">
                                                 <em>{getGroupName(drawing)}</em>
-                                                <b>v{drawing.latestVersion || drawing.version || 1}</b>
+                                                <b>
+                                                    {drawing.source === "local"
+                                                        ? "Local"
+                                                        : `v${drawing.latestVersion || drawing.version || 1}`}
+                                                </b>
                                             </div>
 
                                             <h3 title={drawing.title || DEFAULT_TITLE}>
@@ -316,7 +374,7 @@ export default function MyDrawingsPopup({
                                                 <button
                                                     type="button"
                                                     className="danger"
-                                                    onClick={() => handleDelete(drawing.id)}
+                                                    onClick={() => handleDelete(drawing)}
                                                     disabled={isOpening || isDeleting}
                                                 >
                                                     {isDeleting ? "..." : "Delete"}

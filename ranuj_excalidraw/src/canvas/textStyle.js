@@ -1,3 +1,5 @@
+import { TEXT_FONT_FAMILY } from "./textMetrics";
+
 export const FONT_SIZE_OPTIONS = {
     S: {
         label: "S",
@@ -7,17 +9,17 @@ export const FONT_SIZE_OPTIONS = {
     M: {
         label: "M",
         fontSize: 20,
-        lineHeight: 24,
+        lineHeight: 26,
     },
     L: {
         label: "L",
         fontSize: 28,
-        lineHeight: 34,
+        lineHeight: 36,
     },
     XL: {
         label: "XL",
         fontSize: 36,
-        lineHeight: 44,
+        lineHeight: 46,
     },
 };
 
@@ -25,11 +27,16 @@ export const FONT_FAMILY_OPTIONS = [
     {
         id: "hand",
         label: "Hand",
-        value: "Comic Sans MS, cursive",
+        value: TEXT_FONT_FAMILY,
+    },
+    {
+        id: "notebook",
+        label: "Notebook Sans",
+        value: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif",
     },
     {
         id: "sans",
-        label: "Sans",
+        label: "Clean Sans",
         value: "Arial, sans-serif",
     },
     {

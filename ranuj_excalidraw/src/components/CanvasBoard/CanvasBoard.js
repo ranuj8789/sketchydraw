@@ -3,6 +3,7 @@ import MyDrawingsPopup from "../MyDrawingsPopup/MyDrawingsPopup";
 import TextEditor from "./../TextEditor";
 import { getPointerPosition } from "../../utils/geometry";
 import { findBindableShapeNearPoint } from "../../canvas/canvasConnectionHelpers";
+import { DEFAULT_TEXT_STYLE } from "../../canvas/textStyle";
 import {
     getElementBounds,
     getResizeHandleAtPoint,
@@ -60,7 +61,11 @@ import { useSaveDrawing } from "./useSaveDrawing";
 import { useVideoExport } from "./useVideoExport";
 import SaveDrawingPopup from "../SaveDrawingPopup/SaveDrawingPopup";
 import { DEFAULT_GROUP, DEFAULT_TITLE } from "../DrawingGroupStore/drawingGroupStore";
-
+import {
+    getLocalDrawingById,
+    getLatestLocalDrawing,
+    saveLocalDrawing,
+} from "../DrawingGroupStore/localDrawingStore";
 export default function CanvasBoard({
                                         tool,
                                         setTool,
@@ -78,8 +83,13 @@ export default function CanvasBoard({
                                         setViewport,
                                         canvasSize,
                                         setCanvasSize,
+                                        currentDrawingMeta,
+                                        setCurrentDrawingMeta,
                                     }) {
     const wrapRef = useRef(null);
+    const localDraftIdRef = useRef(null);
+    const hasRestoredLocalDraftRef = useRef(false);
+
 
     const [contextMenu, setContextMenu] = useState({
         visible: false,
@@ -95,12 +105,12 @@ export default function CanvasBoard({
     const [isSpacePressed, setIsSpacePressed] = useState(false);
     const [myDrawingsOpen, setMyDrawingsOpen] = useState(false);
 
-    const [currentDrawingMeta, setCurrentDrawingMeta] = useState({
-        id: null,
-        title: DEFAULT_TITLE,
-        groupName: DEFAULT_GROUP,
-        description: "",
-    });
+    // const [currentDrawingMeta, setCurrentDrawingMeta] = useState({
+    //     id: null,
+    //     title: DEFAULT_TITLE,
+    //     groupName: DEFAULT_GROUP,
+    //     description: "",
+    // });
 
     const {
         isSavingDrawing,
@@ -142,6 +152,7 @@ export default function CanvasBoard({
             ? selectedIds.filter((id) => id !== editor.id)
             : selectedIds;
 
+
     useCanvasRender({
         canvasRef,
         canvasSize,
@@ -151,6 +162,108 @@ export default function CanvasBoard({
         viewport,
         showGrid,
     });
+    useEffect(() => {
+        if (hasRestoredLocalDraftRef.current) return;
+        hasRestoredLocalDraftRef.current = true;
+
+        if (elements && elements.length > 0) return;
+
+        const latestDrawing = getLatestLocalDrawing();
+
+        if (!latestDrawing?.drawingJson) return;
+
+        try {
+            const parsed =
+                typeof latestDrawing.drawingJson === "string"
+                    ? JSON.parse(latestDrawing.drawingJson)
+                    : latestDrawing.drawingJson;
+
+            const actualDrawing = parsed.data || parsed;
+
+            const nextElements = actualDrawing.elements || [];
+
+            if (!nextElements.length) return;
+
+            localDraftIdRef.current = latestDrawing.id;
+
+            setElements(nextElements);
+            setSelectedIds([]);
+
+            setCurrentDrawingMeta((prev) => ({
+                ...prev,
+                id: latestDrawing.id,
+                title:
+                    latestDrawing.title ||
+                    parsed.title ||
+                    actualDrawing.name ||
+                    DEFAULT_TITLE,
+                groupName:
+                    latestDrawing.groupName ||
+                    parsed.groupName ||
+                    parsed.workspace ||
+                    DEFAULT_GROUP,
+                description:
+                    latestDrawing.description ||
+                    parsed.description ||
+                    "",
+            }));
+
+            if (actualDrawing.viewport) {
+                setViewport(actualDrawing.viewport);
+            }
+
+            if (actualDrawing.canvas) {
+                setCanvasSize({
+                    width: actualDrawing.canvas.width || 1200,
+                    height: actualDrawing.canvas.height || 700,
+                });
+            }
+
+            commitHistory(nextElements);
+        } catch (error) {
+            console.error("Local drawing restore failed", error);
+        }
+    }, []);
+    useEffect(() => {
+        if (!elements || elements.length === 0) return;
+
+        const timer = setTimeout(() => {
+            const existingId = currentDrawingMeta?.id;
+            const isLocalId = existingId && String(existingId).startsWith("local_");
+
+            const localSaveId =
+                existingId ||
+                localDraftIdRef.current;
+
+            const localRow = saveLocalDrawing({
+                id: localSaveId,
+                title: currentDrawingMeta?.title || DEFAULT_TITLE,
+                groupName: currentDrawingMeta?.groupName || DEFAULT_GROUP,
+                description: currentDrawingMeta?.description || "",
+                elements,
+                viewport,
+                canvasSize,
+            });
+
+            if (!localDraftIdRef.current && localRow?.id) {
+                localDraftIdRef.current = localRow.id;
+            }
+
+            if (isLocalId) {
+                localDraftIdRef.current = existingId;
+            }
+        }, 800);
+
+        return () => clearTimeout(timer);
+    }, [
+        elements,
+        viewport,
+        canvasSize,
+        currentDrawingMeta?.id,
+        currentDrawingMeta?.title,
+        currentDrawingMeta?.groupName,
+        currentDrawingMeta?.description,
+    ]);
 
     const closeContextMenu = () => {
         setContextMenu({
@@ -482,7 +595,20 @@ export default function CanvasBoard({
         }
     };
 
-    const createTextElement = ({ x, y, text, stroke, parentId = null }) => {
+    const createTextElement = ({
+                                   x,
+                                   y,
+                                   text,
+                                   stroke,
+                                   parentId = null,
+                                   fontSize,
+                                   lineHeight,
+                                   fontFamily,
+                                   bold,
+                                   italic,
+                                   underline,
+                                   textAlign,
+                               }) => {
         createTextElementHelper({
             elements,
             setElements,
@@ -493,12 +619,19 @@ export default function CanvasBoard({
             text,
             stroke,
             parentId,
+            fontSize,
+            lineHeight,
+            fontFamily,
+            bold,
+            italic,
+            underline,
+            textAlign,
         });
 
         setTool("select");
     };
 
-    const updateTextElement = (id, value) => {
+    const updateTextElement = (id, value, stylePatch = {}) => {
         updateTextElementHelper({
             elements,
             setElements,
@@ -506,6 +639,7 @@ export default function CanvasBoard({
             commitHistory,
             id,
             value,
+            ...stylePatch,
         });
 
         setTool("select");
@@ -559,6 +693,14 @@ export default function CanvasBoard({
             value: "",
             stroke: forcedStroke,
             parentId,
+
+            fontSize: DEFAULT_TEXT_STYLE.fontSize,
+            lineHeight: DEFAULT_TEXT_STYLE.lineHeight,
+            fontFamily: DEFAULT_TEXT_STYLE.fontFamily,
+            bold: DEFAULT_TEXT_STYLE.bold,
+            italic: false,
+            underline: false,
+            textAlign: "left",
         });
     };
 
@@ -1087,6 +1229,14 @@ export default function CanvasBoard({
                 value: target.text,
                 stroke: target.stroke,
                 parentId: target.parentId || null,
+
+                fontSize: target.fontSize || DEFAULT_TEXT_STYLE.fontSize,
+                lineHeight: target.lineHeight || DEFAULT_TEXT_STYLE.lineHeight,
+                fontFamily: target.fontFamily || DEFAULT_TEXT_STYLE.fontFamily,
+                bold: !!target.bold,
+                italic: !!target.italic,
+                underline: !!target.underline,
+                textAlign: target.textAlign || "left",
             });
 
             return;
@@ -1123,18 +1273,11 @@ export default function CanvasBoard({
     };
 
     const getLocalSavedDrawingById = (id) => {
-        try {
-            const rows = JSON.parse(
-                localStorage.getItem("sketchydraw_saved_drawings_cache") || "[]"
-            );
-
-            return rows.find((item) => String(item.id) === String(id));
-        } catch {
-            return null;
-        }
+        return getLocalDrawingById(id);
     };
 
     const handleOpenSavedDrawing = (drawing) => {
+
         try {
             const localDrawing = getLocalSavedDrawingById(drawing.id);
 
@@ -1152,6 +1295,7 @@ export default function CanvasBoard({
             }
 
             const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+            localDraftIdRef.current = drawing.id || parsed.id || null;
             const actualDrawing = parsed.data || parsed;
 
             setCurrentDrawingMeta({

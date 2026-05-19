@@ -15,8 +15,14 @@ export function buildShapeDraft(tool, point, stroke) {
         w: 0,
         h: 0,
         stroke,
+        strokeWidth: 2,
+        strokeDash: "solid",
+
+        // default rounded rectangle
+        cornerRadius: tool === "rect" || tool === "rectangle" ? 14 : 0,
     };
 }
+
 
 export function buildLineDraft(tool, point, stroke, lineStyle = "straight") {
     return {
@@ -31,7 +37,11 @@ export function buildLineDraft(tool, point, stroke, lineStyle = "straight") {
         cx2: point.x,
         cy2: point.y,
         stroke,
+        strokeWidth: 2,
+        strokeDash: "solid",
         lineStyle,
+        arrowStart: false,
+        arrowEnd: tool === "arrow",
         startBinding: null,
         endBinding: null,
     };
@@ -43,6 +53,8 @@ export function buildPencilDraft(point, stroke) {
         type: "pencil",
         points: [{ x: point.x, y: point.y }],
         stroke,
+        strokeWidth: 2,
+        strokeDash: "solid",
     };
 }
 

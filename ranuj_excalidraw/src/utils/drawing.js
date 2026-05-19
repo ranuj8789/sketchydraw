@@ -71,10 +71,24 @@ function pointInDiamond(px, py, x, y, w, h) {
     const dy = Math.abs(py - cy);
     return dx / Math.abs(w / 2 || 1) + dy / Math.abs(h / 2 || 1) <= 1;
 }
+function applyElementStrokeStyle(ctx, element) {
+    ctx.strokeStyle = element.stroke || "#111827";
+    ctx.fillStyle = element.fill || element.fillColor || "transparent";
+    ctx.lineWidth = element.strokeWidth || 2;
 
-function drawArrowHead(ctx, fromX, fromY, toX, toY, stroke) {
+    const dash = element.strokeDash || "solid";
+
+    if (dash === "dashed") {
+        ctx.setLineDash([12, 8]);
+    } else if (dash === "dotted") {
+        ctx.setLineDash([2, 8]);
+    } else {
+        ctx.setLineDash([]);
+    }
+}
+function drawArrowHead(ctx, fromX, fromY, toX, toY, stroke, strokeWidth = 2) {
     const angle = Math.atan2(toY - fromY, toX - fromX);
-    const size = 10;
+    const size = Math.max(10, strokeWidth * 4);
 
     ctx.save();
     ctx.beginPath();
@@ -92,7 +106,6 @@ function drawArrowHead(ctx, fromX, fromY, toX, toY, stroke) {
     ctx.fill();
     ctx.restore();
 }
-
 export function hitTest(element, x, y) {
     if (!element) return false;
 
@@ -161,13 +174,36 @@ export function hitTest(element, x, y) {
 
 export function drawElement(ctx, element, selected = false) {
     ctx.save();
-    ctx.strokeStyle = element.stroke || "#111827";
-    ctx.fillStyle = "transparent";
-    ctx.lineWidth = 2;
+    applyElementStrokeStyle(ctx, element);
 
+    const stroke = element.stroke || "#111827";
+    const strokeWidth = element.strokeWidth || 2;
     if (element.type === "rect" || element.type === "rectangle") {
-        ctx.strokeRect(element.x, element.y, element.w, element.h);
-    } else if (element.type === "ellipse") {
+        const radius = element.cornerRadius ?? 14;
+
+        if (radius > 0) {
+            drawRoundedRectPath(
+                ctx,
+                element.x,
+                element.y,
+                element.w,
+                element.h,
+                radius
+            );
+
+            if (element.fill && element.fill !== "transparent") {
+                ctx.fill();
+            }
+
+            ctx.stroke();
+        } else {
+            if (element.fill && element.fill !== "transparent") {
+                ctx.fillRect(element.x, element.y, element.w, element.h);
+            }
+
+            ctx.strokeRect(element.x, element.y, element.w, element.h);
+        }
+    }else if (element.type === "ellipse") {
         ctx.beginPath();
         ctx.ellipse(
             element.x + element.w / 2,
@@ -178,30 +214,22 @@ export function drawElement(ctx, element, selected = false) {
             0,
             Math.PI * 2
         );
+        if (element.fill && element.fill !== "transparent") ctx.fill();
         ctx.stroke();
     } else if (element.type === "diamond") {
         const cx = element.x + element.w / 2;
         const cy = element.y + element.h / 2;
+
         ctx.beginPath();
         ctx.moveTo(cx, element.y);
         ctx.lineTo(element.x + element.w, cy);
         ctx.lineTo(cx, element.y + element.h);
         ctx.lineTo(element.x, cy);
         ctx.closePath();
+
+        if (element.fill && element.fill !== "transparent") ctx.fill();
         ctx.stroke();
-    } else if (element.type === "line") {
-        ctx.beginPath();
-        ctx.moveTo(element.x1, element.y1);
-        ctx.bezierCurveTo(
-            element.cx1 ?? element.x1,
-            element.cy1 ?? element.y1,
-            element.cx2 ?? element.x2,
-            element.cy2 ?? element.y2,
-            element.x2,
-            element.y2
-        );
-        ctx.stroke();
-    } else if (element.type === "arrow") {
+    } else if (element.type === "line" || element.type === "arrow") {
         ctx.beginPath();
         ctx.moveTo(element.x1, element.y1);
         ctx.bezierCurveTo(
@@ -214,32 +242,55 @@ export function drawElement(ctx, element, selected = false) {
         );
         ctx.stroke();
 
-        const fromX = element.cx2 ?? element.x1;
-        const fromY = element.cy2 ?? element.y1;
+        const arrowStart = !!element.arrowStart;
+        const arrowEnd =
+            element.type === "arrow"
+                ? element.arrowEnd !== false
+                : !!element.arrowEnd;
 
-        drawArrowHead(
-            ctx,
-            fromX,
-            fromY,
-            element.x2,
-            element.y2,
-            element.stroke || "#111827"
-        );
+        if (arrowStart) {
+            drawArrowHead(
+                ctx,
+                element.cx1 ?? element.x2,
+                element.cy1 ?? element.y2,
+                element.x1,
+                element.y1,
+                stroke,
+                strokeWidth
+            );
+        }
+
+        if (arrowEnd) {
+            drawArrowHead(
+                ctx,
+                element.cx2 ?? element.x1,
+                element.cy2 ?? element.y1,
+                element.x2,
+                element.y2,
+                stroke,
+                strokeWidth
+            );
+        }
     } else if (element.type === "pencil") {
-        if (element.points.length > 1) {
+        if ((element.points || []).length > 1) {
             ctx.beginPath();
             ctx.moveTo(element.points[0].x, element.points[0].y);
+
             for (let i = 1; i < element.points.length; i++) {
                 ctx.lineTo(element.points[i].x, element.points[i].y);
             }
+
             ctx.stroke();
         }
     } else if (element.type === "text") {
         const fontSize = element.fontSize || 20;
         const lineHeight = element.lineHeight || Math.round(fontSize * 1.2);
-        const fontFamily = element.fontFamily || "Virgil, Comic Sans MS, cursive";
+        const fontFamily =
+            element.fontFamily ||
+            "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif";
         const bold = !!element.bold;
 
+        ctx.setLineDash([]);
         ctx.font = `${bold ? "700" : "400"} ${fontSize}px ${fontFamily}`;
         ctx.fillStyle = element.stroke || "#111827";
         ctx.textBaseline = "top";
@@ -308,9 +359,33 @@ export function drawElement(ctx, element, selected = false) {
         ctx.save();
         ctx.setLineDash([4, 4]);
         ctx.strokeStyle = "#2563eb";
+        ctx.lineWidth = 1.5;
         ctx.strokeRect(bx - 4, by - 4, bw + 8, bh + 8);
         ctx.restore();
     }
 
     ctx.restore();
+}
+
+
+function drawRoundedRectPath(ctx, x, y, w, h, radius = 14) {
+    const width = Math.abs(w);
+    const height = Math.abs(h);
+
+    const left = w < 0 ? x + w : x;
+    const top = h < 0 ? y + h : y;
+
+    const r = Math.min(radius, width / 2, height / 2);
+
+    ctx.beginPath();
+    ctx.moveTo(left + r, top);
+    ctx.lineTo(left + width - r, top);
+    ctx.quadraticCurveTo(left + width, top, left + width, top + r);
+    ctx.lineTo(left + width, top + height - r);
+    ctx.quadraticCurveTo(left + width, top + height, left + width - r, top + height);
+    ctx.lineTo(left + r, top + height);
+    ctx.quadraticCurveTo(left, top + height, left, top + height - r);
+    ctx.lineTo(left, top + r);
+    ctx.quadraticCurveTo(left, top, left + r, top);
+    ctx.closePath();
 }

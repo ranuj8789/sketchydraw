@@ -15,6 +15,8 @@ export default function Toolbar({
                                     setShowGrid,
                                     onExport,
                                     openJsonPicker,
+                                    drawingTitle,
+                                    onDrawingTitleChange,
                                 }) {
     const [loginOpen, setLoginOpen] = useState(false);
     const [subscriptionOpen, setSubscriptionOpen] = useState(false);
@@ -319,9 +321,16 @@ export default function Toolbar({
                         />
                         <span>Gridlines</span>
                     </label>
-                </div>
-
-                <div className="topbar-title">
+                    <div className="topbar-title">
+                        <label className="toolbar-drawing-title-card">
+                            <span>Drawing</span>
+                            <input
+                                value={drawingTitle || "Untitled"}
+                                onChange={(e) => onDrawingTitleChange?.(e.target.value)}
+                                placeholder="Untitled"
+                            />
+                        </label>
+                    </div>
 
                 </div>
 

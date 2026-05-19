@@ -493,3 +493,43 @@
         left: 230px;
     }
 }
+.toolbar-drawing-title-card {
+    height: 46px;
+    min-width: 220px;
+    max-width: 280px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    padding: 6px 14px;
+    border-radius: 16px;
+    border: 1px solid #c7d2fe;
+    background: #ffffff;
+    box-shadow: 0 12px 28px rgba(37, 99, 235, 0.12);
+    box-sizing: border-box;
+}
+
+.toolbar-drawing-title-card span {
+    font-size: 10px;
+    line-height: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 900;
+    color: #64748b;
+}
+
+.toolbar-drawing-title-card input {
+    width: 100%;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 15px;
+    line-height: 1.2;
+    font-weight: 900;
+    color: #111827;
+    padding: 0;
+}
+
+.toolbar-drawing-title-card input::placeholder {
+    color: #94a3b8;
+}

@@ -8,28 +8,7 @@ import {
     DEFAULT_TITLE,
     upsertDrawingGroup,
 } from "../DrawingGroupStore/drawingGroupStore";
-
-const LOCAL_DRAWINGS_KEY = "sketchydraw_saved_drawings_cache";
-
-function getLocalDrawings() {
-    try {
-        return JSON.parse(localStorage.getItem(LOCAL_DRAWINGS_KEY) || "[]");
-    } catch {
-        return [];
-    }
-}
-
-function saveDrawingToLocalCache(savedDrawing) {
-    const existing = getLocalDrawings();
-
-    const filtered = existing.filter(
-        (item) => String(item.id) !== String(savedDrawing.id)
-    );
-
-    const next = [savedDrawing, ...filtered];
-
-    localStorage.setItem(LOCAL_DRAWINGS_KEY, JSON.stringify(next));
-}
+import { saveLocalDrawing } from "../DrawingGroupStore/localDrawingStore";
 
 function normalizeGroupName(groupName) {
     const value = String(groupName || "").trim();
@@ -56,10 +35,6 @@ export function useSaveDrawing({
     const openSavePopup = async ({ saveAsNew = false } = {}) => {
         setSaveMessage("");
         setSaveAsNewMode(saveAsNew);
-
-        const allowed = await requireProAccess(saveAsNew ? "Save As New" : "Save Drawing");
-        if (!allowed) return;
-
         setSavePopupOpen(true);
     };
 
@@ -76,14 +51,6 @@ export function useSaveDrawing({
                                           saveAsNew = saveAsNewMode,
                                       } = {}) => {
         if (isSavingDrawing) return;
-
-        if (!isLoggedIn()) {
-            window.dispatchEvent(new Event("sketchydraw:open-login"));
-            return;
-        }
-
-        const allowed = await requireProAccess(saveAsNew ? "Save As New" : "Save Drawing");
-        if (!allowed) return;
 
         const user = getUser();
 
@@ -106,13 +73,58 @@ export function useSaveDrawing({
             groupName: finalGroup,
             workspace: finalGroup,
             description: finalDescription,
-            userEmail: user?.email,
+            userEmail: user?.email || "",
             data: localDrawingJson,
             savedAt: new Date().toISOString(),
         };
 
+        const localRow = saveLocalDrawing({
+            id: saveAsNew ? undefined : currentDrawingMeta?.id,
+            title: finalTitle,
+            groupName: finalGroup,
+            description: finalDescription,
+            elements,
+            viewport,
+            canvasSize,
+            drawingJson: JSON.stringify(drawingPayload),
+            userEmail: user?.email || "",
+        });
+
+        const localMeta = {
+            id: localRow?.id || currentDrawingMeta?.id || null,
+            title: localRow?.title || finalTitle,
+            groupName: localRow?.groupName || finalGroup,
+            description: localRow?.description || finalDescription,
+        };
+
+        setCurrentDrawingMeta?.(localMeta);
+        upsertDrawingGroup(localMeta.groupName);
+
+        if (!isLoggedIn()) {
+            setSaveMessage("Saved locally. Login to sync this drawing.");
+            window.dispatchEvent(new Event("sketchydraw:open-login"));
+            setTimeout(() => {
+                setSavePopupOpen(false);
+                setSaveMessage("");
+                setSaveAsNewMode(false);
+            }, 900);
+            return;
+        }
+
+        const allowed = await requireProAccess(saveAsNew ? "Save As New" : "Save Drawing");
+
+        if (!allowed) {
+            setSaveMessage("Saved locally. Upgrade to sync this drawing.");
+            setTimeout(() => {
+                setSavePopupOpen(false);
+                setSaveMessage("");
+                setSaveAsNewMode(false);
+            }, 900);
+            return;
+        }
+
         setIsSavingDrawing(true);
-        setSaveMessage("");
+        setSaveMessage("Saved locally. Syncing...");
 
         try {
             upsertDrawingGroup(finalGroup);
@@ -129,7 +141,8 @@ export function useSaveDrawing({
             const savedId =
                 saved?.id ||
                 saved?.drawingId ||
-                (!saveAsNew ? currentDrawingMeta?.id : undefined);
+                (!saveAsNew ? currentDrawingMeta?.id : undefined) ||
+                localRow?.id;
 
             const serverGroup = normalizeGroupName(
                 saved?.groupName ||
@@ -147,11 +160,10 @@ export function useSaveDrawing({
 
             setCurrentDrawingMeta?.(nextMeta);
 
-            saveDrawingToLocalCache({
+            saveLocalDrawing({
                 id: savedId,
                 title: nextMeta.title,
                 groupName: nextMeta.groupName,
-                workspace: nextMeta.groupName,
                 description: nextMeta.description,
                 drawingJson: JSON.stringify({
                     ...drawingPayload,
@@ -161,7 +173,7 @@ export function useSaveDrawing({
                     workspace: nextMeta.groupName,
                     description: nextMeta.description,
                 }),
-                updatedAt: new Date().toISOString(),
+                userEmail: user?.email || "",
             });
 
             upsertDrawingGroup(nextMeta.groupName);
@@ -178,8 +190,8 @@ export function useSaveDrawing({
                 setSaveAsNewMode(false);
             }, 700);
         } catch (error) {
-            console.error("Drawing save failed:", error);
-            setSaveMessage(error?.message || "Failed to save drawing.");
+            console.error("Drawing sync failed:", error);
+            setSaveMessage("Saved locally. Server sync failed.");
         } finally {
             setIsSavingDrawing(false);
         }

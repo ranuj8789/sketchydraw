@@ -1,17 +1,26 @@
-.canvas-actions {
+.canvas-title-floating {
+    position: absolute;
+    top: 16px;
+    left: 22px;
+    z-index: 25;
+    display: flex;
+    align-items: center;
+}
+
+.canvas-zoom-floating {
     position: absolute;
     bottom: 18px;
     left: 50%;
     transform: translateX(-50%);
+    z-index: 25;
     display: flex;
     gap: 10px;
     align-items: center;
     padding: 8px 10px;
-    border-radius: 20px;
+    border-radius: 18px;
     background: rgba(241, 245, 249, 0.94);
     backdrop-filter: blur(10px);
     box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
-    z-index: 20;
 }
 
 /* Editable drawing name */
@@ -99,10 +108,8 @@
     user-select: none;
 }
 
-/* Action buttons */
-.reset-btn,
-.export-btn,
-.open-json-btn {
+/* Reset */
+.reset-btn {
     min-width: 96px;
     height: 42px;
     border: none;
@@ -121,52 +128,22 @@
     white-space: nowrap;
 }
 
-.open-json-btn {
-    min-width: 108px;
-}
-
-.video-btn {
-    min-width: 136px;
-}
-
-.reset-btn:hover,
-.export-btn:hover,
-.open-json-btn:hover {
+.reset-btn:hover {
     background: #374151;
 }
 
-.export-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-/* Speed dropdown */
-.animation-speed-select {
-    height: 42px;
-    min-width: 112px;
-    border: 1px solid #cbd5e1;
-    border-radius: 12px;
-    padding: 0 12px;
-    background: #ffffff;
-    color: #111827;
-    font-size: 13px;
-    font-weight: 700;
-    outline: none;
-}
-
-.animation-speed-select:focus {
-    border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
-}
-
 @media (max-width: 1100px) {
-    .canvas-actions {
-        max-width: calc(100vw - 32px);
-        overflow-x: auto;
-        justify-content: flex-start;
+    .canvas-title-floating {
+        top: 12px;
+        left: 12px;
     }
 
     .drawing-name-field {
-        min-width: 200px;
+        min-width: 180px;
+        max-width: 220px;
+    }
+
+    .canvas-zoom-floating {
+        max-width: calc(100vw - 32px);
     }
 }

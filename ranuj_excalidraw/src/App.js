@@ -5,6 +5,7 @@ import Toolbar from "./components/Toolbar/Toolbar";
 import Sidebar from "./components/Sidebar/Sidebar";
 import CanvasBoard from "./components/CanvasBoard/CanvasBoard";
 import { verifyEmail, resetPassword } from "./api/authApi";
+import { measureTextBox } from "./canvas/textMetrics";
 import {
   TermsPage,
   PrivacyPolicyPage,
@@ -14,6 +15,7 @@ import {
   ContactUsPage,
 } from "./components/LegalPages/LegalPages";
 import { useSketchyBoardActions } from "./hooks/useSketchyBoardActions";
+import { DEFAULT_GROUP, DEFAULT_TITLE } from "./components/DrawingGroupStore/drawingGroupStore";
 
 const COLORS = ["#111827", "#ef4444", "#2563eb", "#16a34a", "#ca8a04", "#9333ea"];
 
@@ -91,6 +93,12 @@ function SketchyDrawPage() {
     setHistory(trimmed);
     setHistoryIndex(trimmed.length - 1);
   };
+  const [currentDrawingMeta, setCurrentDrawingMeta] = useState({
+    id: null,
+    title: DEFAULT_TITLE,
+    groupName: DEFAULT_GROUP,
+    description: "",
+  });
 
   const {
     canvasRef,
@@ -117,14 +125,35 @@ function SketchyDrawPage() {
   const updateSelectedElementStyle = (patch) => {
     if (!selectedElement) return;
 
-    const next = elements.map((el) =>
-        el.id === selectedElement.id
-            ? {
-              ...el,
-              ...patch,
-            }
-            : el
-    );
+    const next = elements.map((el) => {
+      if (el.id !== selectedElement.id) return el;
+
+      const updated = {
+        ...el,
+        ...patch,
+      };
+
+      if (updated.type === "text") {
+        const box = measureTextBox(updated.text || "", {
+          fontSize: updated.fontSize,
+          lineHeight: updated.lineHeight,
+          fontFamily: updated.fontFamily,
+          bold: updated.bold,
+          italic: updated.italic,
+        });
+
+        return {
+          ...updated,
+          w: box.w,
+          h: box.h,
+          fontSize: box.fontSize,
+          lineHeight: box.lineHeight,
+          fontFamily: box.fontFamily,
+        };
+      }
+
+      return updated;
+    });
 
     setElements(next);
     commitHistory(next);
@@ -271,6 +300,13 @@ function SketchyDrawPage() {
                 setShowGrid={setShowGrid}
                 onExport={exportPNG}
                 openJsonPicker={openJsonPicker}
+                drawingTitle={currentDrawingMeta.title}
+                onDrawingTitleChange={(title) =>
+                    setCurrentDrawingMeta((prev) => ({
+                      ...prev,
+                      title: title || "Untitled",
+                    }))
+                }
             />
 
             <CanvasBoard
@@ -290,6 +326,8 @@ function SketchyDrawPage() {
                 setViewport={setViewport}
                 canvasSize={canvasSize}
                 setCanvasSize={setCanvasSize}
+                currentDrawingMeta={currentDrawingMeta}
+                setCurrentDrawingMeta={setCurrentDrawingMeta}
             />
           </div>
         </div>
