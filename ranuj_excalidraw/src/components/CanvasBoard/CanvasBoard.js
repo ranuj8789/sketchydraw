@@ -68,6 +68,26 @@ import {
     saveLocalDrawing,
 } from "../DrawingGroupStore/localDrawingStore";
 
+const ERASER_CURSOR_SVG = `
+<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+  <g transform="rotate(-35 14 14)">
+    <rect x="7" y="5" width="13" height="18" rx="3" fill="#ffffff" stroke="#111827" stroke-width="2"/>
+    <rect x="7" y="14" width="13" height="9" rx="2" fill="#fca5a5" stroke="#111827" stroke-width="2"/>
+    <line x1="7" y1="14" x2="20" y2="14" stroke="#111827" stroke-width="2"/>
+  </g>
+</svg>
+`;
+
+const ERASER_CURSOR = `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+    ERASER_CURSOR_SVG
+)}") 8 22, pointer`;
+
+const getIdleCanvasCursor = (tool, isSpacePressed) => {
+    if (isSpacePressed || tool === "hand") return "grab";
+    if (tool === "eraser") return "crosshair";
+    return "default";
+};
+
 export default function CanvasBoard({
                                         tool,
                                         setTool,
@@ -745,6 +765,26 @@ export default function CanvasBoard({
                 (el) => el.id === selectedIds[0]
             );
 
+            if (
+                selectedElementObj?.type === "line" ||
+                selectedElementObj?.type === "arrow"
+            ) {
+                const curveHandle = getCurveHandleAtPoint(
+                    selectedElementObj,
+                    point,
+                    viewport.zoom
+                );
+
+                if (curveHandle) {
+                    setDragState({
+                        mode: "curve-handle",
+                        id: selectedElementObj.id,
+                        handle: curveHandle,
+                    });
+                    return;
+                }
+            }
+
             const selectedHandle = getResizeHandleAtPoint(
                 selectedElementObj,
                 point.x,
@@ -905,6 +945,12 @@ export default function CanvasBoard({
         const rawPoint = getPointerPosition(event, canvas);
         const point = screenToWorld(rawPoint, viewport);
 
+        if (!dragState && tool === "eraser" && !isSpacePressed) {
+            const target = findTopElementAtPoint(elements, point);
+
+            canvas.style.cursor = target ? ERASER_CURSOR : "crosshair";
+            return;
+        }
         if (!dragState && (isSpacePressed || tool === "hand")) {
             canvas.style.cursor = "grab";
         }
@@ -940,7 +986,12 @@ export default function CanvasBoard({
                             cursor = getCursorForHandle(handle);
                         } else {
                             const target = findTopElementAtPoint(elements, point);
-                            if (target) cursor = "move";
+                            if (target) {
+                                cursor =
+                                    target.type === "line" || target.type === "arrow"
+                                        ? "pointer"
+                                        : "move";
+                            }
                         }
                     }
                 } else {
@@ -956,12 +1007,22 @@ export default function CanvasBoard({
                         cursor = getCursorForHandle(handle);
                     } else {
                         const target = findTopElementAtPoint(elements, point);
-                        if (target) cursor = "move";
+                        if (target) {
+                            cursor =
+                                target.type === "line" || target.type === "arrow"
+                                    ? "pointer"
+                                    : "move";
+                        }
                     }
                 }
             } else {
                 const target = findTopElementAtPoint(elements, point);
-                if (target) cursor = "move";
+                if (target) {
+                    cursor =
+                        target.type === "line" || target.type === "arrow"
+                            ? "pointer"
+                            : "move";
+                }
             }
 
             canvas.style.cursor = cursor;
@@ -1034,6 +1095,7 @@ export default function CanvasBoard({
                 if (dragState.handle === "cp1") {
                     return {
                         ...el,
+                        lineStyle: "curved",
                         cx1: point.x,
                         cy1: point.y,
                         cx2: point.x,

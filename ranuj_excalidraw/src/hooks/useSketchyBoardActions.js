@@ -5,9 +5,8 @@ import {
     createDrawingJson,
     downloadDrawingJson,
 } from "../canvas/drawingStorage";
-import {
-    exportCanvasToSVG,
-} from "../utils/exportBoard";
+import { exportCanvasToSVG } from "../utils/exportBoard";
+import { requireProAccess } from "../utils/proAccess";
 
 export function useSketchyBoardActions({
                                            elements = [],
@@ -54,7 +53,13 @@ export function useSketchyBoardActions({
         );
     };
 
-    const exportJSON = () => {
+    const exportJSON = async () => {
+        const allowed = await requireProAccess("Export JSON");
+
+        if (!allowed) {
+            return;
+        }
+
         const json = createDrawingJson({
             elements,
             viewport,
@@ -71,7 +76,18 @@ export function useSketchyBoardActions({
 
     const importDrawingJson = async (event) => {
         const file = event.target.files?.[0];
-        if (!file) return;
+
+        event.target.value = "";
+
+        if (!file) {
+            return;
+        }
+
+        const allowed = await requireProAccess("Import JSON");
+
+        if (!allowed) {
+            return;
+        }
 
         try {
             const json = await readDrawingJsonFile(file);
@@ -90,12 +106,16 @@ export function useSketchyBoardActions({
         } catch (error) {
             alert("Invalid SketchyDraw JSON file");
             console.error(error);
-        } finally {
-            event.target.value = "";
         }
     };
 
-    const openJsonPicker = () => {
+    const openJsonPicker = async () => {
+        const allowed = await requireProAccess("Import JSON");
+
+        if (!allowed) {
+            return;
+        }
+
         jsonInputRef.current?.click();
     };
 

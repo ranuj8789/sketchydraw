@@ -10,6 +10,7 @@ import com.sketchydraw.drawing.repository.SavedDrawingRepository;
 import com.sketchydraw.payment.service.SubscriptionGuardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -23,6 +24,7 @@ public class DrawingService {
     private final SubscriptionGuardService subscriptionGuardService;
     private final DrawingGroupService drawingGroupService;
 
+    @Transactional
     public SavedDrawingResponse saveDrawing(String email, SaveDrawingRequest request) {
         User user = getUser(email);
 
@@ -30,34 +32,24 @@ public class DrawingService {
 
         validateRequest(request);
 
+        String title = normalizeTitle(request.getTitle());
         String groupName = resolveGroupName(request);
-        String description = request.getDescription() == null
-                ? ""
-                : request.getDescription().trim();
+        String description = normalizeDescription(request.getDescription());
 
         drawingGroupService.createGroupIfMissing(email, groupName);
 
-        SavedDrawing drawing;
+        SavedDrawing drawing = resolveDrawingForSave(user.getId(), request.getId(), title, groupName);
 
-        if (request.getId() != null) {
-            drawing = savedDrawingRepository.findByIdAndUserId(request.getId(), user.getId())
-                    .orElseThrow(() -> new IllegalArgumentException("Drawing not found"));
-        } else {
-            drawing = new SavedDrawing();
-            drawing.setUserId(user.getId());
-            drawing.setCreatedAt(LocalDateTime.now());
-        }
-
-        drawing.setTitle(request.getTitle().trim());
+        drawing.setTitle(title);
         drawing.setGroupName(groupName);
         drawing.setDescription(description);
         drawing.setDrawingJson(request.getDrawingJson());
         drawing.setDrawingType("EXCALIDRAW");
         drawing.setUpdatedAt(LocalDateTime.now());
 
-        savedDrawingRepository.save(drawing);
+        SavedDrawing saved = savedDrawingRepository.save(drawing);
 
-        return toResponse(drawing);
+        return toResponse(saved);
     }
 
     public List<DrawingListResponse> listDrawings(String email) {
@@ -90,6 +82,7 @@ public class DrawingService {
         return toResponse(drawing);
     }
 
+    @Transactional
     public void deleteDrawing(String email, Long id) {
         User user = getUser(email);
 
@@ -99,6 +92,22 @@ public class DrawingService {
                 .orElseThrow(() -> new IllegalArgumentException("Drawing not found"));
 
         savedDrawingRepository.delete(drawing);
+    }
+
+    private SavedDrawing resolveDrawingForSave(Long userId, Long requestId, String title, String groupName) {
+        if (requestId != null) {
+            return savedDrawingRepository.findByIdAndUserId(requestId, userId)
+                    .orElseThrow(() -> new IllegalArgumentException("Drawing not found"));
+        }
+
+        return savedDrawingRepository
+                .findLatestByUserIdAndTitleAndGroupNameIgnoreCase(userId, title, groupName)
+                .orElseGet(() -> {
+                    SavedDrawing drawing = new SavedDrawing();
+                    drawing.setUserId(userId);
+                    drawing.setCreatedAt(LocalDateTime.now());
+                    return drawing;
+                });
     }
 
     private User getUser(String email) {
@@ -118,6 +127,18 @@ public class DrawingService {
         if (request.getDrawingJson().length() > 5_000_000) {
             throw new IllegalArgumentException("Drawing JSON is too large");
         }
+    }
+
+    private String normalizeTitle(String title) {
+        String value = title == null ? "" : title.trim();
+        if (value.isBlank()) {
+            throw new IllegalArgumentException("Drawing title is required");
+        }
+        return value;
+    }
+
+    private String normalizeDescription(String description) {
+        return description == null ? "" : description.trim();
     }
 
     private String resolveGroupName(SaveDrawingRequest request) {

@@ -138,32 +138,47 @@
     padding-right: 3px;
 }
 
-.drawings-group-list button {
+.drawings-group-row {
+    border-radius: 14px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.drawings-group-row.active,
+.drawings-group-row:hover {
+    background: rgba(255, 255, 255, 0.16);
+}
+
+.drawings-group-select {
+    min-width: 0;
     border: none;
     border-radius: 14px;
-    padding: 11px 12px;
+    padding: 11px 10px 11px 12px;
     display: flex;
     justify-content: space-between;
+    align-items: center;
     gap: 8px;
-    background: rgba(255, 255, 255, 0.06);
+    background: transparent;
     color: #cbd5e1;
     cursor: pointer;
     text-align: left;
 }
 
-.drawings-group-list button.active,
-.drawings-group-list button:hover {
-    background: rgba(255, 255, 255, 0.16);
+.drawings-group-row.active .drawings-group-select,
+.drawings-group-row:hover .drawings-group-select {
     color: white;
 }
 
-.drawings-group-list span {
+.drawings-group-select span {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.drawings-group-list em {
+.drawings-group-select em {
     min-width: 24px;
     height: 22px;
     border-radius: 999px;
@@ -173,6 +188,32 @@
     justify-content: center;
     font-style: normal;
     font-size: 12px;
+}
+
+.drawings-group-delete {
+    width: 28px;
+    height: 28px;
+    margin-right: 7px;
+    border: none;
+    border-radius: 9px;
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+    opacity: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.drawings-group-row:hover .drawings-group-delete {
+    opacity: 1;
+}
+
+.drawings-group-delete:hover {
+    background: rgba(248, 113, 113, 0.16);
+    color: #fecaca;
 }
 
 .drawings-version-card {
@@ -239,6 +280,11 @@
     padding: 11px 14px;
     font-weight: 900;
     cursor: pointer;
+}
+
+.drawings-header button:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
 }
 
 .drawings-toolbar {
@@ -420,6 +466,11 @@
     color: #991b1b;
 }
 
+.drawing-actions button:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
 .drawings-empty {
     min-height: 300px;
     border: 1px dashed #cbd5e1;
@@ -479,6 +530,7 @@
     from {
         background-position: 200% 0;
     }
+
     to {
         background-position: -200% 0;
     }

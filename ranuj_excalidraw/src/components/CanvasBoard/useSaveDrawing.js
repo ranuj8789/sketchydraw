@@ -122,8 +122,6 @@ export function useSaveDrawing({
         });
 
         const localMeta = {
-            // Do not store local_ id in currentDrawingMeta.id.
-            // Backend may expect numeric/server id.
             id: saveAsNew ? null : currentServerSafeId || null,
             title: localRow?.title || finalTitle,
             groupName: localRow?.groupName || finalGroup,

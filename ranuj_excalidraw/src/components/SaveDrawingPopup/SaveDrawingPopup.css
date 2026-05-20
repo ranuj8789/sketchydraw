@@ -1,209 +1,243 @@
-.save-popup-backdrop {
+.save-drawing-backdrop {
     position: fixed;
     inset: 0;
     z-index: 9999;
+    background: rgba(15, 23, 42, 0.42);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(15, 23, 42, 0.42);
-    backdrop-filter: blur(8px);
+    padding: 20px;
 }
 
-.save-modal {
-    width: min(520px, calc(100vw - 32px));
+.save-drawing-modal {
+    width: min(420px, calc(100vw - 32px));
     background: #ffffff;
     border: 1px solid #e2e8f0;
-    border-radius: 26px;
-    box-shadow: 0 34px 90px rgba(15, 23, 42, 0.25);
-    padding: 26px;
+    border-radius: 24px;
+    box-shadow: 0 32px 90px rgba(15, 23, 42, 0.26);
+    padding: 24px;
     position: relative;
 }
 
-.save-close {
+.save-drawing-close {
     position: absolute;
     right: 16px;
-    top: 14px;
-    width: 36px;
-    height: 36px;
+    top: 16px;
+
+    width: 34px;
+    height: 34px;
+
     border: none;
     border-radius: 999px;
     background: #f1f5f9;
     color: #0f172a;
-    font-size: 24px;
-    cursor: pointer;
-}
 
-.save-modal-header {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    margin-bottom: 20px;
-}
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1;
 
-.save-icon {
-    width: 54px;
-    height: 54px;
-    border-radius: 18px;
-    background: linear-gradient(135deg, #2563eb, #7c3aed);
-    color: white;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: 950;
-    font-size: 22px;
+
+    cursor: pointer;
 }
 
-.save-modal-header span {
-    color: #2563eb;
-    font-size: 11px;
-    font-weight: 900;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
+.save-drawing-close:hover {
+    background: #e2e8f0;
 }
 
-.save-modal-header h2 {
-    margin: 4px 0 4px;
-    font-size: 28px;
+.save-drawing-header {
+    padding-right: 44px;
+    margin-bottom: 22px;
+}
+
+.save-drawing-header h2 {
+    margin: 0;
     color: #0f172a;
+    font-size: 28px;
+    line-height: 1.1;
     letter-spacing: -0.04em;
 }
 
-.save-modal-header p {
-    margin: 0;
+.save-drawing-header p {
+    margin: 7px 0 0;
     color: #64748b;
     font-size: 14px;
 }
 
-.save-preview-card {
-    border: 1px solid #dbeafe;
-    background: linear-gradient(135deg, #eff6ff, #faf5ff);
-    border-radius: 20px;
-    padding: 15px;
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    align-items: center;
-    margin-bottom: 18px;
-}
-
-.save-preview-card strong {
-    display: block;
-    color: #0f172a;
-    font-size: 15px;
-    margin-bottom: 4px;
-}
-
-.save-preview-card span {
-    color: #64748b;
-    font-size: 13px;
-}
-
-.save-preview-card button {
-    border: none;
-    border-radius: 13px;
-    background: #2563eb;
-    color: white;
-    padding: 11px 14px;
-    font-weight: 900;
-    cursor: pointer;
-    white-space: nowrap;
-}
-
-.save-form {
+.save-drawing-form {
     display: flex;
     flex-direction: column;
     gap: 14px;
 }
 
-.save-form label {
+.save-field {
     display: flex;
     flex-direction: column;
     gap: 7px;
 }
 
-.save-form label span {
-    font-size: 13px;
+.save-field span {
     color: #334155;
+    font-size: 13px;
     font-weight: 850;
 }
 
-.save-form input,
-.save-form select,
-.save-form textarea {
+.save-field input,
+.save-field select {
     width: 100%;
-    box-sizing: border-box;
+    height: 44px;
+
     border: 1px solid #cbd5e1;
-    border-radius: 15px;
-    background: white;
+    border-radius: 13px;
+
+    background: #ffffff;
     color: #0f172a;
-    padding: 12px 14px;
+
+    padding: 0 13px;
+    font-size: 14px;
+    font-weight: 650;
+
+    outline: none;
+}
+
+.save-field input:focus,
+.save-field select:focus,
+.new-workspace-box input:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+}
+
+.workspace-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+}
+
+.new-workspace-btn {
+    height: 44px;
+    border: none;
+    border-radius: 13px;
+
+    background: #0f172a;
+    color: #ffffff;
+
+    padding: 0 14px;
+    font-weight: 900;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.new-workspace-btn:hover {
+    background: #111827;
+}
+
+.new-workspace-box {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 15px;
+    padding: 10px;
+}
+
+.new-workspace-box input {
+    min-width: 0;
+    height: 40px;
+
+    border: 1px solid #cbd5e1;
+    border-radius: 11px;
+
+    background: #ffffff;
+    color: #0f172a;
+
+    padding: 0 12px;
     font-size: 14px;
     outline: none;
 }
 
-.save-form input:focus,
-.save-form select:focus,
-.save-form textarea:focus {
-    border-color: #2563eb;
-    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.10);
-}
-
-.save-group-row {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 9px;
-}
-
-.save-group-row button,
-.save-new-group-row button {
+.new-workspace-box button {
+    height: 40px;
     border: none;
-    border-radius: 14px;
-    padding: 0 13px;
-    background: #0f172a;
-    color: white;
-    font-size: 13px;
+    border-radius: 11px;
+
+    background: #2563eb;
+    color: #ffffff;
+
+    padding: 0 14px;
     font-weight: 900;
     cursor: pointer;
 }
 
-.save-new-group-row {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 9px;
-    margin-top: -4px;
-}
-
-.save-message {
+.save-drawing-message {
     border: 1px solid #bfdbfe;
     background: #eff6ff;
     color: #1e40af;
-    border-radius: 14px;
-    padding: 11px 13px;
+
+    border-radius: 13px;
+    padding: 10px 12px;
+
     font-size: 13px;
     font-weight: 800;
 }
 
-.save-primary,
-.save-secondary {
+.save-drawing-primary {
     height: 46px;
     border: none;
-    border-radius: 15px;
+    border-radius: 14px;
+
+    background: #2563eb;
+    color: #ffffff;
+
+    font-size: 14px;
     font-weight: 900;
+
     cursor: pointer;
 }
 
-.save-primary {
-    background: #2563eb;
-    color: white;
+.save-drawing-primary:hover {
+    background: #1d4ed8;
 }
 
-.save-secondary {
-    background: #f1f5f9;
-    color: #334155;
-}
-
-.save-primary:disabled,
-.save-preview-card button:disabled {
-    opacity: 0.65;
+.save-drawing-primary:disabled,
+.save-drawing-cancel:disabled,
+.new-workspace-btn:disabled,
+.save-drawing-close:disabled {
+    opacity: 0.6;
     cursor: not-allowed;
+}
+
+.save-drawing-cancel {
+    height: 40px;
+    border: none;
+    background: transparent;
+    color: #475569;
+
+    font-size: 14px;
+    font-weight: 850;
+
+    cursor: pointer;
+}
+
+.save-drawing-cancel:hover {
+    color: #0f172a;
+    background: #f8fafc;
+    border-radius: 12px;
+}
+
+@media (max-width: 520px) {
+    .save-drawing-modal {
+        padding: 20px;
+        border-radius: 20px;
+    }
+
+    .workspace-row {
+        grid-template-columns: 1fr;
+    }
 }

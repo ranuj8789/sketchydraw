@@ -356,16 +356,16 @@ export default function Toolbar({
                         <span>Gridlines</span>
                     </label>
 
-                    <div className="topbar-title">
-                        <label className="toolbar-drawing-title-card">
-                            <span>Drawing</span>
-                            <input
-                                value={drawingTitle || "Untitled"}
-                                onChange={(e) => onDrawingTitleChange?.(e.target.value)}
-                                placeholder="Untitled"
-                            />
-                        </label>
-                    </div>
+                    {/*<div className="topbar-title">*/}
+                    {/*    <label className="toolbar-drawing-title-card">*/}
+                    {/*        <span>Drawing</span>*/}
+                    {/*        <input*/}
+                    {/*            value={drawingTitle || "Untitled"}*/}
+                    {/*            onChange={(e) => onDrawingTitleChange?.(e.target.value)}*/}
+                    {/*            placeholder="Untitled"*/}
+                    {/*        />*/}
+                    {/*    </label>*/}
+                    {/*</div>*/}
                 </div>
 
                 <div className="topbar-auth">

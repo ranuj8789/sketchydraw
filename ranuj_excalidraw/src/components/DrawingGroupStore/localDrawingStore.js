@@ -109,9 +109,16 @@ export function saveLocalDrawing({
 
     const existingRows = listLocalDrawings();
 
-    const existingRow = existingRows.find(
-        (item) => String(item.id) === String(finalId)
-    );
+    const sameIdentity = (item) => {
+        const sameTitle = normalizeTitle(item.title) === finalTitle;
+        const sameGroup = normalizeGroupName(item.groupName || item.workspace) === finalGroup;
+        const sameUser = String(item.userEmail || "") === String(userEmail || "");
+        return sameTitle && sameGroup && sameUser;
+    };
+
+    const existingRow =
+        existingRows.find((item) => String(item.id) === String(finalId)) ||
+        existingRows.find(sameIdentity);
 
     const drawingData =
         drawingJson ||
@@ -154,7 +161,11 @@ export function saveLocalDrawing({
 
     const nextRows = [
         row,
-        ...existingRows.filter((item) => String(item.id) !== String(finalId)),
+        ...existingRows.filter((item) => {
+            const sameId = String(item.id) === String(finalId);
+            const sameNameGroupUser = sameIdentity(item);
+            return !sameId && !sameNameGroupUser;
+        }),
     ];
 
     const saved = safeSetLocalStorage(

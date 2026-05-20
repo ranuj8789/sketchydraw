@@ -17,12 +17,9 @@ export function buildShapeDraft(tool, point, stroke) {
         stroke,
         strokeWidth: 2,
         strokeDash: "solid",
-
-        // default rounded rectangle
         cornerRadius: tool === "rect" || tool === "rectangle" ? 14 : 0,
     };
 }
-
 
 export function buildLineDraft(tool, point, stroke, lineStyle = "straight") {
     return {
@@ -90,7 +87,6 @@ export function buildTextElement({
         text: finalText,
         stroke,
         parentId,
-
         fontSize: box.fontSize,
         lineHeight: box.lineHeight,
         fontFamily: box.fontFamily,
@@ -98,7 +94,6 @@ export function buildTextElement({
         italic,
         underline,
         textAlign,
-
         w: box.w,
         h: box.h,
     };

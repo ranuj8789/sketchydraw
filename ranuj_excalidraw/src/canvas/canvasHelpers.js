@@ -35,11 +35,7 @@ function isPointInsideElement(el, point) {
     }
 
     if (el.type === "line" || el.type === "arrow") {
-        return distanceToSegment(
-            point,
-            { x: el.x1, y: el.y1 },
-            { x: el.x2, y: el.y2 }
-        ) < 10;
+        return distanceToLineOrCurve(point, el) < 12;
     }
 
     if (el.type === "pencil") {
@@ -53,6 +49,66 @@ function isPointInsideElement(el, point) {
     }
 
     return false;
+}
+
+function distanceToLineOrCurve(point, element) {
+    if (element.lineStyle === "curved") {
+        return distanceToBezier(point, element);
+    }
+
+    return distanceToSegment(
+        point,
+        { x: element.x1, y: element.y1 },
+        { x: element.x2, y: element.y2 }
+    );
+}
+
+function cubicBezierPoint(t, p0, p1, p2, p3) {
+    const mt = 1 - t;
+    const mt2 = mt * mt;
+    const t2 = t * t;
+
+    return {
+        x:
+            mt2 * mt * p0.x +
+            3 * mt2 * t * p1.x +
+            3 * mt * t2 * p2.x +
+            t2 * t * p3.x,
+        y:
+            mt2 * mt * p0.y +
+            3 * mt2 * t * p1.y +
+            3 * mt * t2 * p2.y +
+            t2 * t * p3.y,
+    };
+}
+
+function distanceToBezier(point, element) {
+    const p0 = { x: element.x1, y: element.y1 };
+    const p1 = {
+        x: element.cx1 ?? element.x1,
+        y: element.cy1 ?? element.y1,
+    };
+    const p2 = {
+        x: element.cx2 ?? element.x2,
+        y: element.cy2 ?? element.y2,
+    };
+    const p3 = { x: element.x2, y: element.y2 };
+
+    let minDistance = Infinity;
+    let previous = p0;
+
+    for (let i = 1; i <= 32; i++) {
+        const current = cubicBezierPoint(i / 32, p0, p1, p2, p3);
+
+        minDistance = Math.min(
+            minDistance,
+            distanceToSegment(point, previous, current)
+        );
+
+        previous = current;
+    }
+
+    return minDistance;
 }
 
 function distanceToSegment(point, start, end) {
@@ -87,18 +143,24 @@ export function getCurveHandleAtPoint(element, point, zoom = 1) {
 
     const hitSize = 10 / zoom;
 
+    const midX = (element.x1 + element.x2) / 2;
+    const midY = (element.y1 + element.y2) / 2;
+
+    const controlX =
+        element.lineStyle === "curved"
+            ? element.cx1 ?? midX
+            : midX;
+
+    const controlY =
+        element.lineStyle === "curved"
+            ? element.cy1 ?? midY
+            : midY;
+
     const points = [
         { key: "start", x: element.x1, y: element.y1 },
         { key: "end", x: element.x2, y: element.y2 },
+        { key: "cp1", x: controlX, y: controlY },
     ];
-
-    if (element.lineStyle === "curved") {
-        points.push({
-            key: "cp1",
-            x: element.cx1 ?? element.x1,
-            y: element.cy1 ?? element.y1,
-        });
-    }
 
     for (const item of points) {
         if (Math.hypot(point.x - item.x, point.y - item.y) <= hitSize) {
@@ -117,17 +179,24 @@ export function drawCurveControls(ctx, element, viewport) {
     const zoom = viewport?.zoom || 1;
     const radius = 5 / zoom;
 
+    const midX = (element.x1 + element.x2) / 2;
+    const midY = (element.y1 + element.y2) / 2;
+
+    const controlX =
+        element.lineStyle === "curved"
+            ? element.cx1 ?? midX
+            : midX;
+
+    const controlY =
+        element.lineStyle === "curved"
+            ? element.cy1 ?? midY
+            : midY;
+
     const points = [
         { x: element.x1, y: element.y1 },
         { x: element.x2, y: element.y2 },
+        { x: controlX, y: controlY },
     ];
-
-    if (element.lineStyle === "curved") {
-        points.push({
-            x: element.cx1 ?? element.x1,
-            y: element.cy1 ?? element.y1,
-        });
-    }
 
     ctx.save();
 

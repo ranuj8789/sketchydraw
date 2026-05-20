@@ -279,32 +279,40 @@ function SketchyDrawPage() {
       if (el.id !== selectedElement.id) return el;
 
       const isCurved = el.lineStyle === "curved";
+      const x1 = el.x1;
+      const y1 = el.y1;
+      const x2 = el.x2;
+      const y2 = el.y2;
+      const midX = (x1 + x2) / 2;
+      const midY = (y1 + y2) / 2;
 
       if (isCurved) {
-        const points = el.points || [];
-        const first = points[0] || { x: el.x1, y: el.y1 };
-        const last = points[points.length - 1] || { x: el.x2, y: el.y2 };
-
         return {
           ...el,
           lineStyle: "straight",
-          x1: first.x,
-          y1: first.y,
-          x2: last.x,
-          y2: last.y,
+          cx1: midX,
+          cy1: midY,
+          cx2: midX,
+          cy2: midY,
           points: undefined,
         };
       }
 
-      const start = { x: el.x1, y: el.y1 };
-      const end = { x: el.x2, y: el.y2 };
-      const midX = (start.x + end.x) / 2;
-      const midY = (start.y + end.y) / 2 - 60;
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const length = Math.hypot(dx, dy) || 1;
+      const curveAmount = Math.min(90, Math.max(28, length * 0.22));
+      const controlX = midX + (-dy / length) * curveAmount;
+      const controlY = midY + (dx / length) * curveAmount;
 
       return {
         ...el,
         lineStyle: "curved",
-        points: [start, { x: midX, y: midY }, end],
+        cx1: controlX,
+        cy1: controlY,
+        cx2: controlX,
+        cy2: controlY,
+        points: undefined,
       };
     });
 

@@ -5,6 +5,7 @@ import {
     DEFAULT_TITLE,
     getStoredGroups,
     saveStoredGroup,
+    deleteStoredGroup,
     mergeGroupsFromDrawings,
     getGroupNameFromDrawing,
 } from "../DrawingGroupStore/drawingGroupStore";
@@ -89,12 +90,10 @@ export default function MyDrawingsPopup({
         }
     }, [open]);
 
-    const allGroups = useMemo(() => {
-        const drawingGroups = drawings.map(getGroupName);
-        return Array.from(new Set([DEFAULT_GROUP, ...groups, ...drawingGroups]));
-    }, [drawings, groups]);
-
-    const sidebarGroups = useMemo(() => ["All", ...allGroups], [allGroups]);
+    const sidebarGroups = useMemo(() => {
+        const uniqueGroups = Array.from(new Set([DEFAULT_GROUP, ...(groups || [])]));
+        return ["All", ...uniqueGroups];
+    }, [groups]);
 
     const filteredDrawings = useMemo(() => {
         const q = searchText.trim().toLowerCase();
@@ -115,15 +114,50 @@ export default function MyDrawingsPopup({
 
     if (!open) return null;
 
+    const countForGroup = (group) => {
+        if (group === "All") return drawings.length;
+        return drawings.filter((drawing) => getGroupName(drawing) === group).length;
+    };
+
     const handleAddGroup = () => {
         const name = newGroupName.trim();
         if (!name) return;
 
         const next = saveStoredGroup(name);
+
         setGroups(next);
         setSelectedGroup(name);
         setNewGroupName("");
         setShowNewGroup(false);
+        setMessage("");
+    };
+
+    const handleDeleteGroup = (event, group) => {
+        event.stopPropagation();
+
+        if (group === "All" || group === DEFAULT_GROUP) {
+            return;
+        }
+
+        const drawingsCount = countForGroup(group);
+
+        const ok = window.confirm(
+            drawingsCount > 0
+                ? `Delete group "${group}" from sidebar? Drawings will not be deleted. They will still appear in All.`
+                : `Delete group "${group}"?`
+        );
+
+        if (!ok) return;
+
+        const nextGroups = deleteStoredGroup(group);
+
+        setGroups(nextGroups);
+
+        if (selectedGroup === group) {
+            setSelectedGroup("All");
+        }
+
+        setMessage(`Group "${group}" deleted. Drawings were not deleted.`);
     };
 
     const handleOpen = async (drawing) => {
@@ -138,6 +172,7 @@ export default function MyDrawingsPopup({
         try {
             if (drawing.source === "local") {
                 const localDrawing = getLocalDrawingById(drawing.id) || drawing;
+
                 saveStoredGroup(getGroupNameFromDrawing(localDrawing));
                 onOpenDrawing?.(localDrawing);
                 onClose?.();
@@ -213,11 +248,6 @@ export default function MyDrawingsPopup({
         }
     };
 
-    const countForGroup = (group) => {
-        if (group === "All") return drawings.length;
-        return drawings.filter((drawing) => getGroupName(drawing) === group).length;
-    };
-
     const formatDate = (drawing) => {
         const raw = drawing.updatedAt || drawing.createdAt || drawing.savedAt;
         if (!raw) return "No date";
@@ -258,6 +288,11 @@ export default function MyDrawingsPopup({
                                 value={newGroupName}
                                 onChange={(e) => setNewGroupName(e.target.value)}
                                 placeholder="New group"
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                        handleAddGroup();
+                                    }
+                                }}
                             />
                             <button type="button" onClick={handleAddGroup}>
                                 Add
@@ -266,17 +301,40 @@ export default function MyDrawingsPopup({
                     )}
 
                     <div className="drawings-group-list">
-                        {sidebarGroups.map((group) => (
-                            <button
-                                key={group}
-                                type="button"
-                                className={selectedGroup === group ? "active" : ""}
-                                onClick={() => setSelectedGroup(group)}
-                            >
-                                <span>{group}</span>
-                                <em>{countForGroup(group)}</em>
-                            </button>
-                        ))}
+                        {sidebarGroups.map((group) => {
+                            const canDeleteGroup =
+                                group !== "All" && group !== DEFAULT_GROUP;
+
+                            return (
+                                <div
+                                    key={group}
+                                    className={`drawings-group-row ${
+                                        selectedGroup === group ? "active" : ""
+                                    }`}
+                                >
+                                    <button
+                                        type="button"
+                                        className="drawings-group-select"
+                                        onClick={() => setSelectedGroup(group)}
+                                    >
+                                        <span>{group}</span>
+                                        <em>{countForGroup(group)}</em>
+                                    </button>
+
+                                    {canDeleteGroup && (
+                                        <button
+                                            type="button"
+                                            className="drawings-group-delete"
+                                            title="Delete group"
+                                            aria-label={`Delete group ${group}`}
+                                            onClick={(event) => handleDeleteGroup(event, group)}
+                                        >
+                                            🗑
+                                        </button>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
 
                     <div className="drawings-version-card">
