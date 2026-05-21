@@ -242,7 +242,10 @@ export function ContactUsPage() {
                 <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
             </p>
 
-            <h2>Business</h2>
+            <h2>Business Name</h2>
+            <p>Neelam Enterprises</p>
+
+            <h2>Product / Website</h2>
             <p>{COMPANY}</p>
 
             <h2>Support Hours</h2>

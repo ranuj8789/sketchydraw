@@ -88,6 +88,168 @@ const getIdleCanvasCursor = (tool, isSpacePressed) => {
     return "default";
 };
 
+const ALIGNMENT_SNAP_THRESHOLD = 8;
+
+function getAlignmentPoints(bounds) {
+    return {
+        vertical: [
+            { key: "left", value: bounds.x },
+            { key: "centerX", value: bounds.x + bounds.w / 2 },
+            { key: "right", value: bounds.x + bounds.w },
+        ],
+        horizontal: [
+            { key: "top", value: bounds.y },
+            { key: "centerY", value: bounds.y + bounds.h / 2 },
+            { key: "bottom", value: bounds.y + bounds.h },
+        ],
+    };
+}
+
+function getSmartAlignment({ elements, movingIds, movedElements }) {
+    let bestVertical = null;
+    let bestHorizontal = null;
+
+    const movedById = new Map(movedElements.map((el) => [el.id, el]));
+    const movingElements = elements
+        .filter((el) => movingIds.has(el.id))
+        .map((el) => movedById.get(el.id) || el);
+
+    const stationaryElements = elements.filter((el) => !movingIds.has(el.id));
+
+    movingElements.forEach((movingElement) => {
+        const movingBounds = getElementBounds(movingElement);
+        if (!movingBounds) return;
+
+        const movingPoints = getAlignmentPoints(movingBounds);
+
+        stationaryElements.forEach((stationaryElement) => {
+            const stationaryBounds = getElementBounds(stationaryElement);
+            if (!stationaryBounds) return;
+
+            const stationaryPoints = getAlignmentPoints(stationaryBounds);
+
+            movingPoints.vertical.forEach((movingPoint) => {
+                stationaryPoints.vertical.forEach((stationaryPoint) => {
+                    const diff = stationaryPoint.value - movingPoint.value;
+
+                    if (
+                        Math.abs(diff) <= ALIGNMENT_SNAP_THRESHOLD &&
+                        (!bestVertical || Math.abs(diff) < Math.abs(bestVertical.snapDx))
+                    ) {
+                        bestVertical = {
+                            type: "vertical",
+                            x: stationaryPoint.value,
+                            snapDx: diff,
+                        };
+                    }
+                });
+            });
+
+            movingPoints.horizontal.forEach((movingPoint) => {
+                stationaryPoints.horizontal.forEach((stationaryPoint) => {
+                    const diff = stationaryPoint.value - movingPoint.value;
+
+                    if (
+                        Math.abs(diff) <= ALIGNMENT_SNAP_THRESHOLD &&
+                        (!bestHorizontal || Math.abs(diff) < Math.abs(bestHorizontal.snapDy))
+                    ) {
+                        bestHorizontal = {
+                            type: "horizontal",
+                            y: stationaryPoint.value,
+                            snapDy: diff,
+                        };
+                    }
+                });
+            });
+        });
+    });
+
+    return {
+        guides: [bestVertical, bestHorizontal].filter(Boolean),
+        snapDx: bestVertical?.snapDx || 0,
+        snapDy: bestHorizontal?.snapDy || 0,
+    };
+}
+
+function getResizeSmartAlignment({ elements, resizingId, resizedElement, handle }) {
+    const resizedBounds = getElementBounds(resizedElement);
+    if (!resizedBounds) {
+        return { guides: [], snapDx: 0, snapDy: 0 };
+    }
+
+    const resizedPoints = getAlignmentPoints(resizedBounds);
+    const activeVerticalPoints = [];
+    const activeHorizontalPoints = [];
+
+    if (handle.includes("w")) {
+        activeVerticalPoints.push(resizedPoints.vertical.find((point) => point.key === "left"));
+    }
+
+    if (handle.includes("e")) {
+        activeVerticalPoints.push(resizedPoints.vertical.find((point) => point.key === "right"));
+    }
+
+    if (handle.includes("n")) {
+        activeHorizontalPoints.push(resizedPoints.horizontal.find((point) => point.key === "top"));
+    }
+
+    if (handle.includes("s")) {
+        activeHorizontalPoints.push(resizedPoints.horizontal.find((point) => point.key === "bottom"));
+    }
+
+    let bestVertical = null;
+    let bestHorizontal = null;
+
+    elements.forEach((stationaryElement) => {
+        if (stationaryElement.id === resizingId) return;
+
+        const stationaryBounds = getElementBounds(stationaryElement);
+        if (!stationaryBounds) return;
+
+        const stationaryPoints = getAlignmentPoints(stationaryBounds);
+
+        activeVerticalPoints.filter(Boolean).forEach((resizedPoint) => {
+            stationaryPoints.vertical.forEach((stationaryPoint) => {
+                const diff = stationaryPoint.value - resizedPoint.value;
+
+                if (
+                    Math.abs(diff) <= ALIGNMENT_SNAP_THRESHOLD &&
+                    (!bestVertical || Math.abs(diff) < Math.abs(bestVertical.snapDx))
+                ) {
+                    bestVertical = {
+                        type: "vertical",
+                        x: stationaryPoint.value,
+                        snapDx: diff,
+                    };
+                }
+            });
+        });
+
+        activeHorizontalPoints.filter(Boolean).forEach((resizedPoint) => {
+            stationaryPoints.horizontal.forEach((stationaryPoint) => {
+                const diff = stationaryPoint.value - resizedPoint.value;
+
+                if (
+                    Math.abs(diff) <= ALIGNMENT_SNAP_THRESHOLD &&
+                    (!bestHorizontal || Math.abs(diff) < Math.abs(bestHorizontal.snapDy))
+                ) {
+                    bestHorizontal = {
+                        type: "horizontal",
+                        y: stationaryPoint.value,
+                        snapDy: diff,
+                    };
+                }
+            });
+        });
+    });
+
+    return {
+        guides: [bestVertical, bestHorizontal].filter(Boolean),
+        snapDx: bestVertical?.snapDx || 0,
+        snapDy: bestHorizontal?.snapDy || 0,
+    };
+}
+
 export default function CanvasBoard({
                                         tool,
                                         setTool,
@@ -121,6 +283,7 @@ export default function CanvasBoard({
     });
 
     const [dragState, setDragState] = useState(null);
+    const [alignmentGuides, setAlignmentGuides] = useState([]);
     const [editor, setEditor] = useState(null);
     const [selectionBox, setSelectionBox] = useState(null);
     const [clipboard, setClipboard] = useState([]);
@@ -175,6 +338,7 @@ export default function CanvasBoard({
         elements: renderElements,
         selectedIds: renderSelectedIds,
         connectionHint,
+        alignmentGuides,
         viewport,
         showGrid,
         canvasProps,
@@ -1152,15 +1316,43 @@ export default function CanvasBoard({
             const dy = point.y - dragState.startY;
             const movingIds = new Set(dragState.ids);
 
+            let snapDx = 0;
+            let snapDy = 0;
+
+            setElements((prev) => {
+                const movedPreview = moveConnectedArrows(
+                    prev,
+                    movingIds,
+                    dx,
+                    dy,
+                    moveElement
+                );
+
+                const movedElements = movedPreview.filter((el) => movingIds.has(el.id));
+                const alignment = getSmartAlignment({
+                    elements: prev,
+                    movingIds,
+                    movedElements,
+                });
+
+                snapDx = alignment.snapDx;
+                snapDy = alignment.snapDy;
+                setAlignmentGuides(alignment.guides);
+
+                return moveConnectedArrows(
+                    prev,
+                    movingIds,
+                    dx + snapDx,
+                    dy + snapDy,
+                    moveElement
+                );
+            });
+
             setDragState((prev) => ({
                 ...prev,
-                startX: point.x,
-                startY: point.y,
+                startX: point.x + snapDx,
+                startY: point.y + snapDy,
             }));
-
-            setElements((prev) =>
-                moveConnectedArrows(prev, movingIds, dx, dy, moveElement)
-            );
 
             return;
         }
@@ -1169,9 +1361,31 @@ export default function CanvasBoard({
             const cursor = getCursorForHandle(dragState.handle);
             canvas.style.cursor = cursor;
 
-            updateElement(dragState.id, (element) =>
-                resizeElement(element, dragState, point)
-            );
+            setElements((prev) => {
+                const currentElement = prev.find((el) => el.id === dragState.id);
+                if (!currentElement) return prev;
+
+                const resizedPreview = resizeElement(currentElement, dragState, point);
+                const alignment = getResizeSmartAlignment({
+                    elements: prev,
+                    resizingId: dragState.id,
+                    resizedElement: resizedPreview,
+                    handle: dragState.handle,
+                });
+
+                const snappedPoint = {
+                    ...point,
+                    x: point.x + alignment.snapDx,
+                    y: point.y + alignment.snapDy,
+                };
+
+                const snappedElement = resizeElement(currentElement, dragState, snappedPoint);
+                setAlignmentGuides(alignment.guides);
+
+                return prev.map((el) =>
+                    el.id === dragState.id ? snappedElement : el
+                );
+            });
 
             return;
         }
@@ -1201,6 +1415,8 @@ export default function CanvasBoard({
     };
 
     const onMouseUp = () => {
+        setAlignmentGuides([]);
+
         if (!dragState) return;
 
         if (dragState.mode === "pan") {

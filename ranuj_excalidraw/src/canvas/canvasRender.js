@@ -36,6 +36,38 @@ function drawDotsPattern(ctx, canvasSize, viewport) {
     ctx.restore();
 }
 
+function drawAlignmentGuides(ctx, alignmentGuides, canvasSize, viewport) {
+    if (!alignmentGuides?.length) return;
+
+    const startX = -viewport.offsetX / viewport.zoom;
+    const startY = -viewport.offsetY / viewport.zoom;
+    const endX = startX + canvasSize.width / viewport.zoom;
+    const endY = startY + canvasSize.height / viewport.zoom;
+
+    ctx.save();
+    ctx.strokeStyle = "#ef4444";
+    ctx.lineWidth = 1.5 / viewport.zoom;
+    ctx.setLineDash([8 / viewport.zoom, 5 / viewport.zoom]);
+
+    alignmentGuides.forEach((guide) => {
+        ctx.beginPath();
+
+        if (guide.type === "vertical") {
+            ctx.moveTo(guide.x, startY);
+            ctx.lineTo(guide.x, endY);
+        }
+
+        if (guide.type === "horizontal") {
+            ctx.moveTo(startX, guide.y);
+            ctx.lineTo(endX, guide.y);
+        }
+
+        ctx.stroke();
+    });
+
+    ctx.restore();
+}
+
 function drawBlocksPattern(ctx, canvasSize, viewport) {
     const gap = 48;
 
@@ -74,6 +106,7 @@ export function renderCanvas({
                                  elements,
                                  selectedIds,
                                  connectionHint,
+                                 alignmentGuides = [],
                                  viewport,
                                  showGrid = true,
                                  canvasProps = {},
@@ -153,7 +186,7 @@ export function renderCanvas({
             drawCurveControls(ctx, element, viewport);
         }
     });
-
+    drawAlignmentGuides(ctx, alignmentGuides, canvasSize, viewport);
     if (connectionHint?.bindPoint) {
         ctx.save();
         ctx.fillStyle = "#3b82f6";
