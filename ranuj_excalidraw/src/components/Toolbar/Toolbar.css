@@ -48,7 +48,24 @@
     margin: 0 4px;
 }
 
-/* Floating legal burger menu - placed beside logo card, not over logo */
+.topbar-announcement {
+    max-width: 260px;
+    height: 34px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: #fff7ed;
+    color: #9a3412;
+    border: 1px solid #fed7aa;
+    display: inline-flex;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 850;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Floating legal burger menu */
 .legal-floating-menu-wrap {
     position: fixed;
     top: 28px;
@@ -129,7 +146,7 @@
     background: #f3f4f6;
 }
 
-/* Save / My Drawings */
+/* Main actions */
 .toolbar-primary-action,
 .toolbar-dark-action {
     min-width: 112px;
@@ -144,7 +161,6 @@
     background: #374151;
 }
 
-/* Login / Subscribe */
 .login-btn {
     background: #2563eb;
     border-color: #2563eb;
@@ -163,7 +179,7 @@
 }
 
 .profile-trigger {
-    min-width: 230px;
+    min-width: 280px;
     height: 42px !important;
     display: inline-flex;
     align-items: center;
@@ -212,7 +228,7 @@
     position: absolute;
     top: 50px;
     right: 0;
-    width: 280px;
+    width: 300px;
     background: #ffffff;
     border-radius: 18px;
     padding: 16px;
@@ -268,6 +284,65 @@
 
 .logout-menu-item {
     color: #dc2626;
+}
+
+/* PRO/FREE badges */
+.topbar-pro-pill,
+.topbar-free-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 22px;
+    min-width: 42px;
+    padding: 0 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 950;
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+}
+
+.topbar-pro-pill {
+    color: #92400e;
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+}
+
+.topbar-free-pill {
+    color: #475569;
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+}
+
+.profile-plan-badge {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    margin-top: 8px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 950;
+    letter-spacing: 0.04em;
+}
+
+.profile-plan-badge.pro {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #f59e0b;
+}
+
+.profile-plan-badge.free {
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+}
+
+.profile-plan-expiry {
+    display: block;
+    margin-top: 6px;
+    color: #64748b;
+    font-weight: 750;
 }
 
 /* Align dropdown */
@@ -415,7 +490,268 @@
     background: #f1f5f9;
 }
 
-/* Old toolbar user classes kept safely in case old JSX appears */
+/* Export dropdown */
+.export-menu-wrap {
+    position: relative;
+}
+
+.export-trigger-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.export-trigger-btn span {
+    font-size: 12px;
+    color: #cbd5e1;
+}
+
+.export-dropdown {
+    position: absolute;
+    top: 46px;
+    left: 0;
+    width: 210px;
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 10px;
+    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.18);
+    z-index: 1000;
+}
+
+.export-dropdown button {
+    width: 100%;
+    height: 40px !important;
+    border: none;
+    background: transparent;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 850;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    text-align: left;
+    padding: 0 10px !important;
+    border-radius: 10px;
+}
+
+.export-dropdown button:hover {
+    background: #f1f5f9;
+}
+
+/* Profile and billing modals */
+.account-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 999999;
+    background: rgba(15, 23, 42, 0.44);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.account-modal {
+    position: relative;
+    width: min(460px, 96vw);
+    max-height: 88vh;
+    overflow: auto;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 24px;
+    box-shadow: 0 28px 80px rgba(15, 23, 42, 0.26);
+    padding: 24px;
+}
+
+.account-modal-wide {
+    width: min(820px, 96vw);
+}
+
+.account-modal-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 34px;
+    height: 34px !important;
+    border: none;
+    border-radius: 999px;
+    background: #f1f5f9;
+    color: #111827;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 !important;
+}
+
+.account-modal-header {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 18px;
+}
+
+.account-modal-header h2 {
+    margin: 0;
+    font-size: 24px;
+    color: #111827;
+    letter-spacing: -0.04em;
+}
+
+.account-modal-header p {
+    margin: 0;
+    color: #64748b;
+    font-size: 14px;
+    font-weight: 750;
+}
+
+.account-status-badge {
+    display: inline-flex;
+    width: fit-content;
+    padding: 6px 11px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 950;
+}
+
+.account-status-badge.pro {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #f59e0b;
+}
+
+.account-status-badge.free {
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+}
+
+.account-status-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 14px;
+    border-radius: 16px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    margin-bottom: 16px;
+    color: #334155;
+}
+
+.account-status-card strong {
+    color: #0f172a;
+}
+
+.account-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.account-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 850;
+}
+
+.account-form input {
+    height: 42px;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    padding: 0 12px;
+    font-size: 14px;
+    font-weight: 700;
+    outline: none;
+}
+
+.account-form input:disabled {
+    background: #f8fafc;
+    color: #64748b;
+    cursor: not-allowed;
+}
+
+.account-primary-btn {
+    height: 44px !important;
+    border: none;
+    border-radius: 12px;
+    background: #2563eb;
+    color: white;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.account-primary-btn:hover {
+    background: #1d4ed8;
+}
+
+.account-modal-message,
+.account-empty-state {
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-weight: 800;
+}
+
+.payment-history-table-wrap {
+    overflow: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+}
+
+.payment-history-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.payment-history-table th,
+.payment-history-table td {
+    padding: 12px;
+    border-bottom: 1px solid #e2e8f0;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.payment-history-table th {
+    background: #f8fafc;
+    color: #334155;
+    font-weight: 950;
+}
+
+.payment-status {
+    display: inline-flex;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: #f1f5f9;
+    color: #334155;
+    font-size: 12px;
+    font-weight: 950;
+}
+
+.payment-status.success,
+.payment-status.paid,
+.payment-status.captured,
+.payment-status.order_created,
+.payment-status.active {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.payment-status.failed,
+.payment-status.cancelled {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.payment-status.pending {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+/* Old safe classes */
 .toolbar-user-box {
     display: flex;
     align-items: center;
@@ -470,29 +806,6 @@
     background: #dc2626;
 }
 
-/* Responsive */
-@media (max-width: 1100px) {
-    .topbar {
-        height: auto;
-        grid-template-columns: 1fr;
-        gap: 10px;
-    }
-
-    .topbar-actions,
-    .topbar-title,
-    .topbar-auth {
-        justify-self: start;
-    }
-
-    .topbar-actions {
-        flex-wrap: wrap;
-    }
-
-    .legal-floating-menu-wrap {
-        top: 16px;
-        left: 230px;
-    }
-}
 .toolbar-drawing-title-card {
     height: 46px;
     min-width: 220px;
@@ -533,50 +846,31 @@
 .toolbar-drawing-title-card input::placeholder {
     color: #94a3b8;
 }
-.export-menu-wrap {
-    position: relative;
-}
 
-.export-trigger-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-}
+/* Responsive */
+@media (max-width: 1100px) {
+    .topbar {
+        height: auto;
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
 
-.export-trigger-btn span {
-    font-size: 12px;
-    color: #cbd5e1;
-}
+    .topbar-actions,
+    .topbar-title,
+    .topbar-auth {
+        justify-self: start;
+    }
 
-.export-dropdown {
-    position: absolute;
-    top: 46px;
-    left: 0;
-    width: 210px;
-    background: #ffffff;
-    border-radius: 16px;
-    padding: 10px;
-    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.18);
-    z-index: 1000;
-}
+    .topbar-actions {
+        flex-wrap: wrap;
+    }
 
-.export-dropdown button {
-    width: 100%;
-    height: 40px !important;
-    border: none;
-    background: transparent;
-    color: #334155;
-    font-size: 13px;
-    font-weight: 850;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    text-align: left;
-    padding: 0 10px !important;
-    border-radius: 10px;
-}
+    .legal-floating-menu-wrap {
+        top: 16px;
+        left: 230px;
+    }
 
-.export-dropdown button:hover {
-    background: #f1f5f9;
+    .profile-trigger {
+        min-width: 240px;
+    }
 }

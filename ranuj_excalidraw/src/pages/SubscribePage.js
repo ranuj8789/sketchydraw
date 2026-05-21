@@ -1,12 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
-import "./subscribepage.css";
+import "./SubscribePage.css";
 import {
-    getPlans,
     getSubscriptionStatus,
     createPayment,
     verifyPayment,
 } from "../api/paymentApi";
-import { isLoggedIn, getUser } from "../../utils/auth";
+import { isLoggedIn, getUser } from "../utils/auth";
 
 const PLACEHOLDER_PLANS = [
     {

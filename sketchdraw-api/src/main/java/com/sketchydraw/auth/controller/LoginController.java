@@ -1,12 +1,19 @@
 package com.sketchydraw.auth.controller;
 
-
-import com.sketchydraw.auth.dto.*;
+import com.sketchydraw.auth.dto.AuthResponse;
+import com.sketchydraw.auth.dto.ForgotPasswordRequest;
+import com.sketchydraw.auth.dto.GoogleLoginRequest;
+import com.sketchydraw.auth.dto.LoginRequest;
+import com.sketchydraw.auth.dto.RegisterRequest;
+import com.sketchydraw.auth.dto.ResendVerificationRequest;
+import com.sketchydraw.auth.dto.ResetPasswordRequest;
+import com.sketchydraw.auth.dto.UpdateProfileRequest;
 import com.sketchydraw.auth.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.Map;
 
 @RestController
@@ -48,8 +55,31 @@ public class LoginController {
     }
 
     @PostMapping("/resend-verification")
-    public ResponseEntity<AuthResponse> resendVerification(@RequestBody ResendVerificationRequest request) {
+    public ResponseEntity<AuthResponse> resendVerification(
+            @RequestBody ResendVerificationRequest request
+    ) {
         return ResponseEntity.ok(authService.resendVerificationEmail(request));
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<AuthResponse> myProfile(Principal principal) {
+        if (principal == null || principal.getName() == null) {
+            throw new IllegalArgumentException("User is not logged in");
+        }
+
+        return ResponseEntity.ok(authService.getMyProfile(principal.getName()));
+    }
+
+    @PostMapping("/me")
+    public ResponseEntity<AuthResponse> updateMyProfile(
+            Principal principal,
+            @RequestBody UpdateProfileRequest request
+    ) {
+        if (principal == null || principal.getName() == null) {
+            throw new IllegalArgumentException("User is not logged in");
+        }
+
+        return ResponseEntity.ok(authService.updateMyProfile(principal.getName(), request));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

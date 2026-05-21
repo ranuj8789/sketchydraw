@@ -1,9 +1,21 @@
 import React, { useEffect, useRef, useState } from "react";
 import "./Toolbar.css";
-import { getUser, isLoggedIn, logout } from "../../utils/auth";
+
+import {
+    getUser,
+    isLoggedIn,
+    logout,
+    isProUser,
+    mergeSubscriptionIntoUser,
+    updateLocalUserProfile,
+} from "../../utils/auth";
+
 import SketchyLoginModal from "../SketchyLoginModal/SketchyLoginModal";
 import SubscriptionPopup from "../SubscriptionPopup/SubscriptionPopup";
+
 import { getActiveAnnouncement } from "../../api/announcementApi";
+import { getSubscriptionStatus, getPaymentHistory } from "../../api/paymentApi";
+import { getMyProfile, updateMyProfile } from "../../api/authApi";
 
 export default function Toolbar({
                                     undo,
@@ -33,6 +45,19 @@ export default function Toolbar({
     const [loggedIn, setLoggedIn] = useState(isLoggedIn());
     const [announcement, setAnnouncement] = useState("");
 
+    const [subscriptionStatus, setSubscriptionStatus] = useState(null);
+
+    const [profileModalOpen, setProfileModalOpen] = useState(false);
+    const [paymentsModalOpen, setPaymentsModalOpen] = useState(false);
+
+    const [paymentRows, setPaymentRows] = useState([]);
+    const [paymentLoading, setPaymentLoading] = useState(false);
+
+    const [profileName, setProfileName] = useState(getUser()?.fullName || "");
+    const [profileMessage, setProfileMessage] = useState("");
+
+    const proUser = isProUser(user);
+
     const profileRef = useRef(null);
     const alignRef = useRef(null);
     const saveRef = useRef(null);
@@ -52,6 +77,22 @@ export default function Toolbar({
 
         return () => clearInterval(intervalId);
     }, []);
+
+    useEffect(() => {
+        if (!loggedIn) {
+            setSubscriptionStatus(null);
+            return;
+        }
+
+        refreshSubscriptionStatus();
+
+        const onUpdated = () => refreshSubscriptionStatus();
+        window.addEventListener("sketchydraw:subscription-updated", onUpdated);
+
+        return () => {
+            window.removeEventListener("sketchydraw:subscription-updated", onUpdated);
+        };
+    }, [loggedIn]);
 
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -110,8 +151,32 @@ export default function Toolbar({
     }, []);
 
     const refreshAuthState = () => {
-        setUser(getUser());
+        const nextUser = getUser();
+
+        setUser(nextUser);
         setLoggedIn(isLoggedIn());
+        setProfileName(nextUser?.fullName || "");
+    };
+
+    const refreshSubscriptionStatus = async () => {
+        if (!isLoggedIn()) return null;
+
+        try {
+            const status = await getSubscriptionStatus();
+            const updatedUser = mergeSubscriptionIntoUser(status);
+
+            setSubscriptionStatus(status);
+
+            if (updatedUser) {
+                setUser(updatedUser);
+                setProfileName(updatedUser.fullName || "");
+            }
+
+            return status;
+        } catch (error) {
+            console.error("Unable to load subscription status", error);
+            return null;
+        }
     };
 
     const loadAnnouncement = async () => {
@@ -128,10 +193,66 @@ export default function Toolbar({
         }
     };
 
+    const openProfileModal = async () => {
+        setProfileOpen(false);
+        setProfileMessage("");
+        setProfileModalOpen(true);
+
+        try {
+            const data = await getMyProfile();
+            const updated = updateLocalUserProfile(data);
+
+            setUser(updated);
+            setProfileName(updated?.fullName || "");
+        } catch (error) {
+            console.error("Unable to load profile", error);
+        }
+    };
+
+    const saveProfileName = async (event) => {
+        event.preventDefault();
+        setProfileMessage("Saving profile...");
+
+        try {
+            const data = await updateMyProfile({
+                fullName: profileName,
+            });
+
+            const updated = updateLocalUserProfile(data);
+
+            setUser(updated);
+            setProfileName(updated?.fullName || "");
+            setProfileMessage("Profile updated successfully.");
+        } catch (error) {
+            setProfileMessage(error?.message || "Unable to update profile.");
+        }
+    };
+
+    const openPaymentHistory = async () => {
+        setProfileOpen(false);
+        setPaymentsModalOpen(true);
+        setPaymentLoading(true);
+
+        try {
+            const rows = await getPaymentHistory();
+            setPaymentRows(
+                Array.isArray(rows)
+                    ? rows
+                    : rows?.data || rows?.payments || rows?.content || []
+            );
+        } catch (error) {
+            console.error("Unable to load payment history", error);
+            setPaymentRows([]);
+        } finally {
+            setPaymentLoading(false);
+        }
+    };
+
     const handleLogout = () => {
         logout();
         setUser(null);
         setLoggedIn(false);
+        setSubscriptionStatus(null);
         setProfileOpen(false);
     };
 
@@ -178,6 +299,18 @@ export default function Toolbar({
         fn?.();
         setExportOpen(false);
     };
+
+    const getExpiryDate = () => {
+        return (
+            user?.subscription?.endsAt ||
+            subscriptionStatus?.endsAt ||
+            subscriptionStatus?.endDate ||
+            subscriptionStatus?.validTill ||
+            null
+        );
+    };
+
+    const expiryDate = getExpiryDate();
 
     return (
         <>
@@ -241,15 +374,14 @@ export default function Toolbar({
 
                     <span className="topbar-separator" />
 
-                    <div className="save-menu-wrap"   title="Save this drawing"ref={saveRef}>
+                    <div className="save-menu-wrap" title="Save this drawing" ref={saveRef}>
                         <button
                             type="button"
                             className="toolbar-primary-action save-trigger-btn"
                             onClick={() => setSaveOpen((v) => !v)}
                             title="Save this drawing"
                         >
-                            Save as
-                            <span  title="Save this drawing"> ⌄ </span>
+                            Save as <span title="Save this drawing">⌄</span>
                         </button>
 
                         {saveOpen && (
@@ -281,8 +413,7 @@ export default function Toolbar({
                             onClick={() => setExportOpen((v) => !v)}
                             title="Export this drawing"
                         >
-                            Export as
-                            <span>⌄</span>
+                            Export as <span>⌄</span>
                         </button>
 
                         {exportOpen && (
@@ -312,8 +443,7 @@ export default function Toolbar({
                             className="toolbar-align-trigger"
                             onClick={() => setAlignOpen((v) => !v)}
                         >
-                            Align
-                            <span>⌄</span>
+                            Align <span>⌄</span>
                         </button>
 
                         {alignOpen && (
@@ -356,16 +486,11 @@ export default function Toolbar({
                         <span>Gridlines</span>
                     </label>
 
-                    {/*<div className="topbar-title">*/}
-                    {/*    <label className="toolbar-drawing-title-card">*/}
-                    {/*        <span>Drawing</span>*/}
-                    {/*        <input*/}
-                    {/*            value={drawingTitle || "Untitled"}*/}
-                    {/*            onChange={(e) => onDrawingTitleChange?.(e.target.value)}*/}
-                    {/*            placeholder="Untitled"*/}
-                    {/*        />*/}
-                    {/*    </label>*/}
-                    {/*</div>*/}
+                    {announcement && (
+                        <div className="topbar-announcement" title={announcement}>
+                            {announcement}
+                        </div>
+                    )}
                 </div>
 
                 <div className="topbar-auth">
@@ -395,13 +520,15 @@ export default function Toolbar({
                                 onClick={() => setProfileOpen((v) => !v)}
                             >
                                 <span className="profile-avatar">
-                                    {(user?.fullName || user?.email || "U")
-                                        .charAt(0)
-                                        .toUpperCase()}
+                                    {(user?.fullName || user?.email || "U").charAt(0).toUpperCase()}
                                 </span>
 
                                 <span className="profile-email">
                                     {user?.email || user?.fullName || "My Account"}
+                                </span>
+
+                                <span className={proUser ? "topbar-pro-pill" : "topbar-free-pill"}>
+                                    {proUser ? "PRO" : "FREE"}
                                 </span>
 
                                 <span className="profile-caret">⌄</span>
@@ -411,12 +538,33 @@ export default function Toolbar({
                                 <div className="profile-dropdown">
                                     <div className="profile-signed-box">
                                         <span>SIGNED IN AS</span>
+
                                         <strong>
                                             {user?.email || user?.fullName || "User"}
                                         </strong>
+
+                                        <div className={proUser ? "profile-plan-badge pro" : "profile-plan-badge free"}>
+                                            {proUser ? "⭐ PRO ACTIVE" : "FREE PLAN"}
+                                        </div>
+
+                                        {proUser && expiryDate && (
+                                            <small className="profile-plan-expiry">
+                                                Valid till {new Date(expiryDate).toLocaleDateString()}
+                                            </small>
+                                        )}
+
+                                        {!proUser && (
+                                            <small className="profile-plan-expiry">
+                                                Free exports include SketchyDraw watermark.
+                                            </small>
+                                        )}
                                     </div>
 
-                                    <button type="button" className="profile-menu-item">
+                                    <button
+                                        type="button"
+                                        className="profile-menu-item"
+                                        onClick={openProfileModal}
+                                    >
                                         👤 My Profile
                                     </button>
 
@@ -428,7 +576,11 @@ export default function Toolbar({
                                         🖼️ My Drawings
                                     </button>
 
-                                    <button type="button" className="profile-menu-item">
+                                    <button
+                                        type="button"
+                                        className="profile-menu-item"
+                                        onClick={openPaymentHistory}
+                                    >
                                         🧾 Payment History
                                     </button>
 
@@ -440,7 +592,7 @@ export default function Toolbar({
                                             setSubscriptionOpen(true);
                                         }}
                                     >
-                                        ⭐ Subscribe / Buy Credits
+                                        {proUser ? "⭐ Manage Pro" : "⭐ Subscribe / Buy Credits"}
                                     </button>
 
                                     <div className="profile-menu-divider" />
@@ -469,17 +621,204 @@ export default function Toolbar({
                     setUser(u);
                     setLoggedIn(true);
                     setLoginOpen(false);
+
+                    setTimeout(() => {
+                        refreshSubscriptionStatus();
+                    }, 0);
                 }}
+            />
+
+            <ProfileModal
+                open={profileModalOpen}
+                user={user}
+                proUser={proUser}
+                subscriptionStatus={subscriptionStatus}
+                profileName={profileName}
+                profileMessage={profileMessage}
+                setProfileName={setProfileName}
+                onSubmit={saveProfileName}
+                onClose={() => setProfileModalOpen(false)}
+            />
+
+            <PaymentHistoryModal
+                open={paymentsModalOpen}
+                rows={paymentRows}
+                loading={paymentLoading}
+                onClose={() => setPaymentsModalOpen(false)}
             />
 
             <SubscriptionPopup
                 open={subscriptionOpen}
-                onClose={() => setSubscriptionOpen(false)}
+                onClose={() => {
+                    setSubscriptionOpen(false);
+                    refreshSubscriptionStatus();
+                }}
                 onLoginRequired={() => {
                     setSubscriptionOpen(false);
                     setLoginOpen(true);
                 }}
             />
         </>
+    );
+}
+
+function ProfileModal({
+                          open,
+                          user,
+                          proUser,
+                          subscriptionStatus,
+                          profileName,
+                          profileMessage,
+                          setProfileName,
+                          onSubmit,
+                          onClose,
+                      }) {
+    if (!open) return null;
+
+    const expiryDate =
+        user?.subscription?.endsAt ||
+        subscriptionStatus?.endsAt ||
+        subscriptionStatus?.endDate ||
+        subscriptionStatus?.validTill ||
+        null;
+
+    return (
+        <div className="account-modal-backdrop" onMouseDown={onClose}>
+            <div className="account-modal" onMouseDown={(e) => e.stopPropagation()}>
+                <button type="button" className="account-modal-close" onClick={onClose}>
+                    ×
+                </button>
+
+                <div className="account-modal-header">
+                    <span className={proUser ? "account-status-badge pro" : "account-status-badge free"}>
+                        {proUser ? "⭐ SketchyDraw Pro" : "Free Plan"}
+                    </span>
+
+                    <h2>My Profile</h2>
+                    <p>{user?.email}</p>
+                </div>
+
+                <div className="account-status-card">
+                    <strong>
+                        {proUser
+                            ? "Your Pro subscription is active."
+                            : "You are currently on the Free plan."}
+                    </strong>
+
+                    {proUser && expiryDate && (
+                        <span>
+                            Valid till {new Date(expiryDate).toLocaleString()}
+                        </span>
+                    )}
+
+                    {!proUser && (
+                        <span>Free exports include a SketchyDraw watermark.</span>
+                    )}
+                </div>
+
+                <form onSubmit={onSubmit} className="account-form">
+                    <label>
+                        <span>Name</span>
+                        <input
+                            value={profileName || ""}
+                            onChange={(e) => setProfileName(e.target.value)}
+                            placeholder="Enter your name"
+                            minLength={2}
+                            maxLength={120}
+                            required
+                        />
+                    </label>
+
+                    <label>
+                        <span>Email</span>
+                        <input value={user?.email || ""} disabled />
+                    </label>
+
+                    {profileMessage && (
+                        <div className="account-modal-message">
+                            {profileMessage}
+                        </div>
+                    )}
+
+                    <button type="submit" className="account-primary-btn">
+                        Save Profile
+                    </button>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+function PaymentHistoryModal({ open, rows, loading, onClose }) {
+    if (!open) return null;
+
+    return (
+        <div className="account-modal-backdrop" onMouseDown={onClose}>
+            <div
+                className="account-modal account-modal-wide"
+                onMouseDown={(e) => e.stopPropagation()}
+            >
+                <button type="button" className="account-modal-close" onClick={onClose}>
+                    ×
+                </button>
+
+                <div className="account-modal-header">
+                    <span className="account-status-badge pro">🧾 Billing</span>
+                    <h2>Payment History</h2>
+                    <p>All your SketchyDraw payment attempts and successful payments.</p>
+                </div>
+
+                {loading ? (
+                    <div className="account-empty-state">Loading payment history...</div>
+                ) : rows.length === 0 ? (
+                    <div className="account-empty-state">No payments found yet.</div>
+                ) : (
+                    <div className="payment-history-table-wrap">
+                        <table className="payment-history-table">
+                            <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Amount</th>
+                                <th>Status</th>
+                                <th>Order ID</th>
+                            </tr>
+                            </thead>
+
+                            <tbody>
+                            {rows.map((row, index) => (
+                                <tr key={row.id || row.providerOrderId || row.orderId || index}>
+                                    <td>
+                                        {row.createdAt
+                                            ? new Date(row.createdAt).toLocaleString()
+                                            : row.created_at
+                                                ? new Date(row.created_at).toLocaleString()
+                                                : "-"}
+                                    </td>
+
+                                    <td>
+                                        {row.currency || "INR"}{" "}
+                                        {Number(row.amount || row.amountInRupees || 0).toLocaleString("en-IN")}
+                                    </td>
+
+                                    <td>
+                                            <span className={`payment-status ${String(row.status || "").toLowerCase()}`}>
+                                                {row.status || "-"}
+                                            </span>
+                                    </td>
+
+                                    <td>
+                                        {row.providerOrderId ||
+                                            row.orderId ||
+                                            row.razorpayOrderId ||
+                                            "-"}
+                                    </td>
+                                </tr>
+                            ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+        </div>
     );
 }

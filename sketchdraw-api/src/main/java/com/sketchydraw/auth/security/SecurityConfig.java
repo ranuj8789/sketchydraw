@@ -45,7 +45,18 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                         // Auth public APIs
-                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/auth/me").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/me").authenticated()
+
+                        .requestMatchers(
+                                "/api/auth/register",
+                                "/api/auth/verify",
+                                "/api/auth/google",
+                                "/api/auth/login",
+                                "/api/auth/forgot-password",
+                                "/api/auth/reset-password",
+                                "/api/auth/resend-verification"
+                        ).permitAll()
 
                         // Public health
                         .requestMatchers(

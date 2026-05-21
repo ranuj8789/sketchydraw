@@ -8,10 +8,17 @@ import lombok.Setter;
 public class CreatePaymentRequest {
 
     /*
-     * Frontend sends plain DB plan code:
-     * { "planCode": "SKETCHY_MONTHLY_349" }
+     * Example:
+     * {
+     *   "planCode": "SKETCHY_6_MONTHS_249",
+     *   "provider": "RAZORPAY"
+     * }
      *
-     * Do not use enum here because plans are DB-driven.
+     * provider can be:
+     * CASHFREE
+     * RAZORPAY
      */
     private String planCode;
+
+    private String provider;
 }

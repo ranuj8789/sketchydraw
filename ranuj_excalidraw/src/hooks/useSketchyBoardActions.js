@@ -5,7 +5,13 @@ import {
     createDrawingJson,
     downloadDrawingJson,
 } from "../canvas/drawingStorage";
-import { exportCanvasToSVG } from "../utils/exportBoard";
+
+import {
+    exportCanvasToPNG,
+    exportCanvasToJPEG,
+    exportCanvasToSVG,
+} from "../utils/exportBoard";
+
 import { requireProAccess } from "../utils/proAccess";
 
 export function useSketchyBoardActions({
@@ -24,24 +30,26 @@ export function useSketchyBoardActions({
     const canvasRef = useRef(null);
     const jsonInputRef = useRef(null);
 
+    const safeTitle = drawingTitle || "sketchydraw";
+
     const exportPNG = () => {
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        const link = document.createElement("a");
-        link.download = `${drawingTitle || "sketchydraw"}.png`;
-        link.href = canvas.toDataURL("image/png");
-        link.click();
+        exportCanvasToPNG(
+            canvas,
+            `${safeTitle}.png`
+        );
     };
 
     const exportJPEG = () => {
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        const link = document.createElement("a");
-        link.download = `${drawingTitle || "sketchydraw"}.jpeg`;
-        link.href = canvas.toDataURL("image/jpeg", 0.95);
-        link.click();
+        exportCanvasToJPEG(
+            canvas,
+            `${safeTitle}.jpeg`
+        );
     };
 
     const exportSVG = () => {
@@ -49,7 +57,7 @@ export function useSketchyBoardActions({
             elements,
             canvasSize?.width || 1200,
             canvasSize?.height || 700,
-            `${drawingTitle || "sketchydraw"}.svg`
+            `${safeTitle}.svg`
         );
     };
 
@@ -70,7 +78,7 @@ export function useSketchyBoardActions({
 
         downloadDrawingJson(
             json,
-            `${drawingTitle || "sketchydraw"}.json`
+            `${safeTitle}.json`
         );
     };
 
@@ -93,16 +101,22 @@ export function useSketchyBoardActions({
             const json = await readDrawingJsonFile(file);
             const loaded = loadDrawingJson(json);
 
-            setElements(loaded.elements);
+            setElements(loaded.elements || []);
             setSelectedIds([]);
-            setViewport?.(loaded.viewport);
-            setCanvasSize?.(loaded.canvasSize);
+
+            if (loaded.viewport) {
+                setViewport?.(loaded.viewport);
+            }
+
+            if (loaded.canvasSize) {
+                setCanvasSize?.(loaded.canvasSize);
+            }
 
             if (loaded.canvasProps) {
                 setCanvasProps?.(loaded.canvasProps);
             }
 
-            commitHistory(loaded.elements);
+            commitHistory?.(loaded.elements || []);
         } catch (error) {
             alert("Invalid SketchyDraw JSON file");
             console.error(error);

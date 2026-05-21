@@ -4,7 +4,14 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
-import com.sketchydraw.auth.dto.*;
+import com.sketchydraw.auth.dto.AuthResponse;
+import com.sketchydraw.auth.dto.ForgotPasswordRequest;
+import com.sketchydraw.auth.dto.GoogleLoginRequest;
+import com.sketchydraw.auth.dto.LoginRequest;
+import com.sketchydraw.auth.dto.RegisterRequest;
+import com.sketchydraw.auth.dto.ResendVerificationRequest;
+import com.sketchydraw.auth.dto.ResetPasswordRequest;
+import com.sketchydraw.auth.dto.UpdateProfileRequest;
 import com.sketchydraw.auth.entity.User;
 import com.sketchydraw.auth.repository.UserRepository;
 import com.sketchydraw.auth.util.JwtUtil;
@@ -80,29 +87,34 @@ public class AuthService {
                 .orElseThrow(() -> new IllegalArgumentException("Invalid or expired verification token"));
 
         if (user.isEmailVerified()) {
-            return AuthResponse.builder()
-                    .message("Email already verified. You can now login.")
-                    .email(user.getEmail())
-                    .fullName(user.getFullName())
-                    .build();
+            return new AuthResponse(
+                    true,
+                    "Email already verified. You can now login.",
+                    user.getEmail(),
+                    user.getFullName(),
+                    null
+            );
         }
 
         user.setEmailVerified(true);
 
-        // IMPORTANT:
-        // Do NOT clear verificationToken immediately.
-        // React dev mode can call verify twice.
-        // Keeping token makes second call return success instead of 400.
-        //
-        // user.setVerificationToken(null);  // keep this commented for now
+        /*
+         * Do not clear verificationToken immediately.
+         * React dev mode can call verify twice.
+         * Keeping token makes second call return success instead of 400.
+         */
+        // user.setVerificationToken(null);
+        // user.setVerificationTokenCreatedAt(null);
 
         userRepository.save(user);
 
-        return AuthResponse.builder()
-                .message("Email verified successfully. You can now login.")
-                .email(user.getEmail())
-                .fullName(user.getFullName())
-                .build();
+        return new AuthResponse(
+                true,
+                "Email verified successfully. You can now login.",
+                user.getEmail(),
+                user.getFullName(),
+                null
+        );
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -127,11 +139,74 @@ public class AuthService {
             throw new IllegalArgumentException("Please verify your email first");
         }
 
+        user.setLastLoginAt(LocalDateTime.now());
+        userRepository.save(user);
+
         String jwt = jwtUtil.generateToken(user.getId(), user.getEmail());
 
         return new AuthResponse(
                 true,
                 "Login successful",
+                user.getEmail(),
+                user.getFullName(),
+                jwt
+        );
+    }
+
+    public AuthResponse googleLogin(GoogleLoginRequest request) {
+        if (request.getCredential() == null || request.getCredential().isBlank()) {
+            throw new IllegalArgumentException("Google credential is required");
+        }
+
+        GoogleIdToken.Payload payload = verifyGoogleCredential(request.getCredential());
+
+        String email = normalizeEmail(payload.getEmail());
+        String googleUserId = payload.getSubject();
+
+        String fullName = payload.get("name") == null
+                ? email
+                : String.valueOf(payload.get("name"));
+
+        String pictureUrl = payload.get("picture") == null
+                ? null
+                : String.valueOf(payload.get("picture"));
+
+        User user = userRepository
+                .findByProviderAndProviderUserId("GOOGLE", googleUserId)
+                .orElse(null);
+
+        if (user == null) {
+            user = userRepository.findByEmail(email).orElse(null);
+        }
+
+        if (user == null) {
+            user = new User();
+            user.setEmail(email);
+            user.setFullName(fullName);
+            user.setPasswordHash(PasswordUtil.hash(TokenUtil.randomToken()));
+            user.setEmailVerified(true);
+            user.setProvider("GOOGLE");
+            user.setProviderUserId(googleUserId);
+            user.setProfilePictureUrl(pictureUrl);
+            user.setLastLoginAt(LocalDateTime.now());
+            user.setCreatedAt(LocalDateTime.now());
+        } else {
+            user.setEmailVerified(true);
+            user.setVerificationToken(null);
+            user.setVerificationTokenCreatedAt(null);
+            user.setProvider("GOOGLE");
+            user.setProviderUserId(googleUserId);
+            user.setProfilePictureUrl(pictureUrl);
+            user.setLastLoginAt(LocalDateTime.now());
+        }
+
+        userRepository.save(user);
+
+        String jwt = jwtUtil.generateToken(user.getId(), user.getEmail());
+
+        return new AuthResponse(
+                true,
+                "Google login successful",
                 user.getEmail(),
                 user.getFullName(),
                 jwt
@@ -230,6 +305,67 @@ public class AuthService {
                 user.getFullName(),
                 null
         );
+    }
+
+    public AuthResponse getMyProfile(String email) {
+        User user = userRepository.findByEmail(normalizeEmail(email))
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        return new AuthResponse(
+                true,
+                "Profile loaded successfully",
+                user.getEmail(),
+                user.getFullName(),
+                null
+        );
+    }
+
+    public AuthResponse updateMyProfile(String email, UpdateProfileRequest request) {
+        User user = userRepository.findByEmail(normalizeEmail(email))
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        if (request.getFullName() != null && !request.getFullName().isBlank()) {
+            user.setFullName(request.getFullName().trim());
+        }
+
+        userRepository.save(user);
+
+        return new AuthResponse(
+                true,
+                "Profile updated successfully",
+                user.getEmail(),
+                user.getFullName(),
+                null
+        );
+    }
+
+    private GoogleIdToken.Payload verifyGoogleCredential(String credential) {
+        try {
+            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
+                    new NetHttpTransport(),
+                    GsonFactory.getDefaultInstance()
+            )
+                    .setAudience(Collections.singletonList(googleClientId))
+                    .build();
+
+            GoogleIdToken idToken = verifier.verify(credential);
+
+            if (idToken == null) {
+                throw new IllegalArgumentException("Invalid Google credential");
+            }
+
+            GoogleIdToken.Payload payload = idToken.getPayload();
+
+            if (!Boolean.TRUE.equals(payload.getEmailVerified())) {
+                throw new IllegalArgumentException("Google email is not verified");
+            }
+
+            return payload;
+        } catch (IllegalArgumentException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new IllegalArgumentException("Google login failed");
+        }
     }
 
     private void sendVerificationEmail(User user) {
@@ -362,98 +498,5 @@ public class AuthService {
                 .replace("<", "&lt;")
                 .replace(">", "&gt;")
                 .replace("\"", "&quot;");
-    }
-    public AuthResponse googleLogin(GoogleLoginRequest request) {
-        if (request.getCredential() == null || request.getCredential().isBlank()) {
-            throw new IllegalArgumentException("Google credential is required");
-        }
-
-        GoogleIdToken.Payload payload = verifyGoogleCredential(request.getCredential());
-
-        String email = normalizeEmail(payload.getEmail());
-        String googleUserId = payload.getSubject();
-
-        String fullName = payload.get("name") == null
-                ? email
-                : String.valueOf(payload.get("name"));
-
-        String pictureUrl = payload.get("picture") == null
-                ? null
-                : String.valueOf(payload.get("picture"));
-
-        User user = userRepository
-                .findByProviderAndProviderUserId("GOOGLE", googleUserId)
-                .orElse(null);
-
-        if (user == null) {
-            user = userRepository.findByEmail(email).orElse(null);
-        }
-
-        if (user == null) {
-            user = new User();
-            user.setEmail(email);
-            user.setFullName(fullName);
-            user.setPasswordHash(PasswordUtil.hash(TokenUtil.randomToken()));
-            user.setEmailVerified(true);
-            user.setProvider("GOOGLE");
-            user.setProviderUserId(googleUserId);
-            user.setProfilePictureUrl(pictureUrl);
-            user.setLastLoginAt(LocalDateTime.now());
-            user.setCreatedAt(LocalDateTime.now());
-
-            userRepository.save(user);
-
-
-        } else {
-            user.setEmailVerified(true);
-            user.setVerificationToken(null);
-            user.setVerificationTokenCreatedAt(null);
-            user.setProvider("GOOGLE");
-            user.setProviderUserId(googleUserId);
-            user.setProfilePictureUrl(pictureUrl);
-            user.setLastLoginAt(LocalDateTime.now());
-
-            userRepository.save(user);
-
-        }
-
-        String jwt = jwtUtil.generateToken(user.getId(), user.getEmail());
-
-        return new AuthResponse(
-                true,
-                "Google login successful",
-                user.getEmail(),
-                user.getFullName(),
-                jwt
-        );
-    }
-
-    private GoogleIdToken.Payload verifyGoogleCredential(String credential) {
-        try {
-            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
-                    new NetHttpTransport(),
-                    GsonFactory.getDefaultInstance()
-            )
-                    .setAudience(Collections.singletonList(googleClientId))
-                    .build();
-
-            GoogleIdToken idToken = verifier.verify(credential);
-
-            if (idToken == null) {
-                throw new IllegalArgumentException("Invalid Google credential");
-            }
-
-            GoogleIdToken.Payload payload = idToken.getPayload();
-
-            if (!Boolean.TRUE.equals(payload.getEmailVerified())) {
-                throw new IllegalArgumentException("Google email is not verified");
-            }
-
-            return payload;
-        } catch (IllegalArgumentException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            throw new IllegalArgumentException("Google login failed");
-        }
     }
 }

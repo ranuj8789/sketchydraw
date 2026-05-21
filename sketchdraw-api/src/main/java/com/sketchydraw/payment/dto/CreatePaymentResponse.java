@@ -13,15 +13,23 @@ public class CreatePaymentResponse {
     private String message;
 
     private Long paymentId;
+
+    private String provider;
     private String providerOrderId;
+    private String providerPaymentId;
+
     private String cfOrderId;
 
     private BigDecimal amount;
     private String currency;
 
     /*
-     * This is the main value required by Cashfree JS SDK.
-     * Frontend opens checkout using this value.
+     * Cashfree uses this.
      */
     private String paymentSessionId;
+
+    /*
+     * Razorpay frontend checkout needs this.
+     */
+    private String razorpayKeyId;
 }

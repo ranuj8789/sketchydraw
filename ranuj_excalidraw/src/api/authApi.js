@@ -1,4 +1,4 @@
-import { apiPost, publicGet, publicPost } from "./apiClient";
+import { apiGet, apiPost, publicGet, publicPost } from "./apiClient";
 
 export function register(payload) {
     return publicPost("/api/auth/register", payload);
@@ -28,4 +28,11 @@ export function resetPassword(payload) {
 
 export function resendVerification(payload) {
     return publicPost("/api/auth/resend-verification", payload);
+}
+export function getMyProfile() {
+    return apiGet("/api/auth/me");
+}
+
+export function updateMyProfile(payload) {
+    return apiPost("/api/auth/me", payload);
 }
