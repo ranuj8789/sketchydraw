@@ -7,10 +7,7 @@ import com.razorpay.RazorpayClient;
 import com.razorpay.Utils;
 import com.sketchydraw.auth.entity.User;
 import com.sketchydraw.auth.repository.UserRepository;
-import com.sketchydraw.payment.dto.CreatePaymentRequest;
-import com.sketchydraw.payment.dto.CreatePaymentResponse;
-import com.sketchydraw.payment.dto.SubscriptionStatusResponse;
-import com.sketchydraw.payment.dto.VerifyPaymentRequest;
+import com.sketchydraw.payment.dto.*;
 import com.sketchydraw.payment.entity.PaymentTransaction;
 import com.sketchydraw.payment.entity.UserSubscription;
 import com.sketchydraw.payment.repository.PaymentTransactionRepository;
@@ -82,6 +79,18 @@ public class PaymentService {
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        boolean alreadyActive = userSubscriptionRepository
+                .findTopByUserIdAndStatusAndEndDateAfterOrderByEndDateDesc(
+                        user.getId(),
+                        UserSubscription.STATUS_ACTIVE,
+                        LocalDateTime.now()
+                )
+                .isPresent();
+
+        if (alreadyActive) {
+            throw new IllegalArgumentException("You already have an active subscription.");
+        }
 
         Plan plan = planRepository.findByCodeAndActiveTrue(request.getPlanCode().trim())
                 .orElseThrow(() -> new IllegalArgumentException("Invalid or inactive plan"));
@@ -493,5 +502,43 @@ public class PaymentService {
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
         return paymentTransactionRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
+    }
+    public Map<String, Object> markPaymentFailed(String email, PaymentFailedRequest request) {
+        if (request.getProviderOrderId() == null || request.getProviderOrderId().isBlank()) {
+            throw new IllegalArgumentException("Provider order id is required");
+        }
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        PaymentTransaction tx = paymentTransactionRepository.findByProviderOrderId(
+                request.getProviderOrderId()
+        ).orElseThrow(() -> new IllegalArgumentException("Payment transaction not found"));
+
+        if (!tx.getUserId().equals(user.getId())) {
+            throw new IllegalArgumentException("Payment does not belong to this user");
+        }
+
+        if (PAYMENT_STATUS_SUCCESS.equalsIgnoreCase(tx.getStatus())) {
+            return Map.of(
+                    "success", true,
+                    "message", "Payment already successful. Not marking failed.",
+                    "status", tx.getStatus()
+            );
+        }
+
+        if (request.getProviderPaymentId() != null && !request.getProviderPaymentId().isBlank()) {
+            tx.setProviderPaymentId(request.getProviderPaymentId());
+        }
+
+        tx.setStatus(PAYMENT_STATUS_FAILED);
+        tx.setUpdatedAt(LocalDateTime.now());
+        paymentTransactionRepository.save(tx);
+
+        return Map.of(
+                "success", true,
+                "message", "Payment marked as failed",
+                "status", tx.getStatus()
+        );
     }
 }

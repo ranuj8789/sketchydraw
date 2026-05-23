@@ -1,7 +1,7 @@
 import { apiGet, apiPost } from "../utils/auth";
 
 export function createPayment(planCode, provider = "RAZORPAY") {
-    return apiPost("/api/payment/create", {
+    return apiPost("/payment/create", {
         planCode,
         provider,
     });
@@ -13,10 +13,10 @@ export function verifyPayment(payloadOrProviderOrderId, providerPaymentId, signa
         typeof payloadOrProviderOrderId === "object" &&
         !Array.isArray(payloadOrProviderOrderId)
     ) {
-        return apiPost("/api/payment/verify", payloadOrProviderOrderId);
+        return apiPost("/payment/verify", payloadOrProviderOrderId);
     }
 
-    return apiPost("/api/payment/verify", {
+    return apiPost("/payment/verify", {
         providerOrderId: payloadOrProviderOrderId,
         providerPaymentId,
         signature,
@@ -24,9 +24,13 @@ export function verifyPayment(payloadOrProviderOrderId, providerPaymentId, signa
 }
 
 export function getSubscriptionStatus() {
-    return apiGet("/api/payment/status");
+    return apiGet("/payment/status");
 }
 
 export function getPaymentHistory() {
-    return apiGet("/api/payment/history");
+    return apiGet("/payment/history");
+}
+
+export function markPaymentFailed(payload) {
+    return apiPost("/payment/failed", payload);
 }

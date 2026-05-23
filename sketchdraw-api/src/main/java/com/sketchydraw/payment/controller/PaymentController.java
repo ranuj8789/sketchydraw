@@ -1,6 +1,7 @@
 package com.sketchydraw.payment.controller;
 
 import com.sketchydraw.payment.dto.CreatePaymentRequest;
+import com.sketchydraw.payment.dto.PaymentFailedRequest;
 import com.sketchydraw.payment.dto.VerifyPaymentRequest;
 import com.sketchydraw.payment.service.PaymentService;
 import lombok.RequiredArgsConstructor;
@@ -48,5 +49,12 @@ public class PaymentController {
     public ResponseEntity<?> webhook(@RequestBody String payload) {
         // TODO: Cashfree webhook verification and update status.
         return ResponseEntity.ok(Map.of("success", true));
+    }
+    @PostMapping("/failed")
+    public ResponseEntity<?> paymentFailed(
+            Principal principal,
+            @RequestBody PaymentFailedRequest request
+    ) {
+        return ResponseEntity.ok(paymentService.markPaymentFailed(principal.getName(), request));
     }
 }

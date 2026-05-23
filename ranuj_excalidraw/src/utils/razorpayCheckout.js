@@ -1,7 +1,15 @@
-import { verifyPayment } from "../api/paymentApi";
+import { verifyPayment, markPaymentFailed } from "../api/paymentApi";
 import { getUser, mergeSubscriptionIntoUser } from "./auth";
 
-const RAZORPAY_KEY_ID = "rzp_test_SrzxT6qVNIVV7H";
+const FALLBACK_RAZORPAY_KEY_ID = "rzp_test_SrzxT6qVNIVV7H";
+
+function getRazorpayKeyId(order) {
+    return (
+        order?.razorpayKeyId ||
+        process.env.REACT_APP_RAZORPAY_KEY_ID ||
+        FALLBACK_RAZORPAY_KEY_ID
+    );
+}
 
 function loadRazorpayScript() {
     return new Promise((resolve) => {
@@ -28,7 +36,63 @@ function getAmountInPaise(order) {
         throw new Error("Invalid Razorpay amount from backend.");
     }
 
+    // Backend amount is rupees. Razorpay checkout needs paise.
     return Math.round(amount * 100);
+}
+
+function extractFailureReason(response) {
+    const error = response?.error || {};
+
+    return (
+        error.description ||
+        error.reason ||
+        error.code ||
+        "RAZORPAY_PAYMENT_FAILED_OR_CANCELLED"
+    );
+}
+
+function extractFailurePaymentId(response) {
+    const error = response?.error || {};
+
+    return (
+        error?.metadata?.payment_id ||
+        error?.metadata?.razorpay_payment_id ||
+        error?.payment_id ||
+        ""
+    );
+}
+
+async function safelyMarkPaymentFailed(order, responseOrReason) {
+    const providerOrderId =
+        order?.providerOrderId ||
+        order?.orderId ||
+        responseOrReason?.error?.metadata?.order_id ||
+        responseOrReason?.error?.metadata?.razorpay_order_id ||
+        "";
+
+    if (!providerOrderId) {
+        console.warn("Cannot mark payment failed. Provider order id missing.", {
+            order,
+            responseOrReason,
+        });
+        return;
+    }
+
+    try {
+        await markPaymentFailed({
+            providerOrderId,
+            providerPaymentId:
+                typeof responseOrReason === "string"
+                    ? ""
+                    : extractFailurePaymentId(responseOrReason),
+            reason:
+                typeof responseOrReason === "string"
+                    ? responseOrReason
+                    : extractFailureReason(responseOrReason),
+        });
+    } catch (error) {
+        console.warn("Unable to mark Razorpay payment as failed:", error);
+    }
 }
 
 export async function openRazorpayCheckout(order, passedUser) {
@@ -40,16 +104,21 @@ export async function openRazorpayCheckout(order, passedUser) {
 
     const user = passedUser || getUser();
 
+    const keyId = getRazorpayKeyId(order);
     const orderId = order?.providerOrderId || order?.orderId;
     const amount = getAmountInPaise(order);
     const currency = order?.currency || "INR";
+
+    if (!keyId) {
+        throw new Error("Razorpay key id missing.");
+    }
 
     if (!orderId || !String(orderId).startsWith("order_")) {
         throw new Error(`Razorpay order id missing/invalid: ${orderId || "missing"}`);
     }
 
     console.log("SKETCHYDRAW RAZORPAY CHECKOUT:", {
-        key: RAZORPAY_KEY_ID,
+        key: keyId,
         amount,
         currency,
         order_id: orderId,
@@ -58,7 +127,7 @@ export async function openRazorpayCheckout(order, passedUser) {
 
     return new Promise((resolve, reject) => {
         const options = {
-            key: RAZORPAY_KEY_ID,
+            key: keyId,
             amount,
             currency,
             name: "SketchyDraw",
@@ -97,8 +166,7 @@ export async function openRazorpayCheckout(order, passedUser) {
 
             /*
              * Do NOT send contact.
-             * Razorpay was using old saved-card token for contact +919167580878,
-             * causing invalid_token.
+             * Razorpay may use old saved-card/token for contact and cause invalid_token.
              */
             prefill: {
                 name: user?.fullName || user?.name || "",
@@ -116,23 +184,21 @@ export async function openRazorpayCheckout(order, passedUser) {
             },
 
             modal: {
-                ondismiss: function () {
-                    reject(new Error("Payment cancelled"));
+                ondismiss: async function () {
+                    const reason = "Payment cancelled by user";
+                    await safelyMarkPaymentFailed(order, reason);
+                    reject(new Error(reason));
                 },
             },
         };
 
         const razorpay = new window.Razorpay(options);
 
-        razorpay.on("payment.failed", function (response) {
+        razorpay.on("payment.failed", async function (response) {
             console.error("SKETCHYDRAW RAZORPAY FAILED:", response);
 
-            const error = response?.error || {};
-            const reason =
-                error.description ||
-                error.reason ||
-                error.code ||
-                "Payment failed";
+            const reason = extractFailureReason(response);
+            await safelyMarkPaymentFailed(order, response);
 
             reject(new Error(reason));
         });
