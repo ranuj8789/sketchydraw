@@ -98,3 +98,35 @@ export function buildTextElement({
         h: box.h,
     };
 }
+export function buildImageElement({
+                                      point,
+                                      src,
+                                      fileName = "image",
+                                      naturalWidth = 640,
+                                      naturalHeight = 360,
+                                  }) {
+    const maxW = 420;
+    const maxH = 300;
+
+    const safeNaturalW = Number(naturalWidth) || maxW;
+    const safeNaturalH = Number(naturalHeight) || maxH;
+
+    const scale = Math.min(maxW / safeNaturalW, maxH / safeNaturalH, 1);
+
+    const w = Math.max(80, Math.round(safeNaturalW * scale));
+    const h = Math.max(60, Math.round(safeNaturalH * scale));
+
+    return {
+        id: uid(),
+        type: "image",
+        x: point.x - w / 2,
+        y: point.y - h / 2,
+        w,
+        h,
+        src,
+        fileName,
+        naturalWidth: safeNaturalW,
+        naturalHeight: safeNaturalH,
+        opacity: 1,
+    };
+}

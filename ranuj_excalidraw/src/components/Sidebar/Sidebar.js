@@ -11,6 +11,7 @@ import {
     Diamond,
     Hand,
     FolderOpen,
+    Image as ImageIcon,
 } from "lucide-react";
 import PropertiesPanel from "../PropertiesPanel/PropertiesPanel";
 import "./Sidebar.css";
@@ -25,6 +26,7 @@ const TOOLS = [
     { id: "diamond", label: "Diamond", icon: Diamond },
     { id: "ellipse", label: "Ellipse", icon: Circle },
     { id: "text", label: "Text", icon: Type },
+    { id: "image", label: "Image", icon: ImageIcon },
     { id: "eraser", label: "Eraser", icon: Eraser },
 ];
 

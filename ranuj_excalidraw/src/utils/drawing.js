@@ -59,8 +59,10 @@ function distanceToBezier(px, py, element) {
 
 function pointInEllipse(px, py, cx, cy, rx, ry) {
     if (rx === 0 || ry === 0) return false;
+
     const dx = (px - cx) / rx;
     const dy = (py - cy) / ry;
+
     return dx * dx + dy * dy <= 1;
 }
 
@@ -69,8 +71,10 @@ function pointInDiamond(px, py, x, y, w, h) {
     const cy = y + h / 2;
     const dx = Math.abs(px - cx);
     const dy = Math.abs(py - cy);
+
     return dx / Math.abs(w / 2 || 1) + dy / Math.abs(h / 2 || 1) <= 1;
 }
+
 function applyElementStrokeStyle(ctx, element) {
     ctx.strokeStyle = element.stroke || "#111827";
     ctx.fillStyle = element.fill || element.fillColor || "transparent";
@@ -86,6 +90,7 @@ function applyElementStrokeStyle(ctx, element) {
         ctx.setLineDash([]);
     }
 }
+
 function drawArrowHead(ctx, fromX, fromY, toX, toY, stroke, strokeWidth = 2) {
     const angle = Math.atan2(toY - fromY, toX - fromX);
     const size = Math.max(10, strokeWidth * 4);
@@ -106,6 +111,125 @@ function drawArrowHead(ctx, fromX, fromY, toX, toY, stroke, strokeWidth = 2) {
     ctx.fill();
     ctx.restore();
 }
+
+const imageElementCache = new Map();
+
+function getCachedCanvasImage(src) {
+    if (!src) return null;
+
+    const cached = imageElementCache.get(src);
+
+    if (cached) {
+        return cached;
+    }
+
+    const img = new Image();
+
+    img.onload = () => {
+        window.dispatchEvent(new Event("sketchydraw:image-loaded"));
+    };
+
+    img.src = src;
+    imageElementCache.set(src, img);
+
+    return img;
+}
+
+function normalizeImageBox(element) {
+    const x = element.w >= 0 ? element.x : element.x + element.w;
+    const y = element.h >= 0 ? element.y : element.y + element.h;
+    const w = Math.abs(element.w || 0);
+    const h = Math.abs(element.h || 0);
+
+    return { x, y, w, h };
+}
+
+function getSelectionBox(element) {
+    if (!element) {
+        return null;
+    }
+
+    if (element.type === "text") {
+        return {
+            x: element.x,
+            y: element.y,
+            w: element.w || 120,
+            h: element.h || 32,
+        };
+    }
+
+    if (element.type === "line" || element.type === "arrow") {
+        const minX = Math.min(
+            element.x1,
+            element.x2,
+            element.cx1 ?? element.x1,
+            element.cx2 ?? element.x2
+        );
+
+        const minY = Math.min(
+            element.y1,
+            element.y2,
+            element.cy1 ?? element.y1,
+            element.cy2 ?? element.y2
+        );
+
+        const maxX = Math.max(
+            element.x1,
+            element.x2,
+            element.cx1 ?? element.x1,
+            element.cx2 ?? element.x2
+        );
+
+        const maxY = Math.max(
+            element.y1,
+            element.y2,
+            element.cy1 ?? element.y1,
+            element.cy2 ?? element.y2
+        );
+
+        return {
+            x: minX,
+            y: minY,
+            w: maxX - minX,
+            h: maxY - minY,
+        };
+    }
+
+    if (element.type === "pencil") {
+        const points = element.points || [];
+
+        if (!points.length) {
+            return null;
+        }
+
+        const xs = points.map((p) => p.x);
+        const ys = points.map((p) => p.y);
+
+        const minX = Math.min(...xs);
+        const minY = Math.min(...ys);
+        const maxX = Math.max(...xs);
+        const maxY = Math.max(...ys);
+
+        return {
+            x: minX,
+            y: minY,
+            w: maxX - minX,
+            h: maxY - minY,
+        };
+    }
+
+    if (element.type === "image") {
+        return normalizeImageBox(element);
+    }
+
+    return {
+        x: element.x,
+        y: element.y,
+        w: element.w,
+        h: element.h,
+    };
+}
+
 export function hitTest(element, x, y) {
     if (!element) return false;
 
@@ -114,12 +238,14 @@ export function hitTest(element, x, y) {
         const minY = Math.min(element.y, element.y + element.h);
         const maxX = Math.max(element.x, element.x + element.w);
         const maxY = Math.max(element.y, element.y + element.h);
+
         return x >= minX && x <= maxX && y >= minY && y <= maxY;
     }
 
     if (element.type === "ellipse") {
         const cx = element.x + element.w / 2;
         const cy = element.y + element.h / 2;
+
         return pointInEllipse(
             x,
             y,
@@ -140,6 +266,7 @@ export function hitTest(element, x, y) {
 
     if (element.type === "pencil") {
         const points = element.points || [];
+
         for (let i = 0; i < points.length - 1; i++) {
             if (
                 distanceToSegment(
@@ -154,7 +281,14 @@ export function hitTest(element, x, y) {
                 return true;
             }
         }
+
         return false;
+    }
+
+    if (element.type === "image") {
+        const { x: ix, y: iy, w, h } = normalizeImageBox(element);
+
+        return x >= ix && x <= ix + w && y >= iy && y <= iy + h;
     }
 
     if (element.type === "text") {
@@ -173,11 +307,14 @@ export function hitTest(element, x, y) {
 }
 
 export function drawElement(ctx, element, selected = false) {
+    if (!element) return;
+
     ctx.save();
     applyElementStrokeStyle(ctx, element);
 
     const stroke = element.stroke || "#111827";
     const strokeWidth = element.strokeWidth || 2;
+
     if (element.type === "rect" || element.type === "rectangle") {
         const radius = element.cornerRadius ?? 14;
 
@@ -203,7 +340,7 @@ export function drawElement(ctx, element, selected = false) {
 
             ctx.strokeRect(element.x, element.y, element.w, element.h);
         }
-    }else if (element.type === "ellipse") {
+    } else if (element.type === "ellipse") {
         ctx.beginPath();
         ctx.ellipse(
             element.x + element.w / 2,
@@ -214,7 +351,11 @@ export function drawElement(ctx, element, selected = false) {
             0,
             Math.PI * 2
         );
-        if (element.fill && element.fill !== "transparent") ctx.fill();
+
+        if (element.fill && element.fill !== "transparent") {
+            ctx.fill();
+        }
+
         ctx.stroke();
     } else if (element.type === "diamond") {
         const cx = element.x + element.w / 2;
@@ -227,7 +368,10 @@ export function drawElement(ctx, element, selected = false) {
         ctx.lineTo(element.x, cy);
         ctx.closePath();
 
-        if (element.fill && element.fill !== "transparent") ctx.fill();
+        if (element.fill && element.fill !== "transparent") {
+            ctx.fill();
+        }
+
         ctx.stroke();
     } else if (element.type === "line" || element.type === "arrow") {
         ctx.beginPath();
@@ -272,16 +416,49 @@ export function drawElement(ctx, element, selected = false) {
             );
         }
     } else if (element.type === "pencil") {
-        if ((element.points || []).length > 1) {
-            ctx.beginPath();
-            ctx.moveTo(element.points[0].x, element.points[0].y);
+        const points = element.points || [];
 
-            for (let i = 1; i < element.points.length; i++) {
-                ctx.lineTo(element.points[i].x, element.points[i].y);
+        if (points.length > 1) {
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+
+            for (let i = 1; i < points.length; i++) {
+                ctx.lineTo(points[i].x, points[i].y);
             }
 
             ctx.stroke();
         }
+    } else if (element.type === "image") {
+        const { x, y, w, h } = normalizeImageBox(element);
+        const img = getCachedCanvasImage(element.src);
+
+        ctx.setLineDash([]);
+
+        const previousAlpha = ctx.globalAlpha;
+
+        if (element.opacity !== undefined) {
+            ctx.globalAlpha = Math.max(0, Math.min(1, Number(element.opacity) || 1));
+        }
+
+        if (img && img.complete && img.naturalWidth > 0) {
+            ctx.drawImage(img, x, y, w, h);
+        } else {
+            ctx.save();
+            ctx.fillStyle = "#f8fafc";
+            ctx.strokeStyle = "#94a3b8";
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([6, 4]);
+            ctx.fillRect(x, y, w, h);
+            ctx.strokeRect(x, y, w, h);
+            ctx.fillStyle = "#64748b";
+            ctx.font = "600 14px Arial, sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText("Loading image...", x + w / 2, y + h / 2);
+            ctx.restore();
+        }
+
+        ctx.globalAlpha = previousAlpha;
     } else if (element.type === "text") {
         const fontSize = element.fontSize || 20;
         const lineHeight = element.lineHeight || Math.round(fontSize * 1.2);
@@ -303,70 +480,20 @@ export function drawElement(ctx, element, selected = false) {
     }
 
     if (selected) {
-        let bx = 0;
-        let by = 0;
-        let bw = 0;
-        let bh = 0;
+        const box = getSelectionBox(element);
 
-        if (element.type === "text") {
-            bx = element.x;
-            by = element.y;
-            bw = element.w || 120;
-            bh = element.h || 32;
-        } else if (element.type === "line" || element.type === "arrow") {
-            bx = Math.min(
-                element.x1,
-                element.x2,
-                element.cx1 ?? element.x1,
-                element.cx2 ?? element.x2
-            );
-            by = Math.min(
-                element.y1,
-                element.y2,
-                element.cy1 ?? element.y1,
-                element.cy2 ?? element.y2
-            );
-
-            const maxX = Math.max(
-                element.x1,
-                element.x2,
-                element.cx1 ?? element.x1,
-                element.cx2 ?? element.x2
-            );
-            const maxY = Math.max(
-                element.y1,
-                element.y2,
-                element.cy1 ?? element.y1,
-                element.cy2 ?? element.y2
-            );
-
-            bw = maxX - bx;
-            bh = maxY - by;
-        } else if (element.type === "pencil") {
-            const xs = element.points.map((p) => p.x);
-            const ys = element.points.map((p) => p.y);
-            bx = Math.min(...xs);
-            by = Math.min(...ys);
-            bw = Math.max(...xs) - bx;
-            bh = Math.max(...ys) - by;
-        } else {
-            bx = element.x;
-            by = element.y;
-            bw = element.w;
-            bh = element.h;
+        if (box) {
+            ctx.save();
+            ctx.setLineDash([4, 4]);
+            ctx.strokeStyle = "#2563eb";
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(box.x - 4, box.y - 4, box.w + 8, box.h + 8);
+            ctx.restore();
         }
-
-        ctx.save();
-        ctx.setLineDash([4, 4]);
-        ctx.strokeStyle = "#2563eb";
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(bx - 4, by - 4, bw + 8, bh + 8);
-        ctx.restore();
     }
 
     ctx.restore();
 }
-
 
 function drawRoundedRectPath(ctx, x, y, w, h, radius = 14) {
     const width = Math.abs(w);

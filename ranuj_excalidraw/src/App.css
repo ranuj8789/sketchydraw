@@ -32,11 +32,6 @@ body {
   overflow: hidden;
   align-items: stretch;
 }
-
-.sidebar {
-  flex-shrink: 0;
-}
-
 .work-area {
   flex: 1;
   min-width: 0;

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import MyDrawingsPopup from "../MyDrawingsPopup/MyDrawingsPopup";
+import { isPaidUser } from "../../utils/auth";
 import "./CanvasBoard.css";
 import TextEditor from "./../TextEditor";
 import { getPointerPosition } from "../../utils/geometry";
@@ -20,6 +21,7 @@ import {
     buildShapeDraft,
     buildLineDraft,
     buildPencilDraft,
+    buildImageElement,
 } from "../../canvas/canvasFactories";
 import {
     moveElement,
@@ -82,13 +84,47 @@ const ERASER_CURSOR = `url("data:image/svg+xml;charset=utf-8,${encodeURIComponen
     ERASER_CURSOR_SVG
 )}") 8 22, pointer`;
 
+const ALIGNMENT_SNAP_THRESHOLD = 8;
+
 const getIdleCanvasCursor = (tool, isSpacePressed) => {
     if (isSpacePressed || tool === "hand") return "grab";
     if (tool === "eraser") return "crosshair";
     return "default";
 };
 
-const ALIGNMENT_SNAP_THRESHOLD = 8;
+
+function readImageFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error || new Error("Unable to read image."));
+
+        reader.readAsDataURL(file);
+    });
+}
+
+function getImageSize(src) {
+    return new Promise((resolve) => {
+        const img = new Image();
+
+        img.onload = () => {
+            resolve({
+                naturalWidth: img.naturalWidth || 640,
+                naturalHeight: img.naturalHeight || 360,
+            });
+        };
+
+        img.onerror = () => {
+            resolve({
+                naturalWidth: 640,
+                naturalHeight: 360,
+            });
+        };
+
+        img.src = src;
+    });
+}
 
 function getAlignmentPoints(bounds) {
     return {
@@ -275,6 +311,10 @@ export default function CanvasBoard({
     const wrapRef = useRef(null);
     const localDraftIdRef = useRef(null);
     const hasRestoredLocalDraftRef = useRef(false);
+    const imageInputRef = useRef(null);
+    const imageInsertPointRef = useRef(null);
+
+    const [imageRenderTick, setImageRenderTick] = useState(0);
 
     const [contextMenu, setContextMenu] = useState({
         visible: false,
@@ -341,8 +381,23 @@ export default function CanvasBoard({
         alignmentGuides,
         viewport,
         showGrid,
-        canvasProps,
+        canvasProps: {
+            ...canvasProps,
+            __imageRenderTick: imageRenderTick,
+        },
     });
+
+    useEffect(() => {
+        const rerenderImages = () => {
+            setImageRenderTick((prev) => prev + 1);
+        };
+
+        window.addEventListener("sketchydraw:image-loaded", rerenderImages);
+
+        return () => {
+            window.removeEventListener("sketchydraw:image-loaded", rerenderImages);
+        };
+    }, []);
 
     useEffect(() => {
         if (hasRestoredLocalDraftRef.current) return;
@@ -421,9 +476,7 @@ export default function CanvasBoard({
             const existingId = currentDrawingMeta?.id;
             const isLocalId = existingId && String(existingId).startsWith("local_");
 
-            const localSaveId =
-                existingId ||
-                localDraftIdRef.current;
+            const localSaveId = existingId || localDraftIdRef.current;
 
             const localRow = saveLocalDrawing({
                 id: localSaveId,
@@ -1014,6 +1067,53 @@ export default function CanvasBoard({
         });
     };
 
+    const handleImageFileSelected = async (event) => {
+        const file = event.target.files?.[0];
+
+        event.target.value = "";
+
+        if (!file) return;
+
+        if (!file.type?.startsWith("image/")) {
+            console.warn("Selected file is not an image:", file);
+            return;
+        }
+
+        try {
+            const src = await readImageFileAsDataUrl(file);
+            const size = await getImageSize(src);
+
+            const fallbackPoint = screenToWorld(
+                {
+                    x: canvasSize.width / 2,
+                    y: canvasSize.height / 2,
+                },
+                viewport
+            );
+
+            const point = imageInsertPointRef.current || fallbackPoint;
+
+            const imageElement = buildImageElement({
+                point,
+                src,
+                fileName: file.name,
+                naturalWidth: size.naturalWidth,
+                naturalHeight: size.naturalHeight,
+            });
+
+            const next = [...elements, imageElement];
+
+            setElements(next);
+            setSelectedIds([imageElement.id]);
+            setTool("select");
+            commitHistory(next);
+
+            imageInsertPointRef.current = null;
+        } catch (error) {
+            console.error("Unable to insert image", error);
+        }
+    };
+
     const onMouseDown = (event) => {
         closeContextMenu();
 
@@ -1077,6 +1177,19 @@ export default function CanvasBoard({
             return;
         }
 
+        if (tool === "image") {
+            const imageCount = elements.filter((el) => el.type === "image").length;
+
+            if (!isPaidUser() && imageCount >= 1) {
+                window.dispatchEvent(new Event("sketchydraw:open-subscription"));
+                return;
+            }
+
+            imageInsertPointRef.current = point;
+            imageInputRef.current?.click();
+            return;
+        }
+
         if (tool === "select") {
             if (selectedIds.length === 1) {
                 const el = elements.find((e) => e.id === selectedIds[0]);
@@ -1115,6 +1228,7 @@ export default function CanvasBoard({
             canvas.style.cursor = target ? ERASER_CURSOR : "crosshair";
             return;
         }
+
         if (!dragState && (isSpacePressed || tool === "hand")) {
             canvas.style.cursor = "grab";
         }
@@ -1629,6 +1743,14 @@ export default function CanvasBoard({
     return (
         <div className="canvas-wrap" ref={wrapRef}>
             <div className="canvas-stage">
+                <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    style={{ display: "none" }}
+                    onChange={handleImageFileSelected}
+                />
+
                 <canvas
                     ref={canvasRef}
                     onMouseDown={onMouseDown}

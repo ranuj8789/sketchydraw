@@ -5,7 +5,8 @@ export const AUTO_SELECT_TYPES = new Set([
     "line",
     "arrow",
     "text",
-    "curve"
+    "curve",
+    "image",
 ]);
 
 export const SHAPE_TYPES = new Set(["rect", "ellipse", "diamond"]);

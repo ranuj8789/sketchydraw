@@ -5,7 +5,8 @@ export function getElementBounds(element) {
         element.type === "rect" ||
         element.type === "rectangle" ||
         element.type === "ellipse" ||
-        element.type === "diamond"
+        element.type === "diamond" ||
+        element.type === "image"
     ) {
         return {
             x: element.x,

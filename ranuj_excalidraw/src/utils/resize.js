@@ -54,14 +54,15 @@ export function resizeElement(element, dragState, point) {
         element.type === "rect" ||
         element.type === "rectangle" ||
         element.type === "ellipse" ||
-        element.type === "diamond"
+        element.type === "diamond" ||
+        element.type === "image"
     ) {
         const box = resizeBox({
             dragState,
             dx,
             dy,
-            minW: 20,
-            minH: 20,
+            minW: element.type === "image" ? 40 : 20,
+            minH: element.type === "image" ? 40 : 20,
         });
 
         return {
