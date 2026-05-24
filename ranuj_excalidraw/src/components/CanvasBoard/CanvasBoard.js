@@ -48,6 +48,7 @@ import {
 } from "../../canvas/canvasArrowBindings";
 import { useCanvasResize } from "../../canvas/useCanvasResize";
 import { useCanvasRender } from "../../canvas/useCanvasRender";
+import { renderCanvas } from "../../canvas/canvasRender";
 import { useCanvasKeyboardShortcuts } from "../../canvas/useCanvasKeyboardShortcuts";
 import { screenToWorld } from "../../canvas/canvasViewport";
 import BoardContextMenu from "../BoardContextMenu";
@@ -316,6 +317,15 @@ export default function CanvasBoard({
     const pointerMoveFrameRef = useRef(null);
     const latestPointerMoveEventRef = useRef(null);
 
+    const elementsRef = useRef(elements);
+    const selectedIdsRef = useRef(selectedIds);
+    const viewportRef = useRef(viewport);
+    const canvasSizeRef = useRef(canvasSize);
+    const canvasPropsRef = useRef(canvasProps);
+    const showGridRef = useRef(showGrid);
+    const dragBaseElementsRef = useRef(null);
+    const dragPreviewElementsRef = useRef(null);
+
     const [imageRenderTick, setImageRenderTick] = useState(0);
 
     const [contextMenu, setContextMenu] = useState({
@@ -388,6 +398,63 @@ export default function CanvasBoard({
             __imageRenderTick: imageRenderTick,
         },
     });
+
+    useEffect(() => {
+        elementsRef.current = elements;
+    }, [elements]);
+
+    useEffect(() => {
+        selectedIdsRef.current = selectedIds;
+    }, [selectedIds]);
+
+    useEffect(() => {
+        viewportRef.current = viewport;
+    }, [viewport]);
+
+    useEffect(() => {
+        canvasSizeRef.current = canvasSize;
+    }, [canvasSize]);
+
+    useEffect(() => {
+        canvasPropsRef.current = canvasProps;
+    }, [canvasProps]);
+
+    useEffect(() => {
+        showGridRef.current = showGrid;
+    }, [showGrid]);
+
+    const clearDragPreviewRefs = () => {
+        dragBaseElementsRef.current = null;
+        dragPreviewElementsRef.current = null;
+    };
+
+    const renderLivePreview = (nextElements, guides = [], hint = null, nextSelectedIds = selectedIdsRef.current) => {
+        const canvas = canvasRef.current;
+
+        if (!canvas) return;
+
+        const finalElements =
+            editor?.mode === "edit" && editor?.id
+                ? (nextElements || []).filter((el) => el.id !== editor.id)
+                : nextElements;
+
+        const finalSelectedIds =
+            editor?.mode === "edit" && editor?.id
+                ? (nextSelectedIds || []).filter((id) => id !== editor.id)
+                : nextSelectedIds;
+
+        renderCanvas({
+            canvas,
+            canvasSize: canvasSizeRef.current,
+            elements: finalElements,
+            selectedIds: finalSelectedIds,
+            connectionHint: hint,
+            alignmentGuides: guides,
+            viewport: viewportRef.current,
+            showGrid: showGridRef.current,
+            canvasProps: canvasPropsRef.current,
+        });
+    };
 
     useEffect(() => {
         const rerenderImages = () => {
@@ -483,6 +550,8 @@ export default function CanvasBoard({
     useEffect(() => {
         if (!elements || elements.length === 0) return;
 
+        if (dragState) return;
+
         const timer = setTimeout(() => {
             const existingId = currentDrawingMeta?.id;
             const isLocalId = existingId && String(existingId).startsWith("local_");
@@ -507,7 +576,7 @@ export default function CanvasBoard({
             if (isLocalId) {
                 localDraftIdRef.current = existingId;
             }
-        }, 800);
+        }, 2500);
 
         return () => clearTimeout(timer);
     }, [
@@ -519,6 +588,7 @@ export default function CanvasBoard({
         currentDrawingMeta?.title,
         currentDrawingMeta?.groupName,
         currentDrawingMeta?.description,
+        dragState,
     ]);
 
     const closeContextMenu = () => {
@@ -904,6 +974,9 @@ export default function CanvasBoard({
     const startResize = (target, handle, point) => {
         const bounds = getElementBounds(target);
 
+        dragBaseElementsRef.current = elementsRef.current;
+        dragPreviewElementsRef.current = elementsRef.current;
+
         setSelectedIds([target.id]);
 
         setDragState({
@@ -927,6 +1000,9 @@ export default function CanvasBoard({
         const idsToMove = selectedIds.includes(target.id)
             ? selectedIds
             : [target.id];
+
+        dragBaseElementsRef.current = elementsRef.current;
+        dragPreviewElementsRef.current = elementsRef.current;
 
         setSelectedIds(idsToMove);
 
@@ -1004,6 +1080,9 @@ export default function CanvasBoard({
                 );
 
                 if (curveHandle) {
+                    dragBaseElementsRef.current = elementsRef.current;
+                    dragPreviewElementsRef.current = elementsRef.current;
+
                     setDragState({
                         mode: "curve-handle",
                         id: selectedElementObj.id,
@@ -1067,7 +1146,13 @@ export default function CanvasBoard({
             point,
         });
 
-        setElements((prev) => [...prev, finalDraft]);
+        const next = [...elementsRef.current, finalDraft];
+
+        dragBaseElementsRef.current = next;
+        dragPreviewElementsRef.current = next;
+        elementsRef.current = next;
+
+        setElements(next);
         setSelectedIds([finalDraft.id]);
 
         setDragState({
@@ -1209,6 +1294,9 @@ export default function CanvasBoard({
                     const handle = getCurveHandleAtPoint(el, point, viewport.zoom);
 
                     if (handle) {
+                        dragBaseElementsRef.current = elementsRef.current;
+                        dragPreviewElementsRef.current = elementsRef.current;
+
                         setDragState({
                             mode: "curve-handle",
                             id: el.id,
@@ -1322,32 +1410,29 @@ export default function CanvasBoard({
         if (dragState.mode === "curve-handle") {
             canvas.style.cursor = "pointer";
 
+            const baseElements = dragBaseElementsRef.current || elementsRef.current;
             const movingEndpoint =
                 dragState.handle === "start" || dragState.handle === "end";
 
             let snapPoint = point;
             let snapShapeId = null;
+            let nextConnectionHint = null;
 
             if (movingEndpoint) {
-                const hint = findBindableShapeNearPoint(elements, point, 18);
+                const hint = findBindableShapeNearPoint(baseElements, point, 18);
 
                 if (hint) {
                     snapPoint = hint.point;
                     snapShapeId = hint.shapeId;
-
-                    setConnectionHint({
+                    nextConnectionHint = {
                         shapeId: hint.shapeId,
                         bindPoint: hint.point,
-                    });
-                } else {
-                    setConnectionHint(null);
+                    };
                 }
-            } else {
-                setConnectionHint(null);
             }
 
-            updateElement(dragState.id, (el) => {
-                if (!el || (el.type !== "line" && el.type !== "arrow")) {
+            const preview = baseElements.map((el) => {
+                if (el.id !== dragState.id || (el.type !== "line" && el.type !== "arrow")) {
                     return el;
                 }
 
@@ -1395,6 +1480,9 @@ export default function CanvasBoard({
                 return el;
             });
 
+            dragPreviewElementsRef.current = preview;
+            elementsRef.current = preview;
+            renderLivePreview(preview, [], nextConnectionHint);
             return;
         }
 
@@ -1419,18 +1507,46 @@ export default function CanvasBoard({
         }
 
         if (dragState.mode === "draw") {
-            const drawingElement = elements.find((el) => el.id === dragState.id);
+            const baseElements = dragBaseElementsRef.current || elementsRef.current;
+            const drawingElement = baseElements.find((el) => el.id === dragState.id);
 
-            updateArrowDuringDraw({
-                drawingElement,
-                elements,
-                point,
-                dragState,
-                updateElement,
-                updateDrawnElement,
-                setConnectionHint,
+            if (!drawingElement) return;
+
+            let nextConnectionHint = null;
+            let drawPoint = point;
+            let endBinding = null;
+
+            if (drawingElement.type === "arrow") {
+                const hint = findBindableShapeNearPoint(baseElements, point, 18);
+
+                if (hint) {
+                    drawPoint = hint.point;
+                    endBinding = { elementId: hint.shape.id };
+                    nextConnectionHint = {
+                        shapeId: hint.shape.id,
+                        bindPoint: hint.point,
+                    };
+                }
+            }
+
+            const preview = baseElements.map((el) => {
+                if (el.id !== dragState.id) return el;
+
+                const updated = updateDrawnElement(el, dragState, drawPoint);
+
+                if (el.type === "arrow") {
+                    return {
+                        ...updated,
+                        endBinding,
+                    };
+                }
+
+                return updated;
             });
 
+            dragPreviewElementsRef.current = preview;
+            elementsRef.current = preview;
+            renderLivePreview(preview, [], nextConnectionHint);
             return;
         }
 
@@ -1440,45 +1556,34 @@ export default function CanvasBoard({
             const dx = point.x - dragState.startX;
             const dy = point.y - dragState.startY;
             const movingIds = new Set(dragState.ids);
+            const baseElements = dragBaseElementsRef.current || elementsRef.current;
 
-            let snapDx = 0;
-            let snapDy = 0;
+            const movedPreview = moveConnectedArrows(
+                baseElements,
+                movingIds,
+                dx,
+                dy,
+                moveElement
+            );
 
-            setElements((prev) => {
-                const movedPreview = moveConnectedArrows(
-                    prev,
-                    movingIds,
-                    dx,
-                    dy,
-                    moveElement
-                );
-
-                const movedElements = movedPreview.filter((el) => movingIds.has(el.id));
-                const alignment = getSmartAlignment({
-                    elements: prev,
-                    movingIds,
-                    movedElements,
-                });
-
-                snapDx = alignment.snapDx;
-                snapDy = alignment.snapDy;
-                setAlignmentGuides(alignment.guides);
-
-                return moveConnectedArrows(
-                    prev,
-                    movingIds,
-                    dx + snapDx,
-                    dy + snapDy,
-                    moveElement
-                );
+            const movedElements = movedPreview.filter((el) => movingIds.has(el.id));
+            const alignment = getSmartAlignment({
+                elements: baseElements,
+                movingIds,
+                movedElements,
             });
 
-            setDragState((prev) => ({
-                ...prev,
-                startX: point.x + snapDx,
-                startY: point.y + snapDy,
-            }));
+            const preview = moveConnectedArrows(
+                baseElements,
+                movingIds,
+                dx + alignment.snapDx,
+                dy + alignment.snapDy,
+                moveElement
+            );
 
+            dragPreviewElementsRef.current = preview;
+            elementsRef.current = preview;
+            renderLivePreview(preview, alignment.guides);
             return;
         }
 
@@ -1486,32 +1591,32 @@ export default function CanvasBoard({
             const cursor = getCursorForHandle(dragState.handle);
             canvas.style.cursor = cursor;
 
-            setElements((prev) => {
-                const currentElement = prev.find((el) => el.id === dragState.id);
-                if (!currentElement) return prev;
+            const baseElements = dragBaseElementsRef.current || elementsRef.current;
+            const currentElement = baseElements.find((el) => el.id === dragState.id);
+            if (!currentElement) return;
 
-                const resizedPreview = resizeElement(currentElement, dragState, point);
-                const alignment = getResizeSmartAlignment({
-                    elements: prev,
-                    resizingId: dragState.id,
-                    resizedElement: resizedPreview,
-                    handle: dragState.handle,
-                });
-
-                const snappedPoint = {
-                    ...point,
-                    x: point.x + alignment.snapDx,
-                    y: point.y + alignment.snapDy,
-                };
-
-                const snappedElement = resizeElement(currentElement, dragState, snappedPoint);
-                setAlignmentGuides(alignment.guides);
-
-                return prev.map((el) =>
-                    el.id === dragState.id ? snappedElement : el
-                );
+            const resizedPreview = resizeElement(currentElement, dragState, point);
+            const alignment = getResizeSmartAlignment({
+                elements: baseElements,
+                resizingId: dragState.id,
+                resizedElement: resizedPreview,
+                handle: dragState.handle,
             });
 
+            const snappedPoint = {
+                ...point,
+                x: point.x + alignment.snapDx,
+                y: point.y + alignment.snapDy,
+            };
+
+            const snappedElement = resizeElement(currentElement, dragState, snappedPoint);
+            const preview = baseElements.map((el) =>
+                el.id === dragState.id ? snappedElement : el
+            );
+
+            dragPreviewElementsRef.current = preview;
+            elementsRef.current = preview;
+            renderLivePreview(preview, alignment.guides);
             return;
         }
 
@@ -1573,11 +1678,11 @@ export default function CanvasBoard({
 
         if (dragState.mode === "pan") {
             setDragState(null);
+            clearDragPreviewRefs();
 
             const canvas = canvasRef.current;
             if (canvas) {
-                canvas.style.cursor =
-                    isSpacePressed || tool === "hand" ? "grab" : "default";
+                canvas.style.cursor = getIdleCanvasCursor(tool, isSpacePressed);
             }
 
             return;
@@ -1587,45 +1692,33 @@ export default function CanvasBoard({
             setSelectionBox(null);
             setDragState(null);
             setConnectionHint(null);
+            clearDragPreviewRefs();
 
             const canvas = canvasRef.current;
             if (canvas) {
-                canvas.style.cursor = "default";
+                canvas.style.cursor = getIdleCanvasCursor(tool, isSpacePressed);
             }
 
             return;
         }
 
-        if (dragState.mode === "curve-handle") {
-            const finalAfterHandle = elements;
-
-            setDragState(null);
-            setConnectionHint(null);
-            commitHistory(finalAfterHandle);
-
-            const canvas = canvasRef.current;
-            if (canvas) {
-                canvas.style.cursor =
-                    isSpacePressed || tool === "hand" ? "grab" : "default";
-            }
-
-            return;
-        }
+        const previewElements = dragPreviewElementsRef.current;
+        let finalElements = previewElements || elementsRef.current || elements;
 
         const finishedElement = dragState.id
-            ? elements.find((el) => el.id === dragState.id)
+            ? finalElements.find((el) => el.id === dragState.id)
             : null;
 
-        const nextElements = finalizeArrowBinding(elements, finishedElement);
+        finalElements = finalizeArrowBinding(finalElements, finishedElement);
+
         const finishedMode = dragState.mode;
 
-        if (nextElements !== elements) {
-            setElements(nextElements);
-        }
-
+        elementsRef.current = finalElements;
+        setElements(finalElements);
         setDragState(null);
         setConnectionHint(null);
-        commitHistory(nextElements);
+        clearDragPreviewRefs();
+        commitHistory(finalElements);
 
         if (
             finishedMode === "draw" &&
@@ -1638,8 +1731,7 @@ export default function CanvasBoard({
 
         const canvas = canvasRef.current;
         if (canvas) {
-            canvas.style.cursor =
-                isSpacePressed || tool === "hand" ? "grab" : "default";
+            canvas.style.cursor = getIdleCanvasCursor(tool, isSpacePressed);
         }
     };
 
