@@ -24,9 +24,11 @@ export default function SaveDrawingPopup({
     useEffect(() => {
         if (!open) return;
 
+        const storedGroups = getStoredGroups();
+
         setTitle(initialValues?.title || DEFAULT_TITLE);
         setGroupName(initialValues?.groupName || DEFAULT_GROUP);
-        setGroups(getStoredGroups());
+        setGroups(storedGroups);
         setNewGroupName("");
         setShowNewGroup(false);
     }, [open, initialValues]);
@@ -47,7 +49,16 @@ export default function SaveDrawingPopup({
 
     const handleSave = () => {
         const finalTitle = title.trim() || DEFAULT_TITLE;
-        const finalGroup = groupName.trim() || DEFAULT_GROUP;
+
+        const typedNewGroup = newGroupName.trim();
+        const finalGroup =
+            showNewGroup && typedNewGroup
+                ? typedNewGroup
+                : groupName.trim() || DEFAULT_GROUP;
+
+        const nextGroups = saveStoredGroup(finalGroup);
+        setGroups(nextGroups);
+        setGroupName(finalGroup);
 
         onSave?.({
             title: finalTitle,
@@ -64,7 +75,10 @@ export default function SaveDrawingPopup({
 
     return (
         <div className="save-drawing-backdrop" onMouseDown={handleBackdropMouseDown}>
-            <div className="save-drawing-modal">
+            <div
+                className="save-drawing-modal"
+                onMouseDown={(event) => event.stopPropagation()}
+            >
                 <button
                     type="button"
                     className="save-drawing-close"
@@ -110,6 +124,7 @@ export default function SaveDrawingPopup({
                                 type="button"
                                 className="new-workspace-btn"
                                 onClick={() => setShowNewGroup((v) => !v)}
+                                disabled={loading}
                             >
                                 + New
                             </button>
@@ -130,7 +145,11 @@ export default function SaveDrawingPopup({
                                 }}
                             />
 
-                            <button type="button" onClick={handleAddGroup}>
+                            <button
+                                type="button"
+                                onClick={handleAddGroup}
+                                disabled={loading}
+                            >
                                 Add
                             </button>
                         </div>
