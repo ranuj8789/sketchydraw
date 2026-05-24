@@ -325,6 +325,7 @@ export default function CanvasBoard({
     const showGridRef = useRef(showGrid);
     const dragBaseElementsRef = useRef(null);
     const dragPreviewElementsRef = useRef(null);
+    const textCommitLockRef = useRef(0);
 
     const [imageRenderTick, setImageRenderTick] = useState(0);
 
@@ -935,9 +936,16 @@ export default function CanvasBoard({
                                    underline,
                                    textAlign,
                                }) => {
+        textCommitLockRef.current = Date.now() + 250;
+
         createTextElementHelper({
-            elements,
-            setElements,
+            elements: elementsRef.current,
+            setElements: (next) => {
+                elementsRef.current = next;
+                dragBaseElementsRef.current = null;
+                dragPreviewElementsRef.current = null;
+                setElements(next);
+            },
             setSelectedIds,
             commitHistory,
             x,
@@ -954,13 +962,23 @@ export default function CanvasBoard({
             textAlign,
         });
 
+        dragBaseElementsRef.current = null;
+        dragPreviewElementsRef.current = null;
+        setDragState(null);
         setTool("select");
     };
 
     const updateTextElement = (id, value, stylePatch = {}) => {
+        textCommitLockRef.current = Date.now() + 250;
+
         updateTextElementHelper({
-            elements,
-            setElements,
+            elements: elementsRef.current,
+            setElements: (next) => {
+                elementsRef.current = next;
+                dragBaseElementsRef.current = null;
+                dragPreviewElementsRef.current = null;
+                setElements(next);
+            },
             setSelectedIds,
             commitHistory,
             id,
@@ -968,6 +986,9 @@ export default function CanvasBoard({
             ...stylePatch,
         });
 
+        dragBaseElementsRef.current = null;
+        dragPreviewElementsRef.current = null;
+        setDragState(null);
         setTool("select");
     };
 
@@ -1215,6 +1236,12 @@ export default function CanvasBoard({
 
         const canvas = canvasRef.current;
         if (!canvas) return;
+
+        if (Date.now() < textCommitLockRef.current) {
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+        }
 
         const rawPoint = getPointerPosition(event, canvas);
         const point = screenToWorld(rawPoint, viewport);
@@ -1666,6 +1693,22 @@ export default function CanvasBoard({
     };
 
     const onMouseUp = () => {
+        if (Date.now() < textCommitLockRef.current) {
+            if (pointerMoveFrameRef.current !== null) {
+                window.cancelAnimationFrame(pointerMoveFrameRef.current);
+                pointerMoveFrameRef.current = null;
+                latestPointerMoveEventRef.current = null;
+            }
+
+            dragBaseElementsRef.current = null;
+            dragPreviewElementsRef.current = null;
+            setDragState(null);
+            setSelectionBox(null);
+            setConnectionHint(null);
+            setAlignmentGuides([]);
+            return;
+        }
+
         if (pointerMoveFrameRef.current !== null) {
             window.cancelAnimationFrame(pointerMoveFrameRef.current);
             pointerMoveFrameRef.current = null;
@@ -1911,6 +1954,9 @@ export default function CanvasBoard({
                     createTextElement={createTextElement}
                     updateTextElement={updateTextElement}
                     viewport={viewport}
+                    onCommitStart={() => {
+                        textCommitLockRef.current = Date.now() + 250;
+                    }}
                 />
 
                 <BoardContextMenu

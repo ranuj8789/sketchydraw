@@ -14,8 +14,10 @@ export default function TextEditor({
                                        updateTextElement,
                                        createTextElement,
                                        viewport,
+                                       onCommitStart,
                                    }) {
     const inputRef = useRef(null);
+    const finishingRef = useRef(false);
 
     useEffect(() => {
         if (!editor || !inputRef.current) return;
@@ -24,6 +26,10 @@ export default function TextEditor({
 
         const len = inputRef.current.value.length;
         inputRef.current.setSelectionRange(len, len);
+    }, [editor?.id, editor?.mode]);
+
+    useEffect(() => {
+        finishingRef.current = false;
     }, [editor?.id, editor?.mode]);
 
     if (!editor) return null;
@@ -62,6 +68,11 @@ export default function TextEditor({
     });
 
     const finishEditing = () => {
+        if (finishingRef.current) return;
+        finishingRef.current = true;
+
+        onCommitStart?.();
+
         const value = editor.value.trim();
 
         if (editor.mode === "create") {
@@ -76,7 +87,6 @@ export default function TextEditor({
                 text: value,
                 stroke: editor.stroke,
                 parentId: editor.parentId || null,
-
                 fontSize,
                 lineHeight,
                 fontFamily,
@@ -143,6 +153,8 @@ export default function TextEditor({
                 whiteSpace: "pre",
             }}
             value={editor.value}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
             onChange={(e) =>
                 setEditor((prev) => ({
                     ...prev,
