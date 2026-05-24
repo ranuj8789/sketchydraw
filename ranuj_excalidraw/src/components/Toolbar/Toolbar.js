@@ -235,11 +235,16 @@ export default function Toolbar({
 
         try {
             const rows = await getPaymentHistory();
-            setPaymentRows(
-                Array.isArray(rows)
-                    ? rows
-                    : rows?.data || rows?.payments || rows?.content || []
+
+            const allRows = Array.isArray(rows)
+                ? rows
+                : rows?.data || rows?.payments || rows?.content || [];
+
+            const successRows = allRows.filter(
+                (row) => String(row.status || "").toUpperCase() === "SUCCESS"
             );
+
+            setPaymentRows(successRows);
         } catch (error) {
             console.error("Unable to load payment history", error);
             setPaymentRows([]);
@@ -799,7 +804,7 @@ function PaymentHistoryModal({ open, rows, loading, onClose }) {
                 {loading ? (
                     <div className="account-empty-state">Loading payment history...</div>
                 ) : rows.length === 0 ? (
-                    <div className="account-empty-state">No payments found yet.</div>
+                    <div className="account-empty-state">No successful payments found yet.</div>
                 ) : (
                     <div className="payment-history-table-wrap">
                         <table className="payment-history-table">
