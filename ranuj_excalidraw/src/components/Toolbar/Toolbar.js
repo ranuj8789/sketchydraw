@@ -393,6 +393,16 @@ export default function Toolbar({
                                 <button type="button" onClick={triggerSaveAsNew}>
                                     🆕 Save as New
                                 </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        window.dispatchEvent(new Event("sketchydraw:open-my-drawings"));
+                                        setSaveOpen(false);
+                                    }}
+                                >
+                                    📂 View Saved Drawings
+                                </button>
                             </div>
                         )}
                     </div>
@@ -682,6 +692,14 @@ function ProfileModal({
         subscriptionStatus?.validTill ||
         null;
 
+    const openMyDrawingsFromProfile = () => {
+        onClose?.();
+
+        setTimeout(() => {
+            window.dispatchEvent(new Event("sketchydraw:open-my-drawings"));
+        }, 0);
+    };
+
     return (
         <div className="account-modal-backdrop" onMouseDown={onClose}>
             <div className="account-modal" onMouseDown={(e) => e.stopPropagation()}>
@@ -714,6 +732,16 @@ function ProfileModal({
                     {!proUser && (
                         <span>Free exports include a SketchyDraw watermark.</span>
                     )}
+                </div>
+
+                <div className="account-profile-actions">
+                    <button
+                        type="button"
+                        className="account-secondary-btn"
+                        onClick={openMyDrawingsFromProfile}
+                    >
+                        🖼️ Open My Drawings
+                    </button>
                 </div>
 
                 <form onSubmit={onSubmit} className="account-form">

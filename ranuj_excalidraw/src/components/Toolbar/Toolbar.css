@@ -874,3 +874,23 @@
         min-width: 240px;
     }
 }
+.account-profile-actions {
+    display: flex;
+    gap: 10px;
+    margin: 14px 0;
+}
+
+.account-secondary-btn {
+    width: 100%;
+    border: 1px solid #d1d5db;
+    background: #ffffff;
+    color: #111827;
+    border-radius: 12px;
+    padding: 11px 14px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.account-secondary-btn:hover {
+    background: #f3f4f6;
+}

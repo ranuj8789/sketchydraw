@@ -10,7 +10,7 @@ import {
     MoveRight,
     Diamond,
     Hand,
-    FolderOpen,
+    // FolderOpen,
     Image as ImageIcon,
 } from "lucide-react";
 import PropertiesPanel from "../PropertiesPanel/PropertiesPanel";
@@ -88,23 +88,23 @@ export default function Sidebar({
                 updateCanvasProps={updateCanvasProps}
             />
 
-            <div className="panel drawings-sidebar-card">
-                <button
-                    type="button"
-                    className="my-drawings-side-btn"
-                    onClick={openMyDrawings}
-                    title="Open your saved drawings"
-                >
-                    <span className="my-drawings-icon">
-                        <FolderOpen size={18} />
-                    </span>
+            {/*<div className="panel drawings-sidebar-card">*/}
+            {/*    <button*/}
+            {/*        type="button"*/}
+            {/*        className="my-drawings-side-btn"*/}
+            {/*        onClick={openMyDrawings}*/}
+            {/*        title="Open your saved drawings"*/}
+            {/*    >*/}
+            {/*        <span className="my-drawings-icon">*/}
+            {/*            <FolderOpen size={18} />*/}
+            {/*        </span>*/}
 
-                    <span className="my-drawings-text">
-                        <strong>My Drawings</strong>
-                        <em>Open saved drawings</em>
-                    </span>
-                </button>
-            </div>
+            {/*        <span className="my-drawings-text">*/}
+            {/*            <strong>My Drawings</strong>*/}
+            {/*            <em>Open saved drawings</em>*/}
+            {/*        </span>*/}
+            {/*    </button>*/}
+            {/*</div>*/}
         </div>
     );
 }
