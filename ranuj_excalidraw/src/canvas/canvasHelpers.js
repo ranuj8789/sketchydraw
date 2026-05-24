@@ -1,17 +1,39 @@
 export function findTopElementAtPoint(elements, point) {
+    const hits = [];
+
     for (let i = elements.length - 1; i >= 0; i--) {
         const el = elements[i];
+        const hit = getElementHit(el, point);
 
-        if (isPointInsideElement(el, point)) {
-            return el;
+        if (hit) {
+            hits.push({
+                el,
+                index: i,
+                kind: hit.kind,
+                area: getElementArea(el),
+            });
         }
     }
 
-    return null;
+    if (hits.length === 0) return null;
+
+    // 1. If clicked near border/line, prefer topmost border hit.
+    const borderHit = hits.find((h) => h.kind === "border");
+    if (borderHit) return borderHit.el;
+
+    // 2. If shapes overlap/nested, select smallest object first.
+    hits.sort((a, b) => {
+        if (a.area !== b.area) return a.area - b.area;
+        return b.index - a.index;
+    });
+
+    return hits[0].el;
 }
 
-function isPointInsideElement(el, point) {
-    if (!el) return false;
+function getElementHit(el, point) {
+    if (!el || !point) return null;
+
+    const HIT_PADDING = 8;
 
     if (
         el.type === "rect" ||
@@ -21,21 +43,30 @@ function isPointInsideElement(el, point) {
         el.type === "text" ||
         el.type === "image"
     ) {
-        const x = Math.min(el.x, el.x + (el.w || 0));
-        const y = Math.min(el.y, el.y + (el.h || 0));
-        const w = Math.abs(el.w || 0);
-        const h = Math.abs(el.h || 0);
+        const box = getElementBox(el);
+        if (!box) return null;
 
-        return (
-            point.x >= x &&
-            point.x <= x + w &&
-            point.y >= y &&
-            point.y <= y + h
-        );
+        const inside =
+            point.x >= box.x - HIT_PADDING &&
+            point.x <= box.x + box.w + HIT_PADDING &&
+            point.y >= box.y - HIT_PADDING &&
+            point.y <= box.y + box.h + HIT_PADDING;
+
+        if (!inside) return null;
+
+        const nearBorder =
+            point.x <= box.x + HIT_PADDING ||
+            point.x >= box.x + box.w - HIT_PADDING ||
+            point.y <= box.y + HIT_PADDING ||
+            point.y >= box.y + box.h - HIT_PADDING;
+
+        return { kind: nearBorder ? "border" : "fill" };
     }
 
     if (el.type === "line" || el.type === "arrow") {
-        return distanceToLineOrCurve(point, el) < 12;
+        return distanceToLineOrCurve(point, el) < 12
+            ? { kind: "border" }
+            : null;
     }
 
     if (el.type === "pencil") {
@@ -43,13 +74,42 @@ function isPointInsideElement(el, point) {
 
         for (let i = 1; i < points.length; i++) {
             if (distanceToSegment(point, points[i - 1], points[i]) < 10) {
-                return true;
+                return { kind: "border" };
             }
         }
     }
 
-    return false;
+    return null;
 }
+
+function isPointInsideElement(el, point) {
+    return !!getElementHit(el, point);
+}
+
+function getElementBox(el) {
+    const w = el.w || 0;
+    const h = el.h || 0;
+
+    return {
+        x: Math.min(el.x, el.x + w),
+        y: Math.min(el.y, el.y + h),
+        w: Math.abs(w),
+        h: Math.abs(h),
+    };
+}
+
+function getElementArea(el) {
+    if (el.type === "line" || el.type === "arrow" || el.type === "pencil") {
+        return 1;
+    }
+
+    const box = getElementBox(el);
+    if (!box) return Number.MAX_SAFE_INTEGER;
+
+    return Math.max(1, box.w * box.h);
+}
+
+
 
 function distanceToLineOrCurve(point, element) {
     if (element.lineStyle === "curved") {
