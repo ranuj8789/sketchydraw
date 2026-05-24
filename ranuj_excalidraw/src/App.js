@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useCallback, useMemo, useState, useEffect } from "react";
 import "./App.css";
 
 import Toolbar from "./components/Toolbar/Toolbar";
@@ -34,6 +34,38 @@ const DEFAULT_CANVAS_PROPS = {
   pattern: "blank",
   cornerRadius: 16,
 };
+
+const DEFAULT_MAX_HISTORY_LENGTH = 80;
+const MIN_HISTORY_LENGTH = 10;
+const MAX_ALLOWED_HISTORY_LENGTH = 500;
+
+function getConfiguredMaxHistoryLength() {
+  const fromLocalStorage = Number(
+      window.localStorage.getItem("sketchydraw_max_history")
+  );
+
+  const fromEnv = Number(process.env.REACT_APP_SKETCHYDRAW_MAX_HISTORY);
+
+  const value =
+      Number.isFinite(fromLocalStorage) && fromLocalStorage > 0
+          ? fromLocalStorage
+          : Number.isFinite(fromEnv) && fromEnv > 0
+              ? fromEnv
+              : DEFAULT_MAX_HISTORY_LENGTH;
+
+  return Math.max(
+      MIN_HISTORY_LENGTH,
+      Math.min(MAX_ALLOWED_HISTORY_LENGTH, Math.floor(value))
+  );
+}
+
+function cloneElements(elements) {
+  if (typeof structuredClone === "function") {
+    return structuredClone(elements || []);
+  }
+
+  return JSON.parse(JSON.stringify(elements || []));
+}
 
 function VerifyPage() {
   const [status, setStatus] = useState("Verifying your email...");
@@ -95,6 +127,7 @@ function SketchyDrawPage() {
   const [selectedIds, setSelectedIds] = useState([]);
   const [history, setHistory] = useState([[]]);
   const [historyIndex, setHistoryIndex] = useState(0);
+  const [maxHistoryLength] = useState(getConfiguredMaxHistoryLength);
 
   const [canvasSize, setCanvasSize] = useState({
     width: 1200,
@@ -123,16 +156,22 @@ function SketchyDrawPage() {
     description: "",
   });
 
-  const commitHistory = (nextElements) => {
-    const snapshot = JSON.parse(JSON.stringify(nextElements));
-    const trimmed = history.slice(0, historyIndex + 1);
+  const commitHistory = useCallback((nextElements) => {
+    const snapshot = cloneElements(nextElements);
 
-    trimmed.push(snapshot);
+    setHistory((prevHistory) => {
+      const trimmed = prevHistory.slice(0, historyIndex + 1);
+      trimmed.push(snapshot);
 
-    setHistory(trimmed);
-    setHistoryIndex(trimmed.length - 1);
-  };
+      const limited =
+          trimmed.length > maxHistoryLength
+              ? trimmed.slice(trimmed.length - maxHistoryLength)
+              : trimmed;
 
+      setHistoryIndex(limited.length - 1);
+      return limited;
+    });
+  }, [historyIndex, maxHistoryLength]);
   const {
     canvasRef,
     jsonInputRef,
@@ -155,10 +194,12 @@ function SketchyDrawPage() {
     setCanvasProps,
     commitHistory,
   });
-  const selectedElements = useMemo(
-      () => elements.filter((el) => selectedIds.includes(el.id)),
-      [elements, selectedIds]
-  );
+  const selectedElements = useMemo(() => {
+    if (!selectedIds.length) return [];
+
+    const selectedSet = new Set(selectedIds);
+    return elements.filter((el) => selectedSet.has(el.id));
+  }, [elements, selectedIds]);
 
   const selectedElement =
       selectedElements.length === 1 ? selectedElements[0] : null;
@@ -222,7 +263,7 @@ function SketchyDrawPage() {
     const nextIndex = historyIndex - 1;
 
     setHistoryIndex(nextIndex);
-    setElements(JSON.parse(JSON.stringify(history[nextIndex])));
+    setElements(cloneElements(history[nextIndex]));
     setSelectedIds([]);
   };
 
@@ -232,7 +273,7 @@ function SketchyDrawPage() {
     const nextIndex = historyIndex + 1;
 
     setHistoryIndex(nextIndex);
-    setElements(JSON.parse(JSON.stringify(history[nextIndex])));
+    setElements(cloneElements(history[nextIndex]));
     setSelectedIds([]);
   };
 

@@ -313,6 +313,8 @@ export default function CanvasBoard({
     const hasRestoredLocalDraftRef = useRef(false);
     const imageInputRef = useRef(null);
     const imageInsertPointRef = useRef(null);
+    const pointerMoveFrameRef = useRef(null);
+    const latestPointerMoveEventRef = useRef(null);
 
     const [imageRenderTick, setImageRenderTick] = useState(0);
 
@@ -396,6 +398,15 @@ export default function CanvasBoard({
 
         return () => {
             window.removeEventListener("sketchydraw:image-loaded", rerenderImages);
+        };
+    }, []);
+
+    useEffect(() => {
+        return () => {
+            if (pointerMoveFrameRef.current !== null) {
+                window.cancelAnimationFrame(pointerMoveFrameRef.current);
+                pointerMoveFrameRef.current = null;
+            }
         };
     }, []);
 
@@ -1215,7 +1226,7 @@ export default function CanvasBoard({
         handleDrawModeMouseDown(point);
     };
 
-    const onMouseMove = (event) => {
+    const runMouseMove = (event) => {
         const canvas = canvasRef.current;
         if (!canvas) return;
 
@@ -1528,7 +1539,34 @@ export default function CanvasBoard({
         }
     };
 
+
+    const onMouseMove = (event) => {
+        event.persist?.();
+        latestPointerMoveEventRef.current = event;
+
+        if (pointerMoveFrameRef.current !== null) {
+            return;
+        }
+
+        pointerMoveFrameRef.current = window.requestAnimationFrame(() => {
+            pointerMoveFrameRef.current = null;
+
+            const latestEvent = latestPointerMoveEventRef.current;
+            latestPointerMoveEventRef.current = null;
+
+            if (latestEvent) {
+                runMouseMove(latestEvent);
+            }
+        });
+    };
+
     const onMouseUp = () => {
+        if (pointerMoveFrameRef.current !== null) {
+            window.cancelAnimationFrame(pointerMoveFrameRef.current);
+            pointerMoveFrameRef.current = null;
+            latestPointerMoveEventRef.current = null;
+        }
+
         setAlignmentGuides([]);
 
         if (!dragState) return;
