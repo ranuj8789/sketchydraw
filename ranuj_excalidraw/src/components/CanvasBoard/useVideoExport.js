@@ -1,27 +1,20 @@
 import { useRef, useState } from "react";
 import { exportUndoRedoAnimationVideo } from "../../canvas/exportAnimationVideo";
 
-const ANIMATION_SPEED_OPTIONS = [
-    { value: "slow", label: "Slow", frameDelayMs: 800 },
-    { value: "normal", label: "Normal", frameDelayMs: 450 },
-    { value: "fast", label: "Fast", frameDelayMs: 220 },
-    { value: "superFast", label: "Super Fast", frameDelayMs: 100 },
-];
+const DEFAULT_GAP_SECONDS = 0.5;
 
-export function useVideoExport({ history, elements, canvasSize }) {
-    const [animationSpeed, setAnimationSpeed] = useState("normal");
+export function useVideoExport({ history, elements, canvasSize, canvasProps }) {
     const [isVideoExporting, setIsVideoExporting] = useState(false);
     const [videoExportProgress, setVideoExportProgress] = useState(0);
 
     const videoExportingRef = useRef(false);
 
-    const downloadUndoRedoVideo = async () => {
+    const downloadUndoRedoVideo = async (options = {}) => {
         if (videoExportingRef.current) return;
 
-        const selectedSpeed =
-            ANIMATION_SPEED_OPTIONS.find(
-                (option) => option.value === animationSpeed
-            ) || ANIMATION_SPEED_OPTIONS[1];
+        const gapSeconds = Number.isFinite(Number(options.gapSeconds))
+            ? Number(options.gapSeconds)
+            : DEFAULT_GAP_SECONDS;
 
         videoExportingRef.current = true;
         setIsVideoExporting(true);
@@ -32,9 +25,9 @@ export function useVideoExport({ history, elements, canvasSize }) {
                 historyStates: history || [],
                 currentElements: elements,
                 canvasSize,
-                fileName: `sketchy-animation-${selectedSpeed.value}.webm`,
-                fps: 30,
-                frameDelayMs: selectedSpeed.frameDelayMs,
+                canvasProps,
+                fileName: `sketchy-animation-${gapSeconds}s-gap.webm`,
+                gapSeconds,
                 onProgress: setVideoExportProgress,
             });
         } catch (error) {
@@ -48,9 +41,6 @@ export function useVideoExport({ history, elements, canvasSize }) {
     };
 
     return {
-        animationSpeed,
-        setAnimationSpeed,
-        animationSpeedOptions: ANIMATION_SPEED_OPTIONS,
         isVideoExporting,
         videoExportProgress,
         downloadUndoRedoVideo,

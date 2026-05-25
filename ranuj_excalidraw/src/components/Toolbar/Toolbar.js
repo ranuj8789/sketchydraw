@@ -39,6 +39,7 @@ export default function Toolbar({
     const [alignOpen, setAlignOpen] = useState(false);
     const [saveOpen, setSaveOpen] = useState(false);
     const [exportOpen, setExportOpen] = useState(false);
+    const [videoGapSeconds, setVideoGapSeconds] = useState("0.5");
     const [legalOpen, setLegalOpen] = useState(false);
 
     const [user, setUser] = useState(getUser());
@@ -305,6 +306,21 @@ export default function Toolbar({
         setExportOpen(false);
     };
 
+    const runVideoExport = () => {
+        const gapSeconds = Math.max(
+            0.1,
+            Math.min(5, Number(videoGapSeconds) || 0.5)
+        );
+
+        window.dispatchEvent(
+            new CustomEvent("sketchydraw:export-video", {
+                detail: { gapSeconds },
+            })
+        );
+
+        setExportOpen(false);
+    };
+
     const getExpiryDate = () => {
         return (
             user?.subscription?.endsAt ||
@@ -448,6 +464,24 @@ export default function Toolbar({
                                 <button type="button" onClick={() => runExport(exportJSON)}>
                                     📄 Export as JSON
                                 </button>
+
+                                <div className="export-video-box">
+                                    <label>
+                                        Gap seconds
+                                        <input
+                                            type="number"
+                                            min="0.1"
+                                            max="5"
+                                            step="0.1"
+                                            value={videoGapSeconds}
+                                            onChange={(event) => setVideoGapSeconds(event.target.value)}
+                                        />
+                                    </label>
+
+                                    <button type="button" onClick={runVideoExport}>
+                                        🎬 Export Video
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </div>

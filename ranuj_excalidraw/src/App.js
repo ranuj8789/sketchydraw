@@ -4,6 +4,7 @@ import "./App.css";
 import Toolbar from "./components/Toolbar/Toolbar";
 import Sidebar from "./components/Sidebar/Sidebar";
 import CanvasBoard from "./components/CanvasBoard/CanvasBoard";
+import SketchyAlert from "./components/SketchyAlert";
 import { verifyEmail, resetPassword } from "./api/authApi";
 import { measureTextBox } from "./canvas/textMetrics";
 import {
@@ -128,6 +129,21 @@ function SketchyDrawPage() {
   const [history, setHistory] = useState([[]]);
   const [historyIndex, setHistoryIndex] = useState(0);
   const [maxHistoryLength] = useState(getConfiguredMaxHistoryLength);
+  const [sketchyAlert, setSketchyAlert] = useState(null);
+
+  const showSketchyAlert = useCallback((payload) => {
+    setSketchyAlert({
+      open: true,
+      type: "info",
+      title: "SketchyDraw",
+      icon: "✏️",
+      ...payload,
+    });
+  }, []);
+
+  const closeSketchyAlert = useCallback(() => {
+    setSketchyAlert(null);
+  }, []);
 
   const [canvasSize, setCanvasSize] = useState({
     width: 1200,
@@ -258,29 +274,66 @@ function SketchyDrawPage() {
   };
 
   const undo = () => {
-    if (historyIndex === 0) return;
+    if (historyIndex === 0) {
+      showSketchyAlert({
+        icon: "↩️",
+        title: "Nothing to undo",
+        message: "No previous canvas step is available yet.",
+      });
+      return;
+    }
 
     const nextIndex = historyIndex - 1;
 
     setHistoryIndex(nextIndex);
     setElements(cloneElements(history[nextIndex]));
     setSelectedIds([]);
+
+    // showSketchyAlert({
+    //   icon: "↩️",
+    //   title: "Undo applied",
+    //   message: `Moved back to step ${nextIndex + 1} of ${history.length}.`,
+    // });
   };
 
   const redo = () => {
-    if (historyIndex >= history.length - 1) return;
+    if (historyIndex >= history.length - 1) {
+      showSketchyAlert({
+        icon: "↪️",
+        title: "Nothing to redo",
+        message: "No next canvas step is available yet.",
+      });
+      return;
+    }
 
     const nextIndex = historyIndex + 1;
 
     setHistoryIndex(nextIndex);
     setElements(cloneElements(history[nextIndex]));
     setSelectedIds([]);
+
+    // showSketchyAlert({
+    //   icon: "↪️",
+    //   title: "Redo applied",
+    //   message: `Moved forward to step ${nextIndex + 1} of ${history.length}.`,
+    // });
   };
 
   const clearCanvas = () => {
-    setElements([]);
-    setSelectedIds([]);
-    commitHistory([]);
+    showSketchyAlert({
+      type: "confirm",
+      icon: "🧹",
+      title: "Clear whole canvas?",
+      message: "All canvas steps/history will be cleared and the whole canvas will become empty.",
+      confirmText: "Clear canvas",
+      onConfirm: () => {
+        setElements([]);
+        setSelectedIds([]);
+        setHistory([[]]);
+        setHistoryIndex(0);
+        setSketchyAlert(null);
+      },
+    });
   };
 
   const deleteSelected = () => {
@@ -363,6 +416,12 @@ function SketchyDrawPage() {
 
   return (
       <div className="app-shell">
+        <SketchyAlert
+            alert={sketchyAlert}
+            onClose={closeSketchyAlert}
+            onConfirm={() => sketchyAlert?.onConfirm?.()}
+        />
+
         <div className="layout">
           <Sidebar
               tool={tool}

@@ -1,0 +1,76 @@
+.sketchy-alert-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(15, 23, 42, 0.38);
+    backdrop-filter: blur(3px);
+}
+
+.sketchy-alert-card {
+    width: min(420px, 100%);
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    border-radius: 22px;
+    padding: 22px;
+    background: #ffffff;
+    box-shadow: 0 24px 80px rgba(15, 23, 42, 0.22);
+}
+
+.sketchy-alert-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 16px;
+    background: #f8fafc;
+    font-size: 26px;
+    margin-bottom: 14px;
+}
+
+.sketchy-alert-content h3 {
+    margin: 0 0 8px;
+    color: #0f172a;
+    font-size: 20px;
+    font-weight: 900;
+}
+
+.sketchy-alert-content p {
+    margin: 0;
+    color: #475569;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.sketchy-alert-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 22px;
+}
+
+.sketchy-alert-actions button {
+    border: 0;
+    border-radius: 12px;
+    padding: 10px 16px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.sketchy-alert-secondary {
+    color: #334155;
+    background: #e2e8f0;
+}
+
+.sketchy-alert-primary {
+    color: #ffffff;
+    background: #111827;
+}
+
+.sketchy-alert-danger {
+    color: #ffffff;
+    background: #dc2626;
+}

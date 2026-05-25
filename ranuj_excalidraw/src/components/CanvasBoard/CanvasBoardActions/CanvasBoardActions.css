@@ -193,3 +193,45 @@
     font-size: 12px;
     font-weight: 800;
 }
+.canvas-video-floating {
+    position: absolute;
+    right: 18px;
+    bottom: 18px;
+    z-index: 15;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.14);
+    backdrop-filter: blur(10px);
+}
+
+.canvas-video-floating select {
+    height: 34px;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 0 8px;
+    color: #0f172a;
+    background: #ffffff;
+    font-weight: 700;
+}
+
+.video-export-btn {
+    height: 34px;
+    border: 0;
+    border-radius: 10px;
+    padding: 0 12px;
+    color: #ffffff;
+    background: #111827;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.video-export-btn:disabled,
+.canvas-video-floating select:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}

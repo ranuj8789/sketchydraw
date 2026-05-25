@@ -97,7 +97,7 @@ function drawAlignmentGuides(ctx, alignmentGuides, canvasSize, viewport) {
     const endY = startY + canvasSize.height / viewport.zoom;
 
     ctx.save();
-    ctx.strokeStyle = "#ef4444";
+    ctx.strokeStyle = "#ff00ff";
     ctx.lineWidth = 1.5 / viewport.zoom;
     ctx.setLineDash([8 / viewport.zoom, 5 / viewport.zoom]);
 
@@ -218,16 +218,19 @@ export function renderCanvas({
 
         const isSelected = selectedSet.has(element.id);
         const isHighlighted = connectionHint?.shapeId === element.id;
+        const isSnapTarget = (alignmentGuides || []).some(
+            (guide) => guide.targetId === element.id
+        );
 
         drawElement(ctx, element, isSelected);
 
-        if (isHighlighted) {
+        if (isHighlighted || isSnapTarget) {
             const bounds = getElementBounds(element);
 
             if (bounds) {
                 ctx.save();
-                ctx.strokeStyle = "#3b82f6";
-                ctx.lineWidth = 2 / viewport.zoom;
+                ctx.strokeStyle = isSnapTarget ? "#ef4444" : "#3b82f6";
+                ctx.lineWidth = isSnapTarget ? 2.5 / viewport.zoom : 2 / viewport.zoom;
                 ctx.setLineDash([6 / viewport.zoom, 4 / viewport.zoom]);
                 ctx.strokeRect(bounds.x, bounds.y, bounds.w, bounds.h);
                 ctx.restore();

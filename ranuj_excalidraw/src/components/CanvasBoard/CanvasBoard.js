@@ -24,6 +24,7 @@ import {
     buildImageElement,
 } from "../../canvas/canvasFactories";
 import {
+    getStableStraightLineEnd,
     moveElement,
     updateDrawnElement,
 } from "../../canvas/canvasElementOps";
@@ -70,6 +71,7 @@ import {
     getLatestLocalDrawing,
     saveLocalDrawing,
 } from "../DrawingGroupStore/localDrawingStore";
+import { saveDrawingSnapshotAsync } from "../../utils/indexedDbStorage";
 
 const ERASER_CURSOR_SVG = `
 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
@@ -85,7 +87,7 @@ const ERASER_CURSOR = `url("data:image/svg+xml;charset=utf-8,${encodeURIComponen
     ERASER_CURSOR_SVG
 )}") 8 22, pointer`;
 
-const ALIGNMENT_SNAP_THRESHOLD = 12;
+const ALIGNMENT_SNAP_THRESHOLD = 18;
 
 const getIdleCanvasCursor = (tool, isSpacePressed) => {
     if (isSpacePressed || tool === "hand") return "grab";
@@ -177,6 +179,7 @@ function getSmartAlignment({ elements, movingIds, movedElements }) {
                             type: "vertical",
                             x: stationaryPoint.value,
                             snapDx: diff,
+                            targetId: stationaryElement.id,
                         };
                     }
                 });
@@ -194,6 +197,7 @@ function getSmartAlignment({ elements, movingIds, movedElements }) {
                             type: "horizontal",
                             y: stationaryPoint.value,
                             snapDy: diff,
+                            targetId: stationaryElement.id,
                         };
                     }
                 });
@@ -361,9 +365,6 @@ export default function CanvasBoard({
     });
 
     const {
-        animationSpeed,
-        setAnimationSpeed,
-        animationSpeedOptions,
         isVideoExporting,
         videoExportProgress,
         downloadUndoRedoVideo,
@@ -371,6 +372,7 @@ export default function CanvasBoard({
         history,
         elements,
         canvasSize,
+        canvasProps,
     });
 
     useCanvasResize(wrapRef, setCanvasSize);
@@ -384,6 +386,20 @@ export default function CanvasBoard({
         editor?.mode === "edit" && editor?.id
             ? selectedIds.filter((id) => id !== editor.id)
             : selectedIds;
+
+    useEffect(() => {
+        const handleVideoExport = (event) => {
+            downloadUndoRedoVideo({
+                gapSeconds: event.detail?.gapSeconds,
+            });
+        };
+
+        window.addEventListener("sketchydraw:export-video", handleVideoExport);
+
+        return () => {
+            window.removeEventListener("sketchydraw:export-video", handleVideoExport);
+        };
+    }, [downloadUndoRedoVideo]);
 
     useCanvasRender({
         canvasRef,
@@ -568,6 +584,25 @@ export default function CanvasBoard({
                 viewport,
                 canvasSize,
                 canvasProps,
+            });
+
+            let imageDataUrl = null;
+            try {
+                imageDataUrl = canvasRef.current?.toDataURL?.("image/png") || null;
+            } catch {
+                imageDataUrl = null;
+            }
+
+            saveDrawingSnapshotAsync({
+                id: localRow?.id || localSaveId || "latest",
+                json: localRow?.drawingJson || {
+                    version: 1,
+                    elements,
+                    viewport,
+                    canvas: canvasSize,
+                    canvasProps,
+                },
+                imageDataUrl,
             });
 
             if (!localDraftIdRef.current && localRow?.id) {
@@ -1459,15 +1494,47 @@ export default function CanvasBoard({
             }
 
             const preview = baseElements.map((el) => {
-                if (el.id !== dragState.id || (el.type !== "line" && el.type !== "arrow")) {
+                if (
+                    el.id !== dragState.id ||
+                    (el.type !== "line" && el.type !== "arrow")
+                ) {
                     return el;
                 }
 
+                const alreadyCurved = el.lineStyle === "curved";
+
                 if (dragState.handle === "start") {
+                    let finalPoint;
+
+                    if (alreadyCurved) {
+                        // If line is already curved, dragging the tip should keep curve.
+                        // Do NOT force it back to straight.
+                        finalPoint = snapPoint;
+                    } else {
+                        // If line is straight, dragging the tip should stay straight/stable.
+                        finalPoint = getStableStraightLineEnd(
+                            { x: el.x2, y: el.y2 },
+                            snapPoint
+                        );
+                    }
+
+                    const midX = (finalPoint.x + el.x2) / 2;
+                    const midY = (finalPoint.y + el.y2) / 2;
+
                     return {
                         ...el,
-                        x1: snapPoint.x,
-                        y1: snapPoint.y,
+                        x1: finalPoint.x,
+                        y1: finalPoint.y,
+
+                        lineStyle: alreadyCurved ? "curved" : "straight",
+
+                        // For curved line: keep existing control point.
+                        // For straight line: keep control point at middle.
+                        cx1: alreadyCurved ? el.cx1 ?? midX : midX,
+                        cy1: alreadyCurved ? el.cy1 ?? midY : midY,
+                        cx2: alreadyCurved ? el.cx2 ?? el.cx1 ?? midX : midX,
+                        cy2: alreadyCurved ? el.cy2 ?? el.cy1 ?? midY : midY,
+
                         ...(el.type === "arrow"
                             ? {
                                 startBinding: snapShapeId
@@ -1479,10 +1546,37 @@ export default function CanvasBoard({
                 }
 
                 if (dragState.handle === "end") {
+                    let finalPoint;
+
+                    if (alreadyCurved) {
+                        // If line is already curved, dragging the tip should keep curve.
+                        // Do NOT force it back to straight.
+                        finalPoint = snapPoint;
+                    } else {
+                        // If line is straight, dragging the tip should stay straight/stable.
+                        finalPoint = getStableStraightLineEnd(
+                            { x: el.x1, y: el.y1 },
+                            snapPoint
+                        );
+                    }
+
+                    const midX = (el.x1 + finalPoint.x) / 2;
+                    const midY = (el.y1 + finalPoint.y) / 2;
+
                     return {
                         ...el,
-                        x2: snapPoint.x,
-                        y2: snapPoint.y,
+                        x2: finalPoint.x,
+                        y2: finalPoint.y,
+
+                        lineStyle: alreadyCurved ? "curved" : "straight",
+
+                        // For curved line: keep existing control point.
+                        // For straight line: keep control point at middle.
+                        cx1: alreadyCurved ? el.cx1 ?? midX : midX,
+                        cy1: alreadyCurved ? el.cy1 ?? midY : midY,
+                        cx2: alreadyCurved ? el.cx2 ?? el.cx1 ?? midX : midX,
+                        cy2: alreadyCurved ? el.cy2 ?? el.cy1 ?? midY : midY,
+
                         ...(el.type === "arrow"
                             ? {
                                 endBinding: snapShapeId
@@ -1494,6 +1588,7 @@ export default function CanvasBoard({
                 }
 
                 if (dragState.handle === "cp1") {
+                    // Only middle/control point can make the line curved.
                     return {
                         ...el,
                         lineStyle: "curved",
@@ -1997,10 +2092,6 @@ export default function CanvasBoard({
                 }
                 saveCurrentDrawing={openSavePopup}
                 openMyDrawings={() => setMyDrawingsOpen(true)}
-                animationSpeed={animationSpeed}
-                setAnimationSpeed={setAnimationSpeed}
-                animationSpeedOptions={animationSpeedOptions}
-                downloadUndoRedoVideo={downloadUndoRedoVideo}
                 isVideoExporting={isVideoExporting}
                 videoExportProgress={videoExportProgress}
             />

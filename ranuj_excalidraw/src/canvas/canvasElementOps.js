@@ -10,6 +10,42 @@ function getStraightControlPoints(x1, y1, x2, y2) {
     };
 }
 
+export function getStableStraightLineEnd(start, point) {
+    const dx = point.x - start.x;
+    const dy = point.y - start.y;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+    const distance = Math.hypot(dx, dy);
+
+    if (distance < 2) {
+        return point;
+    }
+
+    // Make straight lines stable: a small mouse shake near the tip should not
+    // break horizontal/vertical alignment.
+    const axisSnap = Math.max(18, distance * 0.18);
+
+    if (absDy <= axisSnap) {
+        return { x: point.x, y: start.y };
+    }
+
+    if (absDx <= axisSnap) {
+        return { x: start.x, y: point.y };
+    }
+
+    const diagonalSnap = Math.max(18, distance * 0.16);
+
+    if (Math.abs(absDx - absDy) <= diagonalSnap) {
+        const size = Math.max(absDx, absDy);
+        return {
+            x: start.x + Math.sign(dx || 1) * size,
+            y: start.y + Math.sign(dy || 1) * size,
+        };
+    }
+
+    return point;
+}
+
 export function moveElement(element, dx, dy) {
     if (element.type === "pencil") {
         return {
@@ -51,8 +87,9 @@ export function updateDrawnElement(element, dragState, point) {
     if (element.type === "line" || element.type === "arrow") {
         const x1 = element.x1;
         const y1 = element.y1;
-        const x2 = point.x;
-        const y2 = point.y;
+        const stableEnd = getStableStraightLineEnd({ x: x1, y: y1 }, point);
+        const x2 = stableEnd.x;
+        const y2 = stableEnd.y;
 
         return {
             ...element,
