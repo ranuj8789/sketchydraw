@@ -53,6 +53,7 @@ export default function TextEditor({
 
     const bold = !!editor.bold;
     const italic = !!editor.italic;
+    const underline = !!editor.underline;
 
     const screenPoint = worldToScreen(
         { x: editor.x, y: editor.y },
@@ -141,6 +142,7 @@ export default function TextEditor({
                     bold ? "700" : "400"
                 } ${fontSize * zoom}px ${fontFamily}`,
                 lineHeight: `${lineHeight * zoom}px`,
+                textDecoration: underline ? "underline" : "none",
 
                 padding: 0,
                 margin: 0,

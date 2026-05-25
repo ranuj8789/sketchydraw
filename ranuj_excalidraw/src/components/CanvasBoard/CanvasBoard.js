@@ -85,7 +85,7 @@ const ERASER_CURSOR = `url("data:image/svg+xml;charset=utf-8,${encodeURIComponen
     ERASER_CURSOR_SVG
 )}") 8 22, pointer`;
 
-const ALIGNMENT_SNAP_THRESHOLD = 8;
+const ALIGNMENT_SNAP_THRESHOLD = 12;
 
 const getIdleCanvasCursor = (tool, isSpacePressed) => {
     if (isSpacePressed || tool === "hand") return "grab";

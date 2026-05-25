@@ -66,7 +66,7 @@ export function normalizeElementForSave(element) {
             y: element.y,
             w: element.w,
             h: element.h,
-            cornerRadius: element.cornerRadius ?? 14,
+            cornerRadius: element.cornerRadius ?? 0,
         };
     }
 
@@ -80,7 +80,7 @@ export function normalizeElementForSave(element) {
             text: element.text || "",
             fontSize: element.fontSize || 20,
             lineHeight: element.lineHeight || 24,
-            fontFamily: element.fontFamily || "Arial",
+            fontFamily: element.fontFamily || '"Caveat", cursive',
             bold: !!element.bold,
             italic: !!element.italic,
             underline: !!element.underline,

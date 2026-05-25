@@ -316,7 +316,7 @@ export function drawElement(ctx, element, selected = false) {
     const strokeWidth = element.strokeWidth || 2;
 
     if (element.type === "rect" || element.type === "rectangle") {
-        const radius = element.cornerRadius ?? 14;
+        const radius = element.cornerRadius ?? 0;
 
         if (radius > 0) {
             drawRoundedRectPath(
@@ -466,16 +466,35 @@ export function drawElement(ctx, element, selected = false) {
             element.fontFamily ||
             "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif";
         const bold = !!element.bold;
+        const italic = !!element.italic;
+        const underline = !!element.underline;
 
         ctx.setLineDash([]);
-        ctx.font = `${bold ? "700" : "400"} ${fontSize}px ${fontFamily}`;
+        ctx.font = `${italic ? "italic" : "normal"} ${bold ? "700" : "400"} ${fontSize}px ${fontFamily}`;
         ctx.fillStyle = element.stroke || "#111827";
         ctx.textBaseline = "top";
 
         const lines = String(element.text || "").split("\n");
 
         lines.forEach((line, index) => {
-            ctx.fillText(line, element.x, element.y + index * lineHeight);
+            const textX = element.x;
+            const textY = element.y + index * lineHeight;
+
+            ctx.fillText(line, textX, textY);
+
+            if (underline && line) {
+                const metrics = ctx.measureText(line);
+                const underlineY = textY + fontSize + 2;
+
+                ctx.save();
+                ctx.beginPath();
+                ctx.strokeStyle = element.stroke || "#111827";
+                ctx.lineWidth = Math.max(1, Math.round(fontSize / 14));
+                ctx.moveTo(textX, underlineY);
+                ctx.lineTo(textX + metrics.width, underlineY);
+                ctx.stroke();
+                ctx.restore();
+            }
         });
     }
 
@@ -495,7 +514,7 @@ export function drawElement(ctx, element, selected = false) {
     ctx.restore();
 }
 
-function drawRoundedRectPath(ctx, x, y, w, h, radius = 14) {
+function drawRoundedRectPath(ctx, x, y, w, h, radius = 0) {
     const width = Math.abs(w);
     const height = Math.abs(h);
 

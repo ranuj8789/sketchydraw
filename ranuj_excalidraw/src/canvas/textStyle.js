@@ -1,5 +1,3 @@
-import { TEXT_FONT_FAMILY } from "./textMetrics";
-
 export const FONT_SIZE_OPTIONS = {
     S: {
         label: "S",
@@ -23,12 +21,30 @@ export const FONT_SIZE_OPTIONS = {
     },
 };
 
+export function getLineHeightForFontSize(fontSize) {
+    const size = Number(fontSize) || FONT_SIZE_OPTIONS.M.fontSize;
+    return Math.round(size * 1.3);
+}
+
 export const FONT_FAMILY_OPTIONS = [
-    {
-        id: "hand",
-        label: "Hand",
-        value: TEXT_FONT_FAMILY,
-    },
+    { id: "caveat", label: "Caveat", value: '"Caveat", cursive' },
+    { id: "patrick-hand", label: "Patrick Hand", value: '"Patrick Hand", cursive' },
+    { id: "kalam", label: "Kalam", value: '"Kalam", cursive' },
+    { id: "shadows-into-light", label: "Shadows Into Light", value: '"Shadows Into Light", cursive' },
+    { id: "architects-daughter", label: "Architects Daughter", value: '"Architects Daughter", cursive' },
+    { id: "indie-flower", label: "Indie Flower", value: '"Indie Flower", cursive' },
+    { id: "covered-by-your-grace", label: "Covered By Your Grace", value: '"Covered By Your Grace", cursive' },
+    { id: "coming-soon", label: "Coming Soon", value: '"Coming Soon", cursive' },
+    { id: "schoolbell", label: "Schoolbell", value: '"Schoolbell", cursive' },
+    { id: "gloria-hallelujah", label: "Gloria Hallelujah", value: '"Gloria Hallelujah", cursive' },
+    { id: "gaegu", label: "Gaegu", value: '"Gaegu", cursive' },
+    { id: "reenie-beanie", label: "Reenie Beanie", value: '"Reenie Beanie", cursive' },
+    { id: "waiting-for-the-sunrise", label: "Waiting for the Sunrise", value: '"Waiting for the Sunrise", cursive' },
+    { id: "homemade-apple", label: "Homemade Apple", value: '"Homemade Apple", cursive' },
+    { id: "rock-salt", label: "Rock Salt", value: '"Rock Salt", cursive' },
+    { id: "permanent-marker", label: "Permanent Marker", value: '"Permanent Marker", cursive' },
+    { id: "gochi-hand", label: "Gochi Hand", value: '"Gochi Hand", cursive' },
+    { id: "nanum-pen-script", label: "Nanum Pen Script", value: '"Nanum Pen Script", cursive' },
     {
         id: "notebook",
         label: "Notebook Sans",
@@ -54,6 +70,8 @@ export const FONT_FAMILY_OPTIONS = [
 export const DEFAULT_TEXT_STYLE = {
     fontSize: FONT_SIZE_OPTIONS.M.fontSize,
     lineHeight: FONT_SIZE_OPTIONS.M.lineHeight,
-    fontFamily: FONT_FAMILY_OPTIONS[0].value,
+    fontFamily: '"Caveat", cursive',
     bold: false,
+    italic: false,
+    underline: false,
 };

@@ -17,7 +17,7 @@ export function buildShapeDraft(tool, point, stroke) {
         stroke,
         strokeWidth: 2,
         strokeDash: "solid",
-        cornerRadius: tool === "rect" || tool === "rectangle" ? 14 : 0,
+        cornerRadius: 0,
     };
 }
 

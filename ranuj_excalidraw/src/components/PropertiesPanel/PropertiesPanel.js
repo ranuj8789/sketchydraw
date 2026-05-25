@@ -1,5 +1,9 @@
-import React from "react";
-import { FONT_FAMILY_OPTIONS, FONT_SIZE_OPTIONS } from "../../canvas/textStyle";
+import React, { useEffect, useState } from "react";
+import {
+    FONT_FAMILY_OPTIONS,
+    FONT_SIZE_OPTIONS,
+    getLineHeightForFontSize,
+} from "../../canvas/textStyle";
 import "./PropertiesPanel.css";
 
 const LINE_WIDTHS = [1, 2, 3, 4, 6, 8];
@@ -69,6 +73,45 @@ function arrowPatch(value) {
     };
 }
 
+function cleanFontName(fontFamily) {
+    return String(fontFamily || "")
+        .split(",")[0]
+        .replace(/['"]/g, "")
+        .trim();
+}
+
+function toFontFamily(fontName) {
+    const clean = cleanFontName(fontName);
+
+    if (!clean) {
+        return '"Caveat", cursive';
+    }
+
+    return `"${clean}", cursive`;
+}
+
+function loadGoogleFont(fontName) {
+    if (typeof document === "undefined") return;
+
+    const clean = cleanFontName(fontName);
+
+    if (!clean) return;
+
+    const id = `google-font-${clean.replace(/\s+/g, "-").toLowerCase()}`;
+
+    if (document.getElementById(id)) return;
+
+    const link = document.createElement("link");
+    link.id = id;
+    link.rel = "stylesheet";
+    link.href = `https://fonts.googleapis.com/css2?family=${clean.replace(
+        /\s+/g,
+        "+"
+    )}&display=swap`;
+
+    document.head.appendChild(link);
+}
+
 export default function PropertiesPanel({
                                             selectedElement,
                                             colors,
@@ -80,6 +123,26 @@ export default function PropertiesPanel({
                                             updateCanvasProps,
                                         }) {
     const isText = selectedElement?.type === "text";
+
+    const [customFontFamily, setCustomFontFamily] = useState("Caveat");
+    const [customFontSize, setCustomFontSize] = useState(
+        String(FONT_SIZE_OPTIONS.M.fontSize)
+    );
+
+    useEffect(() => {
+        if (!isText) return;
+
+        const fontName = cleanFontName(
+            selectedElement?.fontFamily || '"Caveat", cursive'
+        );
+
+        setCustomFontFamily(fontName || "Caveat");
+        setCustomFontSize(
+            String(selectedElement?.fontSize || FONT_SIZE_OPTIONS.M.fontSize)
+        );
+
+        loadGoogleFont(fontName || "Caveat");
+    }, [isText, selectedElement?.id]);
 
     const isLineLike =
         selectedElement?.type === "line" ||
@@ -365,7 +428,7 @@ export default function PropertiesPanel({
                                         key={radius}
                                         type="button"
                                         className={
-                                            (selectedElement.cornerRadius ?? 14) === radius
+                                            (selectedElement.cornerRadius ?? 0) === radius
                                                 ? "active"
                                                 : ""
                                         }
@@ -459,6 +522,30 @@ export default function PropertiesPanel({
                                     >
                                         Bold
                                     </button>
+
+                                    <button
+                                        type="button"
+                                        className={selectedElement.italic ? "active" : ""}
+                                        onClick={() =>
+                                            updateSelectedElementStyle?.({
+                                                italic: !selectedElement.italic,
+                                            })
+                                        }
+                                    >
+                                        Italic
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        className={selectedElement.underline ? "active" : ""}
+                                        onClick={() =>
+                                            updateSelectedElementStyle?.({
+                                                underline: !selectedElement.underline,
+                                            })
+                                        }
+                                    >
+                                        Underline
+                                    </button>
                                 </div>
                             </div>
 
@@ -467,21 +554,55 @@ export default function PropertiesPanel({
 
                                 <select
                                     value={
-                                        selectedElement.fontFamily ||
-                                        FONT_FAMILY_OPTIONS[0].value
+                                        FONT_FAMILY_OPTIONS.some(
+                                            (font) => font.value === selectedElement.fontFamily
+                                        )
+                                            ? selectedElement.fontFamily
+                                            : "__CUSTOM__"
                                     }
-                                    onChange={(e) =>
+                                    onChange={(e) => {
+                                        const value = e.target.value;
+
+                                        if (value === "__CUSTOM__") {
+                                            return;
+                                        }
+
+                                        const fontName = cleanFontName(value);
+                                        setCustomFontFamily(fontName);
+                                        loadGoogleFont(fontName);
+
                                         updateSelectedElementStyle?.({
-                                            fontFamily: e.target.value,
-                                        })
-                                    }
+                                            fontFamily: value,
+                                        });
+                                    }}
                                 >
                                     {FONT_FAMILY_OPTIONS.map((font) => (
                                         <option key={font.id} value={font.value}>
                                             {font.label}
                                         </option>
                                     ))}
+
+                                    <option value="__CUSTOM__">Custom Font</option>
                                 </select>
+
+                                <input
+                                    className="custom-font-input"
+                                    type="text"
+                                    value={customFontFamily}
+                                    onChange={(e) => {
+                                        const value = e.target.value;
+                                        setCustomFontFamily(value);
+
+                                        if (!value.trim()) return;
+
+                                        loadGoogleFont(value);
+
+                                        updateSelectedElementStyle?.({
+                                            fontFamily: toFontFamily(value),
+                                        });
+                                    }}
+                                    placeholder="Custom Google font, e.g. Caveat"
+                                />
                             </div>
 
                             <div className="property-section">
@@ -498,17 +619,64 @@ export default function PropertiesPanel({
                                                         ? "active"
                                                         : ""
                                                 }
-                                                onClick={() =>
+                                                onClick={() => {
+                                                    setCustomFontSize(String(option.fontSize));
+
                                                     updateSelectedElementStyle?.({
                                                         fontSize: option.fontSize,
                                                         lineHeight: option.lineHeight,
-                                                    })
-                                                }
+                                                    });
+                                                }}
                                             >
                                                 {option.label}
                                             </button>
                                         )
                                     )}
+                                </div>
+
+                                <div className="custom-font-size-row">
+                                    <span>Custom</span>
+
+                                    <input
+                                        type="number"
+                                        min="8"
+                                        max="120"
+                                        step="1"
+                                        value={customFontSize}
+                                        onChange={(e) => {
+                                            const value = e.target.value;
+                                            setCustomFontSize(value);
+
+                                            if (value === "") return;
+
+                                            const parsed = Number(value);
+
+                                            if (!Number.isFinite(parsed)) return;
+
+                                            const fontSize = Math.min(
+                                                120,
+                                                Math.max(8, parsed)
+                                            );
+
+                                            updateSelectedElementStyle?.({
+                                                fontSize,
+                                                lineHeight: getLineHeightForFontSize(fontSize),
+                                            });
+                                        }}
+                                        onBlur={() => {
+                                            if (customFontSize === "") {
+                                                const fallback = FONT_SIZE_OPTIONS.M.fontSize;
+                                                setCustomFontSize(String(fallback));
+
+                                                updateSelectedElementStyle?.({
+                                                    fontSize: fallback,
+                                                    lineHeight: getLineHeightForFontSize(fallback),
+                                                });
+                                            }
+                                        }}
+                                    />
+
+                                    <em>px</em>
                                 </div>
                             </div>
                         </>

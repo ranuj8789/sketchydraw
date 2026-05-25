@@ -1,17 +1,19 @@
-export const TEXT_FONT_SIZE = 20;
-export const TEXT_LINE_HEIGHT = 24;
-export const TEXT_MIN_WIDTH = 60;
-export const TEXT_MIN_HEIGHT = 32;
 
-export const TEXT_FONT_FAMILY =
-    "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif";
+export const TEXT_MIN_WIDTH = 60;
+export const TEXT_MIN_HEIGHT = 28;
+export const TEXT_FONT_SIZE = 20;
+export const TEXT_LINE_HEIGHT = 26;
+
+export const HANDWRITING_FONT_FAMILY =
+    '"Caveat", "Patrick Hand", "Kalam", cursive';
+export const TEXT_FONT_FAMILY = HANDWRITING_FONT_FAMILY;
 
 export const FONT_FAMILIES = [
-    TEXT_FONT_FAMILY,
+    HANDWRITING_FONT_FAMILY,
+    'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
     "Arial, sans-serif",
     "Georgia, serif",
     "Courier New, monospace",
-    "Comic Sans MS, cursive",
 ];
 
 export function buildCanvasFont({

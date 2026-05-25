@@ -342,6 +342,7 @@ function buildSVGText(
             const fontFamily = el.fontFamily || "Arial, sans-serif";
             const fontWeight = el.bold ? "700" : "400";
             const fontStyle = el.italic ? "italic" : "normal";
+            const textDecoration = el.underline ? "underline" : "none";
             const lines = String(el.text || "").split("\n");
 
             lines.forEach((line, index) => {
@@ -353,6 +354,7 @@ function buildSVGText(
     font-family="${escapeXml(fontFamily)}"
     font-weight="${fontWeight}"
     font-style="${fontStyle}"
+    text-decoration="${textDecoration}"
     dominant-baseline="text-before-edge"
     fill="${el.stroke || "#111827"}"
   >${escapeXml(line)}</text>
