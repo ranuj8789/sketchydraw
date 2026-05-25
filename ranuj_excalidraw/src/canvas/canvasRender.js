@@ -97,8 +97,8 @@ function drawAlignmentGuides(ctx, alignmentGuides, canvasSize, viewport) {
     const endY = startY + canvasSize.height / viewport.zoom;
 
     ctx.save();
-    ctx.strokeStyle = "#ef4444";
-    ctx.lineWidth = 1.5 / viewport.zoom;
+    ctx.strokeStyle = "#ff00ff";
+    ctx.lineWidth = 1.7 / viewport.zoom;
     ctx.setLineDash([8 / viewport.zoom, 5 / viewport.zoom]);
 
     alignmentGuides.forEach((guide) => {
@@ -156,6 +156,27 @@ function shouldDrawElement(element, visibleWorldRect, selectedSet, connectionHin
     return rectsIntersect(visibleWorldRect, bounds);
 }
 
+function drawObjectSnapHighlight(ctx, element, viewport) {
+    const bounds = getElementBounds(element);
+    if (!bounds) return;
+
+    const padding = 5 / viewport.zoom;
+
+    ctx.save();
+    ctx.strokeStyle = "#ef4444";
+    ctx.lineWidth = 2.2 / viewport.zoom;
+    ctx.setLineDash([7 / viewport.zoom, 4 / viewport.zoom]);
+    ctx.shadowColor = "rgba(239, 68, 68, 0.35)";
+    ctx.shadowBlur = 8 / viewport.zoom;
+    ctx.strokeRect(
+        bounds.x - padding,
+        bounds.y - padding,
+        bounds.w + padding * 2,
+        bounds.h + padding * 2
+    );
+    ctx.restore();
+}
+
 export function renderCanvas({
                                  canvas,
                                  canvasSize,
@@ -163,6 +184,7 @@ export function renderCanvas({
                                  selectedIds,
                                  connectionHint,
                                  alignmentGuides = [],
+                                 highlightedElementIds = [],
                                  viewport,
                                  showGrid = true,
                                  canvasProps = {},
@@ -209,6 +231,7 @@ export function renderCanvas({
     }
 
     const selectedSet = new Set(selectedIds || []);
+    const highlightedSet = new Set(highlightedElementIds || []);
     const visibleWorldRect = getVisibleWorldRect(canvasSize, viewport);
 
     (elements || []).forEach((element) => {
@@ -218,8 +241,13 @@ export function renderCanvas({
 
         const isSelected = selectedSet.has(element.id);
         const isHighlighted = connectionHint?.shapeId === element.id;
+        const isObjectSnapHighlighted = highlightedSet.has(element.id);
 
         drawElement(ctx, element, isSelected);
+
+        if (isObjectSnapHighlighted) {
+            drawObjectSnapHighlight(ctx, element, viewport);
+        }
 
         if (isHighlighted) {
             const bounds = getElementBounds(element);

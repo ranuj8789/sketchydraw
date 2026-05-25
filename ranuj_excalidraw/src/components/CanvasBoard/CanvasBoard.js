@@ -85,7 +85,8 @@ const ERASER_CURSOR = `url("data:image/svg+xml;charset=utf-8,${encodeURIComponen
     ERASER_CURSOR_SVG
 )}") 8 22, pointer`;
 
-const ALIGNMENT_SNAP_THRESHOLD = 12;
+const ALIGNMENT_SNAP_THRESHOLD = 18;
+const OBJECT_STICK_THRESHOLD = 18;
 
 const getIdleCanvasCursor = (tool, isSpacePressed) => {
     if (isSpacePressed || tool === "hand") return "grab";
@@ -142,9 +143,77 @@ function getAlignmentPoints(bounds) {
     };
 }
 
+function rangesOverlapWithPadding(aStart, aEnd, bStart, bEnd, padding = OBJECT_STICK_THRESHOLD) {
+    return aEnd >= bStart - padding && bEnd >= aStart - padding;
+}
+
+function getObjectStickSnap(movingBounds, stationaryBounds) {
+    let snapX = null;
+    let snapY = null;
+
+    const movingLeft = movingBounds.x;
+    const movingRight = movingBounds.x + movingBounds.w;
+    const movingTop = movingBounds.y;
+    const movingBottom = movingBounds.y + movingBounds.h;
+
+    const stationaryLeft = stationaryBounds.x;
+    const stationaryRight = stationaryBounds.x + stationaryBounds.w;
+    const stationaryTop = stationaryBounds.y;
+    const stationaryBottom = stationaryBounds.y + stationaryBounds.h;
+
+    const verticalOverlap = rangesOverlapWithPadding(
+        movingTop,
+        movingBottom,
+        stationaryTop,
+        stationaryBottom
+    );
+
+    const horizontalOverlap = rangesOverlapWithPadding(
+        movingLeft,
+        movingRight,
+        stationaryLeft,
+        stationaryRight
+    );
+
+    if (verticalOverlap) {
+        const rightToLeft = stationaryLeft - movingRight;
+        const leftToRight = stationaryRight - movingLeft;
+
+        if (Math.abs(rightToLeft) <= OBJECT_STICK_THRESHOLD) {
+            snapX = rightToLeft;
+        }
+
+        if (
+            Math.abs(leftToRight) <= OBJECT_STICK_THRESHOLD &&
+            (snapX === null || Math.abs(leftToRight) < Math.abs(snapX))
+        ) {
+            snapX = leftToRight;
+        }
+    }
+
+    if (horizontalOverlap) {
+        const bottomToTop = stationaryTop - movingBottom;
+        const topToBottom = stationaryBottom - movingTop;
+
+        if (Math.abs(bottomToTop) <= OBJECT_STICK_THRESHOLD) {
+            snapY = bottomToTop;
+        }
+
+        if (
+            Math.abs(topToBottom) <= OBJECT_STICK_THRESHOLD &&
+            (snapY === null || Math.abs(topToBottom) < Math.abs(snapY))
+        ) {
+            snapY = topToBottom;
+        }
+    }
+
+    return { snapX, snapY };
+}
+
 function getSmartAlignment({ elements, movingIds, movedElements }) {
     let bestVertical = null;
     let bestHorizontal = null;
+    const highlightedElementIds = new Set();
 
     const movedById = new Map(movedElements.map((el) => [el.id, el]));
     const movingElements = elements
@@ -177,6 +246,7 @@ function getSmartAlignment({ elements, movingIds, movedElements }) {
                             type: "vertical",
                             x: stationaryPoint.value,
                             snapDx: diff,
+                            targetId: stationaryElement.id,
                         };
                     }
                 });
@@ -194,21 +264,54 @@ function getSmartAlignment({ elements, movingIds, movedElements }) {
                             type: "horizontal",
                             y: stationaryPoint.value,
                             snapDy: diff,
+                            targetId: stationaryElement.id,
                         };
                     }
                 });
             });
+
+            const stickSnap = getObjectStickSnap(movingBounds, stationaryBounds);
+
+            if (
+                stickSnap.snapX !== null &&
+                (!bestVertical || Math.abs(stickSnap.snapX) < Math.abs(bestVertical.snapDx))
+            ) {
+                bestVertical = {
+                    type: "vertical",
+                    x: stickSnap.snapX < 0 ? stationaryBounds.x : stationaryBounds.x + stationaryBounds.w,
+                    snapDx: stickSnap.snapX,
+                    targetId: stationaryElement.id,
+                };
+            }
+
+            if (
+                stickSnap.snapY !== null &&
+                (!bestHorizontal || Math.abs(stickSnap.snapY) < Math.abs(bestHorizontal.snapDy))
+            ) {
+                bestHorizontal = {
+                    type: "horizontal",
+                    y: stickSnap.snapY < 0 ? stationaryBounds.y : stationaryBounds.y + stationaryBounds.h,
+                    snapDy: stickSnap.snapY,
+                    targetId: stationaryElement.id,
+                };
+            }
         });
+    });
+
+    [bestVertical, bestHorizontal].filter(Boolean).forEach((guide) => {
+        if (guide.targetId) highlightedElementIds.add(guide.targetId);
     });
 
     return {
         guides: [bestVertical, bestHorizontal].filter(Boolean),
         snapDx: bestVertical?.snapDx || 0,
         snapDy: bestHorizontal?.snapDy || 0,
+        highlightedElementIds: Array.from(highlightedElementIds),
     };
 }
 
 function getResizeSmartAlignment({ elements, resizingId, resizedElement, handle }) {
+    const highlightedElementIds = new Set();
     const resizedBounds = getElementBounds(resizedElement);
     if (!resizedBounds) {
         return { guides: [], snapDx: 0, snapDy: 0 };
@@ -257,6 +360,7 @@ function getResizeSmartAlignment({ elements, resizingId, resizedElement, handle 
                         type: "vertical",
                         x: stationaryPoint.value,
                         snapDx: diff,
+                        targetId: stationaryElement.id,
                     };
                 }
             });
@@ -274,16 +378,22 @@ function getResizeSmartAlignment({ elements, resizingId, resizedElement, handle 
                         type: "horizontal",
                         y: stationaryPoint.value,
                         snapDy: diff,
+                        targetId: stationaryElement.id,
                     };
                 }
             });
         });
     });
 
+    [bestVertical, bestHorizontal].filter(Boolean).forEach((guide) => {
+        if (guide.targetId) highlightedElementIds.add(guide.targetId);
+    });
+
     return {
         guides: [bestVertical, bestHorizontal].filter(Boolean),
         snapDx: bestVertical?.snapDx || 0,
         snapDy: bestHorizontal?.snapDy || 0,
+        highlightedElementIds: Array.from(highlightedElementIds),
     };
 }
 
@@ -337,6 +447,7 @@ export default function CanvasBoard({
 
     const [dragState, setDragState] = useState(null);
     const [alignmentGuides, setAlignmentGuides] = useState([]);
+    const [alignmentHighlightedIds, setAlignmentHighlightedIds] = useState([]);
     const [editor, setEditor] = useState(null);
     const [selectionBox, setSelectionBox] = useState(null);
     const [clipboard, setClipboard] = useState([]);
@@ -392,6 +503,7 @@ export default function CanvasBoard({
         selectedIds: renderSelectedIds,
         connectionHint,
         alignmentGuides,
+        highlightedElementIds: alignmentHighlightedIds,
         viewport,
         showGrid,
         canvasProps: {
@@ -429,7 +541,13 @@ export default function CanvasBoard({
         dragPreviewElementsRef.current = null;
     };
 
-    const renderLivePreview = (nextElements, guides = [], hint = null, nextSelectedIds = selectedIdsRef.current) => {
+    const renderLivePreview = (
+        nextElements,
+        guides = [],
+        hint = null,
+        nextSelectedIds = selectedIdsRef.current,
+        highlightedElementIds = []
+    ) => {
         const canvas = canvasRef.current;
 
         if (!canvas) return;
@@ -451,6 +569,7 @@ export default function CanvasBoard({
             selectedIds: finalSelectedIds,
             connectionHint: hint,
             alignmentGuides: guides,
+            highlightedElementIds,
             viewport: viewportRef.current,
             showGrid: showGridRef.current,
             canvasProps: canvasPropsRef.current,
@@ -1610,7 +1729,13 @@ export default function CanvasBoard({
 
             dragPreviewElementsRef.current = preview;
             elementsRef.current = preview;
-            renderLivePreview(preview, alignment.guides);
+            renderLivePreview(
+                preview,
+                alignment.guides,
+                null,
+                selectedIdsRef.current,
+                alignment.highlightedElementIds
+            );
             return;
         }
 
@@ -1643,7 +1768,13 @@ export default function CanvasBoard({
 
             dragPreviewElementsRef.current = preview;
             elementsRef.current = preview;
-            renderLivePreview(preview, alignment.guides);
+            renderLivePreview(
+                preview,
+                alignment.guides,
+                null,
+                selectedIdsRef.current,
+                alignment.highlightedElementIds
+            );
             return;
         }
 
@@ -1706,6 +1837,7 @@ export default function CanvasBoard({
             setSelectionBox(null);
             setConnectionHint(null);
             setAlignmentGuides([]);
+            setAlignmentHighlightedIds([]);
             return;
         }
 
@@ -1716,6 +1848,7 @@ export default function CanvasBoard({
         }
 
         setAlignmentGuides([]);
+        setAlignmentHighlightedIds([]);
 
         if (!dragState) return;
 
