@@ -88,6 +88,143 @@ const ERASER_CURSOR = `url("data:image/svg+xml;charset=utf-8,${encodeURIComponen
 )}") 8 22, pointer`;
 
 const ALIGNMENT_SNAP_THRESHOLD = 18;
+const GRID_SIZE = 24;
+
+
+function snapValueToGrid(value, gridSize = GRID_SIZE) {
+    return Math.round(value / gridSize) * gridSize;
+}
+
+function snapPointToGrid(point, gridSize = GRID_SIZE) {
+    return {
+        x: snapValueToGrid(point.x, gridSize),
+        y: snapValueToGrid(point.y, gridSize),
+    };
+}
+
+function isGridSnapActive(showGrid, canvasProps) {
+    return !!showGrid || canvasProps?.pattern === "grid";
+}
+
+function getGroupBounds(items) {
+    const boundsList = (items || [])
+        .map((el) => getElementBounds(el))
+        .filter(Boolean);
+
+    if (!boundsList.length) return null;
+
+    const minX = Math.min(...boundsList.map((b) => b.x));
+    const minY = Math.min(...boundsList.map((b) => b.y));
+    const maxX = Math.max(...boundsList.map((b) => b.x + b.w));
+    const maxY = Math.max(...boundsList.map((b) => b.y + b.h));
+
+    return {
+        x: minX,
+        y: minY,
+        w: maxX - minX,
+        h: maxY - minY,
+    };
+}
+
+function isRectangleContainer(element) {
+    return element?.type === "rect" || element?.type === "rectangle";
+}
+
+function isBoundsInside(inner, outer, padding = 1) {
+    if (!inner || !outer) return false;
+
+    return (
+        inner.x >= outer.x + padding &&
+        inner.y >= outer.y + padding &&
+        inner.x + inner.w <= outer.x + outer.w - padding &&
+        inner.y + inner.h <= outer.y + outer.h - padding
+    );
+}
+
+function scaleNumber(value, fromStart, toStart, scale) {
+    return toStart + (value - fromStart) * scale;
+}
+
+function scaleElementInsideBounds(element, fromBounds, toBounds) {
+    if (!element || !fromBounds || !toBounds) return element;
+
+    const scaleX = fromBounds.w === 0 ? 1 : toBounds.w / fromBounds.w;
+    const scaleY = fromBounds.h === 0 ? 1 : toBounds.h / fromBounds.h;
+
+    if (
+        element.type === "rect" ||
+        element.type === "rectangle" ||
+        element.type === "ellipse" ||
+        element.type === "diamond" ||
+        element.type === "image" ||
+        element.type === "text"
+    ) {
+        const scaledElement = {
+            ...element,
+            x: scaleNumber(element.x, fromBounds.x, toBounds.x, scaleX),
+            y: scaleNumber(element.y, fromBounds.y, toBounds.y, scaleY),
+            w: Math.max(1, (element.w || 1) * scaleX),
+            h: Math.max(1, (element.h || 1) * scaleY),
+        };
+
+        if (element.type === "text") {
+            const fontScale = Math.max(0.25, Math.min(scaleX, scaleY));
+
+            return {
+                ...scaledElement,
+                fontSize: element.fontSize
+                    ? Math.max(8, element.fontSize * fontScale)
+                    : element.fontSize,
+                lineHeight: element.lineHeight
+                    ? Math.max(10, element.lineHeight * fontScale)
+                    : element.lineHeight,
+            };
+        }
+
+        return scaledElement;
+    }
+
+    if (element.type === "line" || element.type === "arrow") {
+        const fallbackMidX = (element.x1 + element.x2) / 2;
+        const fallbackMidY = (element.y1 + element.y2) / 2;
+
+        return {
+            ...element,
+            x1: scaleNumber(element.x1, fromBounds.x, toBounds.x, scaleX),
+            y1: scaleNumber(element.y1, fromBounds.y, toBounds.y, scaleY),
+            x2: scaleNumber(element.x2, fromBounds.x, toBounds.x, scaleX),
+            y2: scaleNumber(element.y2, fromBounds.y, toBounds.y, scaleY),
+            cx1: scaleNumber(element.cx1 ?? fallbackMidX, fromBounds.x, toBounds.x, scaleX),
+            cy1: scaleNumber(element.cy1 ?? fallbackMidY, fromBounds.y, toBounds.y, scaleY),
+            cx2: scaleNumber(element.cx2 ?? fallbackMidX, fromBounds.x, toBounds.x, scaleX),
+            cy2: scaleNumber(element.cy2 ?? fallbackMidY, fromBounds.y, toBounds.y, scaleY),
+        };
+    }
+
+    if (element.type === "pencil") {
+        return {
+            ...element,
+            points: (element.points || []).map((point) => ({
+                ...point,
+                x: scaleNumber(point.x, fromBounds.x, toBounds.x, scaleX),
+                y: scaleNumber(point.y, fromBounds.y, toBounds.y, scaleY),
+            })),
+        };
+    }
+
+    return element;
+}
+
+function findContainedElementIds(elements, containerElement, containerBounds) {
+    if (!isRectangleContainer(containerElement) || !containerBounds) {
+        return [];
+    }
+
+    return (elements || [])
+        .filter((el) => el.id !== containerElement.id)
+        .filter((el) => isBoundsInside(getElementBounds(el), containerBounds))
+        .map((el) => el.id);
+}
 
 const getIdleCanvasCursor = (tool, isSpacePressed) => {
     if (isSpacePressed || tool === "hand") return "grab";
@@ -1029,9 +1166,10 @@ export default function CanvasBoard({
 
     const startResize = (target, handle, point) => {
         const bounds = getElementBounds(target);
+        const baseElements = elementsRef.current;
 
-        dragBaseElementsRef.current = elementsRef.current;
-        dragPreviewElementsRef.current = elementsRef.current;
+        dragBaseElementsRef.current = baseElements;
+        dragPreviewElementsRef.current = baseElements;
 
         setSelectedIds([target.id]);
 
@@ -1049,6 +1187,7 @@ export default function CanvasBoard({
             originalY1: target.y1,
             originalX2: target.x2,
             originalY2: target.y2,
+            containedChildIds: findContainedElementIds(baseElements, target, bounds),
         });
     };
 
@@ -1071,13 +1210,17 @@ export default function CanvasBoard({
     };
 
     const startTextCreate = (point, parentId = null, forcedStroke = stroke) => {
+        const textPoint = isGridSnapActive(showGridRef.current, canvasPropsRef.current)
+            ? snapPointToGrid(point)
+            : point;
+
         setSelectedIds([]);
         setDragState(null);
 
         setEditor({
             mode: "create",
-            x: point.x,
-            y: point.y,
+            x: textPoint.x,
+            y: textPoint.y,
             value: "",
             stroke: forcedStroke,
             parentId,
@@ -1183,24 +1326,28 @@ export default function CanvasBoard({
     };
 
     const handleDrawModeMouseDown = (point) => {
+        const gridActive = isGridSnapActive(showGridRef.current, canvasPropsRef.current);
+        const drawStartPoint = gridActive ? snapPointToGrid(point) : point;
         let draft = null;
 
         if (SHAPE_TYPES.has(tool)) {
-            draft = buildShapeDraft(tool, point, stroke);
+            draft = buildShapeDraft(tool, drawStartPoint, stroke);
         } else if (LINE_TYPES.has(tool)) {
-            draft = buildLineDraft(tool, point, stroke, "straight");
+            draft = buildLineDraft(tool, drawStartPoint, stroke, "straight");
         } else if (tool === "pencil") {
-            draft = buildPencilDraft(point, stroke);
+            draft = buildPencilDraft(drawStartPoint, stroke);
         }
 
         if (!draft) return;
 
-        const finalDraft = applyArrowStartBinding({
-            draft,
-            tool,
-            elements,
-            point,
-        });
+        const finalDraft = gridActive
+            ? draft
+            : applyArrowStartBinding({
+                draft,
+                tool,
+                elements,
+                point: drawStartPoint,
+            });
 
         const next = [...elementsRef.current, finalDraft];
 
@@ -1214,8 +1361,8 @@ export default function CanvasBoard({
         setDragState({
             mode: "draw",
             id: finalDraft.id,
-            startX: point.x,
-            startY: point.y,
+            startX: drawStartPoint.x,
+            startY: drawStartPoint.y,
         });
     };
 
@@ -1243,7 +1390,9 @@ export default function CanvasBoard({
                 viewport
             );
 
-            const point = imageInsertPointRef.current || fallbackPoint;
+            const point = isGridSnapActive(showGridRef.current, canvasPropsRef.current)
+                ? snapPointToGrid(imageInsertPointRef.current || fallbackPoint)
+                : imageInsertPointRef.current || fallbackPoint;
 
             const imageElement = buildImageElement({
                 point,
@@ -1476,11 +1625,12 @@ export default function CanvasBoard({
             const movingEndpoint =
                 dragState.handle === "start" || dragState.handle === "end";
 
-            let snapPoint = point;
+            const gridActive = isGridSnapActive(showGridRef.current, canvasPropsRef.current);
+            let snapPoint = gridActive ? snapPointToGrid(point) : point;
             let snapShapeId = null;
             let nextConnectionHint = null;
 
-            if (movingEndpoint) {
+            if (!gridActive && movingEndpoint) {
                 const hint = findBindableShapeNearPoint(baseElements, point, 18);
 
                 if (hint) {
@@ -1592,10 +1742,10 @@ export default function CanvasBoard({
                     return {
                         ...el,
                         lineStyle: "curved",
-                        cx1: point.x,
-                        cy1: point.y,
-                        cx2: point.x,
-                        cy2: point.y,
+                        cx1: snapPoint.x,
+                        cy1: snapPoint.y,
+                        cx2: snapPoint.x,
+                        cy2: snapPoint.y,
                     };
                 }
 
@@ -1634,11 +1784,12 @@ export default function CanvasBoard({
 
             if (!drawingElement) return;
 
+            const gridActive = isGridSnapActive(showGridRef.current, canvasPropsRef.current);
             let nextConnectionHint = null;
-            let drawPoint = point;
+            let drawPoint = gridActive ? snapPointToGrid(point) : point;
             let endBinding = null;
 
-            if (drawingElement.type === "arrow") {
+            if (!gridActive && drawingElement.type === "arrow") {
                 const hint = findBindableShapeNearPoint(baseElements, point, 18);
 
                 if (hint) {
@@ -1675,12 +1826,52 @@ export default function CanvasBoard({
         if (dragState.mode === "move") {
             canvas.style.cursor = "move";
 
-            const dx = point.x - dragState.startX;
-            const dy = point.y - dragState.startY;
+            let dx = point.x - dragState.startX;
+            let dy = point.y - dragState.startY;
             const movingIds = new Set(dragState.ids);
             const baseElements = dragBaseElementsRef.current || elementsRef.current;
+            const gridActive = isGridSnapActive(showGridRef.current, canvasPropsRef.current);
 
-            const movedPreview = moveConnectedArrows(
+            let guides = [];
+
+            if (gridActive) {
+                const rawMovedPreview = moveConnectedArrows(
+                    baseElements,
+                    movingIds,
+                    dx,
+                    dy,
+                    moveElement
+                );
+
+                const rawMovedElements = rawMovedPreview.filter((el) => movingIds.has(el.id));
+                const movedBounds = getGroupBounds(rawMovedElements);
+
+                if (movedBounds) {
+                    dx += snapValueToGrid(movedBounds.x) - movedBounds.x;
+                    dy += snapValueToGrid(movedBounds.y) - movedBounds.y;
+                }
+            } else {
+                const movedPreview = moveConnectedArrows(
+                    baseElements,
+                    movingIds,
+                    dx,
+                    dy,
+                    moveElement
+                );
+
+                const movedElements = movedPreview.filter((el) => movingIds.has(el.id));
+                const alignment = getSmartAlignment({
+                    elements: baseElements,
+                    movingIds,
+                    movedElements,
+                });
+
+                dx += alignment.snapDx;
+                dy += alignment.snapDy;
+                guides = alignment.guides;
+            }
+
+            const preview = moveConnectedArrows(
                 baseElements,
                 movingIds,
                 dx,
@@ -1688,24 +1879,9 @@ export default function CanvasBoard({
                 moveElement
             );
 
-            const movedElements = movedPreview.filter((el) => movingIds.has(el.id));
-            const alignment = getSmartAlignment({
-                elements: baseElements,
-                movingIds,
-                movedElements,
-            });
-
-            const preview = moveConnectedArrows(
-                baseElements,
-                movingIds,
-                dx + alignment.snapDx,
-                dy + alignment.snapDy,
-                moveElement
-            );
-
             dragPreviewElementsRef.current = preview;
             elementsRef.current = preview;
-            renderLivePreview(preview, alignment.guides);
+            renderLivePreview(preview, guides);
             return;
         }
 
@@ -1717,28 +1893,56 @@ export default function CanvasBoard({
             const currentElement = baseElements.find((el) => el.id === dragState.id);
             if (!currentElement) return;
 
-            const resizedPreview = resizeElement(currentElement, dragState, point);
-            const alignment = getResizeSmartAlignment({
-                elements: baseElements,
-                resizingId: dragState.id,
-                resizedElement: resizedPreview,
-                handle: dragState.handle,
-            });
+            const gridActive = isGridSnapActive(showGridRef.current, canvasPropsRef.current);
+            let resizePoint = gridActive ? snapPointToGrid(point) : point;
+            let guides = [];
 
-            const snappedPoint = {
-                ...point,
-                x: point.x + alignment.snapDx,
-                y: point.y + alignment.snapDy,
+            if (!gridActive) {
+                const resizedPreview = resizeElement(currentElement, dragState, resizePoint);
+                const alignment = getResizeSmartAlignment({
+                    elements: baseElements,
+                    resizingId: dragState.id,
+                    resizedElement: resizedPreview,
+                    handle: dragState.handle,
+                });
+
+                resizePoint = {
+                    ...resizePoint,
+                    x: resizePoint.x + alignment.snapDx,
+                    y: resizePoint.y + alignment.snapDy,
+                };
+                guides = alignment.guides;
+            }
+
+            const resizedElement = resizeElement(currentElement, dragState, resizePoint);
+            const originalContainerBounds = {
+                x: dragState.originalX,
+                y: dragState.originalY,
+                w: dragState.originalW,
+                h: dragState.originalH,
             };
+            const resizedContainerBounds = getElementBounds(resizedElement);
+            const childIds = new Set(dragState.containedChildIds || []);
 
-            const snappedElement = resizeElement(currentElement, dragState, snappedPoint);
-            const preview = baseElements.map((el) =>
-                el.id === dragState.id ? snappedElement : el
-            );
+            const preview = baseElements.map((el) => {
+                if (el.id === dragState.id) {
+                    return resizedElement;
+                }
+
+                if (childIds.has(el.id)) {
+                    return scaleElementInsideBounds(
+                        el,
+                        originalContainerBounds,
+                        resizedContainerBounds
+                    );
+                }
+
+                return el;
+            });
 
             dragPreviewElementsRef.current = preview;
             elementsRef.current = preview;
-            renderLivePreview(preview, alignment.guides);
+            renderLivePreview(preview, guides);
             return;
         }
 
