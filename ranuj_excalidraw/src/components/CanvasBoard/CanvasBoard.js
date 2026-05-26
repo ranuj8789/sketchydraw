@@ -1664,12 +1664,12 @@ export default function CanvasBoard({
                 if (dragState.handle === "start") {
                     let finalPoint;
 
-                    if (alreadyCurved) {
-                        // If line is already curved, dragging the tip should keep curve.
-                        // Do NOT force it back to straight.
+                    if (snapBinding || alreadyCurved) {
+                        // When binding, use the exact detected border point.
+                        // Do not axis-snap it, otherwise it looks detached.
                         finalPoint = snapPoint;
                     } else {
-                        // If line is straight, dragging the tip should stay straight/stable.
+                        // If line is straight and not binding, keep stable axis/diagonal snapping.
                         finalPoint = getStableStraightLineEnd(
                             { x: el.x2, y: el.y2 },
                             snapPoint
@@ -1704,12 +1704,12 @@ export default function CanvasBoard({
                 if (dragState.handle === "end") {
                     let finalPoint;
 
-                    if (alreadyCurved) {
-                        // If line is already curved, dragging the tip should keep curve.
-                        // Do NOT force it back to straight.
+                    if (snapBinding || alreadyCurved) {
+                        // When binding, use the exact detected border point.
+                        // Do not axis-snap it, otherwise it looks detached.
                         finalPoint = snapPoint;
                     } else {
-                        // If line is straight, dragging the tip should stay straight/stable.
+                        // If line is straight and not binding, keep stable axis/diagonal snapping.
                         finalPoint = getStableStraightLineEnd(
                             { x: el.x1, y: el.y1 },
                             snapPoint
@@ -1815,9 +1815,26 @@ export default function CanvasBoard({
                 const updated = updateDrawnElement(el, dragState, drawPoint);
 
                 if (isConnectorElement(el)) {
+                    if (endBinding) {
+                        const midX = (el.x1 + drawPoint.x) / 2;
+                        const midY = (el.y1 + drawPoint.y) / 2;
+
+                        return {
+                            ...updated,
+                            x2: drawPoint.x,
+                            y2: drawPoint.y,
+                            lineStyle: updated.lineStyle === "curved" ? "curved" : "straight",
+                            cx1: updated.lineStyle === "curved" ? updated.cx1 ?? midX : midX,
+                            cy1: updated.lineStyle === "curved" ? updated.cy1 ?? midY : midY,
+                            cx2: updated.lineStyle === "curved" ? updated.cx2 ?? updated.cx1 ?? midX : midX,
+                            cy2: updated.lineStyle === "curved" ? updated.cy2 ?? updated.cy1 ?? midY : midY,
+                            endBinding,
+                        };
+                    }
+
                     return {
                         ...updated,
-                        endBinding,
+                        endBinding: null,
                     };
                 }
 
@@ -2009,7 +2026,7 @@ export default function CanvasBoard({
         });
     };
 
-    const onMouseUp = () => {
+    const onMouseUp = (event) => {
         if (Date.now() < textCommitLockRef.current) {
             if (pointerMoveFrameRef.current !== null) {
                 window.cancelAnimationFrame(pointerMoveFrameRef.current);
@@ -2026,11 +2043,20 @@ export default function CanvasBoard({
             return;
         }
 
+        if (dragState && event) {
+            // Important: process the final mouse-up position before committing.
+            // Otherwise the last throttled mousemove can be cancelled and the
+            // binding detected under the cursor is lost.
+            runMouseMove(event);
+        } else if (dragState && latestPointerMoveEventRef.current) {
+            runMouseMove(latestPointerMoveEventRef.current);
+        }
+
         if (pointerMoveFrameRef.current !== null) {
             window.cancelAnimationFrame(pointerMoveFrameRef.current);
             pointerMoveFrameRef.current = null;
-            latestPointerMoveEventRef.current = null;
         }
+        latestPointerMoveEventRef.current = null;
 
         setAlignmentGuides([]);
 
