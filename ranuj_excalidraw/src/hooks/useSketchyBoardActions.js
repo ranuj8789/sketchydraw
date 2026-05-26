@@ -10,6 +10,8 @@ import {
     exportCanvasToPNG,
     exportCanvasToJPEG,
     exportCanvasToSVG,
+    exportCanvasToPDF,
+    printCanvas as printCanvasImage,
 } from "../utils/exportBoard";
 
 import { requireProAccess } from "../utils/proAccess";
@@ -59,6 +61,20 @@ export function useSketchyBoardActions({
             canvasSize?.height || 700,
             `${safeTitle}.svg`
         );
+    };
+
+    const exportPDF = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        exportCanvasToPDF(canvas, `${safeTitle}.pdf`);
+    };
+
+    const printCanvas = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        printCanvasImage(canvas, safeTitle);
     };
 
     const exportJSON = async () => {
@@ -139,6 +155,8 @@ export function useSketchyBoardActions({
         exportPNG,
         exportJPEG,
         exportSVG,
+        exportPDF,
+        printCanvas,
         exportJSON,
         importDrawingJson,
         openJsonPicker,

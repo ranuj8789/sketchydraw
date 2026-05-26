@@ -15,6 +15,7 @@ const CANVAS_RADIUS_OPTIONS = [0, 8, 16, 24, 32];
 const CANVAS_PATTERNS = [
     { label: "Blank", value: "blank" },
     { label: "Grid", value: "grid" },
+    { label: "Notebook", value: "notebook" },
     { label: "Dots", value: "dots" },
     { label: "Blocks", value: "blocks" },
 ];

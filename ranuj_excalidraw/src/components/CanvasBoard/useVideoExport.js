@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { exportUndoRedoAnimationVideo } from "../../canvas/exportAnimationVideo";
 
 const DEFAULT_GAP_SECONDS = 0.5;
@@ -9,7 +9,7 @@ export function useVideoExport({ history, elements, canvasSize, canvasProps }) {
 
     const videoExportingRef = useRef(false);
 
-    const downloadUndoRedoVideo = async (options = {}) => {
+    const downloadUndoRedoVideo = useCallback(async (options = {}) => {
         if (videoExportingRef.current) return;
 
         const gapSeconds = Number.isFinite(Number(options.gapSeconds))
@@ -23,22 +23,21 @@ export function useVideoExport({ history, elements, canvasSize, canvasProps }) {
         try {
             await exportUndoRedoAnimationVideo({
                 historyStates: history || [],
-                currentElements: elements,
+                currentElements: elements || [],
                 canvasSize,
                 canvasProps,
-                fileName: `sketchy-animation-${gapSeconds}s-gap.webm`,
                 gapSeconds,
                 onProgress: setVideoExportProgress,
             });
         } catch (error) {
             console.error("Video export failed:", error);
-            alert("Video export failed. Check browser console.");
+            alert(error?.message || "Video export failed. Check browser console.");
         } finally {
             videoExportingRef.current = false;
             setIsVideoExporting(false);
-            setVideoExportProgress(0);
+            setTimeout(() => setVideoExportProgress(0), 600);
         }
-    };
+    }, [history, elements, canvasSize, canvasProps]);
 
     return {
         isVideoExporting,

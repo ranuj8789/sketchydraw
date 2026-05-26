@@ -88,6 +88,59 @@ function drawBlocksPattern(ctx, canvasSize, viewport) {
     ctx.restore();
 }
 
+function drawNotebookPattern(ctx, canvasSize, viewport) {
+    const lineGap = 28;
+    const pageWidth = 900;
+    const marginX = 72;
+
+    const visibleWorldLeft = -viewport.offsetX / viewport.zoom;
+    const visibleWorldTop = -viewport.offsetY / viewport.zoom;
+    const visibleWorldRight =
+        visibleWorldLeft + canvasSize.width / viewport.zoom;
+    const visibleWorldBottom =
+        visibleWorldTop + canvasSize.height / viewport.zoom;
+
+    const startY = Math.floor(visibleWorldTop / lineGap) * lineGap;
+    const endY = Math.ceil(visibleWorldBottom / lineGap) * lineGap;
+    const firstPage = Math.floor(visibleWorldLeft / pageWidth) * pageWidth;
+
+    ctx.save();
+
+    // Notebook paper background tint.
+    ctx.fillStyle = "rgba(255, 251, 235, 0.34)";
+    ctx.fillRect(
+        visibleWorldLeft,
+        visibleWorldTop,
+        visibleWorldRight - visibleWorldLeft,
+        visibleWorldBottom - visibleWorldTop
+    );
+
+    // Blue horizontal notebook lines.
+    ctx.strokeStyle = "rgba(37, 99, 235, 0.30)";
+    ctx.lineWidth = Math.max(1 / viewport.zoom, 0.65);
+
+    for (let y = startY; y <= endY; y += lineGap) {
+        ctx.beginPath();
+        ctx.moveTo(visibleWorldLeft, y);
+        ctx.lineTo(visibleWorldRight, y);
+        ctx.stroke();
+    }
+
+    // Red left margin lines per notebook page.
+    ctx.strokeStyle = "rgba(239, 68, 68, 0.45)";
+    ctx.lineWidth = Math.max(1.2 / viewport.zoom, 0.8);
+
+    for (let pageX = firstPage; pageX <= visibleWorldRight + pageWidth; pageX += pageWidth) {
+        const x = pageX + marginX;
+        ctx.beginPath();
+        ctx.moveTo(x, visibleWorldTop);
+        ctx.lineTo(x, visibleWorldBottom);
+        ctx.stroke();
+    }
+
+    ctx.restore();
+}
+
 function drawAlignmentGuides(ctx, alignmentGuides, canvasSize, viewport) {
     if (!alignmentGuides?.length) return;
 
@@ -194,18 +247,22 @@ export function renderCanvas({
     ctx.translate(viewport.offsetX, viewport.offsetY);
     ctx.scale(viewport.zoom, viewport.zoom);
 
-    const shouldShowGrid = showGrid || finalCanvasProps.pattern === "grid";
+    if (finalCanvasProps.pattern === "notebook") {
+        drawNotebookPattern(ctx, canvasSize, viewport);
+    } else {
+        const shouldShowGrid = showGrid || finalCanvasProps.pattern === "grid";
 
-    if (shouldShowGrid) {
-        drawCanvasGrid(ctx, canvasSize, viewport);
-    }
+        if (shouldShowGrid) {
+            drawCanvasGrid(ctx, canvasSize, viewport);
+        }
 
-    if (finalCanvasProps.pattern === "dots") {
-        drawDotsPattern(ctx, canvasSize, viewport);
-    }
+        if (finalCanvasProps.pattern === "dots") {
+            drawDotsPattern(ctx, canvasSize, viewport);
+        }
 
-    if (finalCanvasProps.pattern === "blocks") {
-        drawBlocksPattern(ctx, canvasSize, viewport);
+        if (finalCanvasProps.pattern === "blocks") {
+            drawBlocksPattern(ctx, canvasSize, viewport);
+        }
     }
 
     const selectedSet = new Set(selectedIds || []);

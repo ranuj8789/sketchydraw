@@ -25,9 +25,13 @@ export default function Toolbar({
                                     canRedo,
                                     showGrid,
                                     setShowGrid,
+                                    canvasProps,
+                                    updateCanvasProps,
                                     exportPNG,
                                     exportJPEG,
                                     exportSVG,
+                                    exportPDF,
+                                    printCanvas,
                                     exportJSON,
                                     openJsonPicker,
                                     drawingTitle,
@@ -39,6 +43,7 @@ export default function Toolbar({
     const [alignOpen, setAlignOpen] = useState(false);
     const [saveOpen, setSaveOpen] = useState(false);
     const [exportOpen, setExportOpen] = useState(false);
+    const [gridOpen, setGridOpen] = useState(false);
     const [videoGapSeconds, setVideoGapSeconds] = useState("0.5");
     const [legalOpen, setLegalOpen] = useState(false);
 
@@ -63,6 +68,7 @@ export default function Toolbar({
     const alignRef = useRef(null);
     const saveRef = useRef(null);
     const exportRef = useRef(null);
+    const gridRef = useRef(null);
     const legalRef = useRef(null);
 
     useEffect(() => {
@@ -113,6 +119,10 @@ export default function Toolbar({
                 setExportOpen(false);
             }
 
+            if (gridRef.current && !gridRef.current.contains(e.target)) {
+                setGridOpen(false);
+            }
+
             if (legalRef.current && !legalRef.current.contains(e.target)) {
                 setLegalOpen(false);
             }
@@ -131,6 +141,7 @@ export default function Toolbar({
             setProfileOpen(false);
             setSaveOpen(false);
             setExportOpen(false);
+            setGridOpen(false);
             setLegalOpen(false);
         };
 
@@ -139,6 +150,7 @@ export default function Toolbar({
             setProfileOpen(false);
             setSaveOpen(false);
             setExportOpen(false);
+            setGridOpen(false);
             setLegalOpen(false);
         };
 
@@ -321,6 +333,29 @@ export default function Toolbar({
         setExportOpen(false);
     };
 
+    const applyCanvasPattern = (pattern) => {
+        updateCanvasProps?.({
+            pattern,
+        });
+
+        // Keep old showGrid state in sync, but canvasProps.pattern is the source of truth.
+        setShowGrid?.(pattern === "grid" || pattern === "notebook");
+        setGridOpen(false);
+    };
+
+    const activePattern = canvasProps?.pattern || (showGrid ? "grid" : "blank");
+
+    const currentGridLabel =
+        activePattern === "notebook"
+            ? "Notebook"
+            : activePattern === "dots"
+                ? "Dot Grid"
+                : activePattern === "blocks"
+                    ? "Blocks"
+                    : activePattern === "grid"
+                        ? "Grid Lines"
+                        : "Blank";
+
     const getExpiryDate = () => {
         return (
             user?.subscription?.endsAt ||
@@ -461,27 +496,35 @@ export default function Toolbar({
                                     🧩 Export as SVG
                                 </button>
 
+                                <button type="button" onClick={() => runExport(exportPDF)}>
+                                    📕 Export as PDF
+                                </button>
+
+                                <button type="button" onClick={() => runExport(printCanvas)}>
+                                    🖨️ Print Canvas
+                                </button>
+
                                 <button type="button" onClick={() => runExport(exportJSON)}>
                                     📄 Export as JSON
                                 </button>
 
-                                <div className="export-video-box">
-                                    <label>
-                                        Gap seconds
-                                        <input
-                                            type="number"
-                                            min="0.1"
-                                            max="5"
-                                            step="0.1"
-                                            value={videoGapSeconds}
-                                            onChange={(event) => setVideoGapSeconds(event.target.value)}
-                                        />
-                                    </label>
+                                {/*<div className="export-video-box">*/}
+                                {/*    <label>*/}
+                                {/*        Gap seconds*/}
+                                {/*        <input*/}
+                                {/*            type="number"*/}
+                                {/*            min="0.1"*/}
+                                {/*            max="5"*/}
+                                {/*            step="0.1"*/}
+                                {/*            value={videoGapSeconds}*/}
+                                {/*            onChange={(event) => setVideoGapSeconds(event.target.value)}*/}
+                                {/*        />*/}
+                                {/*    </label>*/}
 
-                                    <button type="button" onClick={runVideoExport}>
-                                        🎬 Export Video
-                                    </button>
-                                </div>
+                                {/*    <button type="button" onClick={runVideoExport}>*/}
+                                {/*        🎬 Export Video*/}
+                                {/*    </button>*/}
+                                {/*</div>*/}
                             </div>
                         )}
                     </div>
@@ -526,14 +569,40 @@ export default function Toolbar({
                         )}
                     </div>
 
-                    <label className="grid-toggle-btn">
-                        <input
-                            type="checkbox"
-                            checked={!!showGrid}
-                            onChange={(e) => setShowGrid?.(e.target.checked)}
-                        />
-                        <span>Gridlines</span>
-                    </label>
+                    <div className="grid-menu-wrap" ref={gridRef}>
+                        <button
+                            type="button"
+                            className="toolbar-dark-action grid-trigger-btn"
+                            onClick={() => setGridOpen((v) => !v)}
+                            title="Canvas grid style"
+                        >
+                            Grid <span>{currentGridLabel} ⌄</span>
+                        </button>
+
+                        {gridOpen && (
+                            <div className="grid-dropdown">
+                                <button type="button" onClick={() => applyCanvasPattern("blank")}>
+                                    ⬜ Blank
+                                </button>
+
+                                <button type="button" onClick={() => applyCanvasPattern("grid")}>
+                                    #️⃣ Grid Lines
+                                </button>
+
+                                <button type="button" onClick={() => applyCanvasPattern("notebook")}>
+                                    📓 Notebook Lines
+                                </button>
+
+                                <button type="button" onClick={() => applyCanvasPattern("dots")}>
+                                    ⠿ Dot Grid
+                                </button>
+
+                                <button type="button" onClick={() => applyCanvasPattern("blocks")}>
+                                    ▦ Blocks
+                                </button>
+                            </div>
+                        )}
+                    </div>
 
                     {announcement && (
                         <div className="topbar-announcement" title={announcement}>

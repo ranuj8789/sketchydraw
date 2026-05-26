@@ -1,9 +1,75 @@
-import { findBindableShapeNearPoint } from "./canvasConnectionHelpers";
+import {
+    createBindingForPoint,
+    findBindableShapeNearPoint,
+    getBindableShapes,
+    getPointFromBinding,
+    isConnectorElement,
+} from "./canvasConnectionHelpers";
+
+function endpointPoint(element, endpoint) {
+    return endpoint === "start"
+        ? { x: element.x1, y: element.y1 }
+        : { x: element.x2, y: element.y2 };
+}
+
+function bindingKey(endpoint) {
+    return endpoint === "start" ? "startBinding" : "endBinding";
+}
+
+function setEndpoint(element, endpoint, point) {
+    const next =
+        endpoint === "start"
+            ? { ...element, x1: point.x, y1: point.y }
+            : { ...element, x2: point.x, y2: point.y };
+
+    if (next.lineStyle !== "curved") {
+        const midX = (next.x1 + next.x2) / 2;
+        const midY = (next.y1 + next.y2) / 2;
+
+        return {
+            ...next,
+            lineStyle: "straight",
+            cx1: midX,
+            cy1: midY,
+            cx2: midX,
+            cy2: midY,
+        };
+    }
+
+    return next;
+}
+
+function setEndpointBinding(connector, endpoint, shape, bindPoint) {
+    if (!shape || !bindPoint) return connector;
+
+    const key = bindingKey(endpoint);
+    const binding = createBindingForPoint(shape, bindPoint);
+
+    return {
+        ...setEndpoint(connector, endpoint, bindPoint),
+        [key]: binding,
+    };
+}
+
+function snapConnectorEndpointToShape(connector, endpoint, shape) {
+    if (!shape) return connector;
+
+    const key = bindingKey(endpoint);
+    const binding = connector[key];
+    const snapPoint = getPointFromBinding(shape, binding);
+
+    if (!snapPoint) return connector;
+
+    return setEndpoint(connector, endpoint, snapPoint);
+}
 
 export function applyArrowStartBinding({ draft, tool, elements, point }) {
-    if (tool !== "arrow") return draft;
+    if (tool !== "arrow" && tool !== "line") return draft;
 
-    const startHint = findBindableShapeNearPoint(elements, point, 18);
+    const startHint = findBindableShapeNearPoint(elements, point, 18, {
+        excludeIds: [draft.id],
+    });
+
     if (!startHint) return draft;
 
     return {
@@ -12,9 +78,7 @@ export function applyArrowStartBinding({ draft, tool, elements, point }) {
         y1: startHint.point.y,
         x2: startHint.point.x,
         y2: startHint.point.y,
-        startBinding: {
-            elementId: startHint.shape.id,
-        },
+        startBinding: startHint.binding,
     };
 }
 
@@ -29,17 +93,16 @@ export function updateArrowDuringDraw({
                                       }) {
     if (!drawingElement) return;
 
-    const isArrow = drawingElement.type === "arrow";
-
-    // line & arrow both use bezier update
-    if (!isArrow) {
+    if (!isConnectorElement(drawingElement)) {
         updateElement(dragState.id, (element) =>
             updateDrawnElement(element, dragState, point)
         );
         return;
     }
 
-    const hint = findBindableShapeNearPoint(elements, point, 18);
+    const hint = findBindableShapeNearPoint(elements, point, 18, {
+        excludeIds: [drawingElement.id],
+    });
 
     if (hint) {
         setConnectionHint({
@@ -49,9 +112,7 @@ export function updateArrowDuringDraw({
 
         updateElement(dragState.id, (element) => ({
             ...updateDrawnElement(element, dragState, hint.point),
-            endBinding: {
-                elementId: hint.shape.id,
-            },
+            endBinding: hint.binding,
         }));
 
         return;
@@ -66,60 +127,83 @@ export function updateArrowDuringDraw({
 }
 
 export function finalizeArrowBinding(elements, finishedElement) {
-    if (!finishedElement || finishedElement.type !== "arrow") {
-        return elements;
+    if (!finishedElement || !isConnectorElement(finishedElement)) {
+        return resolveArrowBindings(elements);
     }
 
-    const startBound = finishedElement.startBinding?.elementId
-        ? elements.find((el) => el.id === finishedElement.startBinding.elementId)
+    const byId = new Map((elements || []).map((el) => [el.id, el]));
+    let updatedConnector = finishedElement;
+
+    const startShape = finishedElement.startBinding?.elementId
+        ? byId.get(finishedElement.startBinding.elementId)
         : null;
 
-    const endBound = finishedElement.endBinding?.elementId
-        ? elements.find((el) => el.id === finishedElement.endBinding.elementId)
+    const endShape = finishedElement.endBinding?.elementId
+        ? byId.get(finishedElement.endBinding.elementId)
         : null;
 
-    let updatedArrow = finishedElement;
-
-    if (startBound) {
-        const snappedStart = findBindableShapeNearPoint(
-            [startBound],
-            { x: finishedElement.x1, y: finishedElement.y1 },
-            9999
+    if (startShape) {
+        updatedConnector = snapConnectorEndpointToShape(
+            updatedConnector,
+            "start",
+            startShape
         );
-        if (snappedStart) {
-            updatedArrow = {
-                ...updatedArrow,
-                x1: snappedStart.point.x,
-                y1: snappedStart.point.y,
-            };
-        }
     }
 
-    if (endBound) {
-        const snappedEnd = findBindableShapeNearPoint(
-            [endBound],
-            { x: finishedElement.x2, y: finishedElement.y2 },
-            9999
+    if (endShape) {
+        updatedConnector = snapConnectorEndpointToShape(
+            updatedConnector,
+            "end",
+            endShape
         );
-        if (snappedEnd) {
-            updatedArrow = {
-                ...updatedArrow,
-                x2: snappedEnd.point.x,
-                y2: snappedEnd.point.y,
-            };
-        }
     }
 
-    return elements.map((el) => (el.id === updatedArrow.id ? updatedArrow : el));
+    const next = (elements || []).map((el) =>
+        el.id === updatedConnector.id ? updatedConnector : el
+    );
+
+    return resolveArrowBindings(next);
+}
+
+export function refreshConnectedArrows(elements) {
+    const byId = new Map((elements || []).map((el) => [el.id, el]));
+
+    return (elements || []).map((el) => {
+        if (!isConnectorElement(el)) return el;
+
+        let next = el;
+
+        const startShape = next.startBinding?.elementId
+            ? byId.get(next.startBinding.elementId)
+            : null;
+
+        const endShape = next.endBinding?.elementId
+            ? byId.get(next.endBinding.elementId)
+            : null;
+
+        if (startShape) {
+            next = snapConnectorEndpointToShape(next, "start", startShape);
+        }
+
+        if (endShape) {
+            next = snapConnectorEndpointToShape(next, "end", endShape);
+        }
+
+        return next;
+    });
+}
+
+export function resolveArrowBindings(elements) {
+    return refreshConnectedArrows(elements);
 }
 
 export function moveConnectedArrows(elements, movingIds, dx, dy, moveElement) {
-    return elements.map((el) => {
+    const movedFirst = (elements || []).map((el) => {
         if (movingIds.has(el.id)) {
             return moveElement(el, dx, dy);
         }
 
-        if (el.type !== "arrow") return el;
+        if (!isConnectorElement(el)) return el;
 
         let next = el;
 
@@ -141,4 +225,78 @@ export function moveConnectedArrows(elements, movingIds, dx, dy, moveElement) {
 
         return next;
     });
+
+    return refreshConnectedArrows(movedFirst);
+}
+
+function findEndpointNearMovedShape({ connector, endpoint, movedShapes, threshold }) {
+    const point = endpointPoint(connector, endpoint);
+    return findBindableShapeNearPoint(movedShapes, point, threshold);
+}
+
+export function bindMovedShapesToNearbyConnectors(elements, movingIds, threshold = 18) {
+    const movedShapes = getBindableShapes(elements).filter((shape) =>
+        movingIds.has(shape.id)
+    );
+
+    if (!movedShapes.length) {
+        return { elements, connectionHint: null };
+    }
+
+    let connectionHint = null;
+
+    const nextElements = (elements || []).map((el) => {
+        if (!isConnectorElement(el) || movingIds.has(el.id)) return el;
+
+        let next = el;
+
+        const startHint = findEndpointNearMovedShape({
+            connector: next,
+            endpoint: "start",
+            movedShapes,
+            threshold,
+        });
+
+        if (startHint) {
+            next = setEndpointBinding(
+                next,
+                "start",
+                startHint.shape,
+                startHint.point
+            );
+
+            connectionHint = connectionHint || {
+                shapeId: startHint.shape.id,
+                bindPoint: startHint.point,
+            };
+        }
+
+        const endHint = findEndpointNearMovedShape({
+            connector: next,
+            endpoint: "end",
+            movedShapes,
+            threshold,
+        });
+
+        if (endHint) {
+            next = setEndpointBinding(
+                next,
+                "end",
+                endHint.shape,
+                endHint.point
+            );
+
+            connectionHint = connectionHint || {
+                shapeId: endHint.shape.id,
+                bindPoint: endHint.point,
+            };
+        }
+
+        return next;
+    });
+
+    return {
+        elements: resolveArrowBindings(nextElements),
+        connectionHint,
+    };
 }

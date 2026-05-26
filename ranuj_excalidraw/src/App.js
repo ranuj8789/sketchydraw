@@ -121,7 +121,7 @@ function VerifyPage() {
 }
 
 function SketchyDrawPage() {
-  const [showGrid, setShowGrid] = useState(true);
+  const [showGrid, setShowGrid] = useState(false);
   const [tool, setTool] = useState("select");
   const [stroke, setStroke] = useState("#111827");
   const [elements, setElements] = useState([]);
@@ -194,6 +194,8 @@ function SketchyDrawPage() {
     exportPNG,
     exportJPEG,
     exportSVG,
+    exportPDF,
+    printCanvas,
     exportJSON,
     importDrawingJson,
     openJsonPicker,
@@ -457,7 +459,11 @@ function SketchyDrawPage() {
                 exportPNG={exportPNG}
                 exportJPEG={exportJPEG}
                 exportSVG={exportSVG}
+                exportPDF={exportPDF}
+                printCanvas={printCanvas}
                 exportJSON={exportJSON}
+                canvasProps={canvasProps}
+                updateCanvasProps={updateCanvasProps}
                 openJsonPicker={openJsonPicker}
                 drawingTitle={currentDrawingMeta.title}
                 onDrawingTitleChange={(title) =>

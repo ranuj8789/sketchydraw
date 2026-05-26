@@ -4,7 +4,10 @@ import { isPaidUser } from "../../utils/auth";
 import "./CanvasBoard.css";
 import TextEditor from "./../TextEditor";
 import { getPointerPosition } from "../../utils/geometry";
-import { findBindableShapeNearPoint } from "../../canvas/canvasConnectionHelpers";
+import {
+    findBindableShapeNearPoint,
+    isConnectorElement,
+} from "../../canvas/canvasConnectionHelpers";
 import { DEFAULT_TEXT_STYLE } from "../../canvas/textStyle";
 import {
     getElementBounds,
@@ -46,6 +49,8 @@ import {
     updateArrowDuringDraw,
     finalizeArrowBinding,
     moveConnectedArrows,
+    bindMovedShapesToNearbyConnectors,
+    resolveArrowBindings,
 } from "../../canvas/canvasArrowBindings";
 import { useCanvasResize } from "../../canvas/useCanvasResize";
 import { useCanvasRender } from "../../canvas/useCanvasRender";
@@ -103,7 +108,8 @@ function snapPointToGrid(point, gridSize = GRID_SIZE) {
 }
 
 function isGridSnapActive(showGrid, canvasProps) {
-    return !!showGrid || canvasProps?.pattern === "grid";
+    const pattern = canvasProps?.pattern;
+    return !!showGrid || pattern === "grid" || pattern === "notebook";
 }
 
 function getGroupBounds(items) {
@@ -1340,14 +1346,12 @@ export default function CanvasBoard({
 
         if (!draft) return;
 
-        const finalDraft = gridActive
-            ? draft
-            : applyArrowStartBinding({
-                draft,
-                tool,
-                elements,
-                point: drawStartPoint,
-            });
+        const finalDraft = applyArrowStartBinding({
+            draft,
+            tool,
+            elements,
+            point,
+        });
 
         const next = [...elementsRef.current, finalDraft];
 
@@ -1628,14 +1632,18 @@ export default function CanvasBoard({
             const gridActive = isGridSnapActive(showGridRef.current, canvasPropsRef.current);
             let snapPoint = gridActive ? snapPointToGrid(point) : point;
             let snapShapeId = null;
+            let snapBinding = null;
             let nextConnectionHint = null;
 
-            if (!gridActive && movingEndpoint) {
-                const hint = findBindableShapeNearPoint(baseElements, point, 18);
+            if (movingEndpoint) {
+                const hint = findBindableShapeNearPoint(baseElements, point, 24, {
+                    excludeIds: [dragState.id],
+                });
 
                 if (hint) {
                     snapPoint = hint.point;
                     snapShapeId = hint.shapeId;
+                    snapBinding = hint.binding;
                     nextConnectionHint = {
                         shapeId: hint.shapeId,
                         bindPoint: hint.point,
@@ -1685,11 +1693,9 @@ export default function CanvasBoard({
                         cx2: alreadyCurved ? el.cx2 ?? el.cx1 ?? midX : midX,
                         cy2: alreadyCurved ? el.cy2 ?? el.cy1 ?? midY : midY,
 
-                        ...(el.type === "arrow"
+                        ...(isConnectorElement(el)
                             ? {
-                                startBinding: snapShapeId
-                                    ? { elementId: snapShapeId }
-                                    : null,
+                                startBinding: snapShapeId ? snapBinding : null,
                             }
                             : {}),
                     };
@@ -1727,11 +1733,9 @@ export default function CanvasBoard({
                         cx2: alreadyCurved ? el.cx2 ?? el.cx1 ?? midX : midX,
                         cy2: alreadyCurved ? el.cy2 ?? el.cy1 ?? midY : midY,
 
-                        ...(el.type === "arrow"
+                        ...(isConnectorElement(el)
                             ? {
-                                endBinding: snapShapeId
-                                    ? { elementId: snapShapeId }
-                                    : null,
+                                endBinding: snapShapeId ? snapBinding : null,
                             }
                             : {}),
                     };
@@ -1754,6 +1758,7 @@ export default function CanvasBoard({
 
             dragPreviewElementsRef.current = preview;
             elementsRef.current = preview;
+            // Avoid React re-render on every mousemove; live preview already draws the hint.
             renderLivePreview(preview, [], nextConnectionHint);
             return;
         }
@@ -1789,12 +1794,14 @@ export default function CanvasBoard({
             let drawPoint = gridActive ? snapPointToGrid(point) : point;
             let endBinding = null;
 
-            if (!gridActive && drawingElement.type === "arrow") {
-                const hint = findBindableShapeNearPoint(baseElements, point, 18);
+            if (isConnectorElement(drawingElement)) {
+                const hint = findBindableShapeNearPoint(baseElements, point, 24, {
+                    excludeIds: [dragState.id],
+                });
 
                 if (hint) {
                     drawPoint = hint.point;
-                    endBinding = { elementId: hint.shape.id };
+                    endBinding = hint.binding;
                     nextConnectionHint = {
                         shapeId: hint.shape.id,
                         bindPoint: hint.point,
@@ -1807,7 +1814,7 @@ export default function CanvasBoard({
 
                 const updated = updateDrawnElement(el, dragState, drawPoint);
 
-                if (el.type === "arrow") {
+                if (isConnectorElement(el)) {
                     return {
                         ...updated,
                         endBinding,
@@ -1819,6 +1826,7 @@ export default function CanvasBoard({
 
             dragPreviewElementsRef.current = preview;
             elementsRef.current = preview;
+            // Avoid React re-render on every mousemove; live preview already draws the hint.
             renderLivePreview(preview, [], nextConnectionHint);
             return;
         }
@@ -1871,7 +1879,7 @@ export default function CanvasBoard({
                 guides = alignment.guides;
             }
 
-            const preview = moveConnectedArrows(
+            let preview = moveConnectedArrows(
                 baseElements,
                 movingIds,
                 dx,
@@ -1879,9 +1887,17 @@ export default function CanvasBoard({
                 moveElement
             );
 
+            const reverseBindingResult = bindMovedShapesToNearbyConnectors(
+                preview,
+                movingIds,
+                18
+            );
+
+            preview = reverseBindingResult.elements;
+
             dragPreviewElementsRef.current = preview;
             elementsRef.current = preview;
-            renderLivePreview(preview, guides);
+            renderLivePreview(preview, guides, reverseBindingResult.connectionHint);
             return;
         }
 
@@ -1924,7 +1940,7 @@ export default function CanvasBoard({
             const resizedContainerBounds = getElementBounds(resizedElement);
             const childIds = new Set(dragState.containedChildIds || []);
 
-            const preview = baseElements.map((el) => {
+            const resizedPreview = baseElements.map((el) => {
                 if (el.id === dragState.id) {
                     return resizedElement;
                 }
@@ -1939,6 +1955,8 @@ export default function CanvasBoard({
 
                 return el;
             });
+
+            const preview = resolveArrowBindings(resizedPreview);
 
             dragPreviewElementsRef.current = preview;
             elementsRef.current = preview;
@@ -2052,6 +2070,7 @@ export default function CanvasBoard({
             : null;
 
         finalElements = finalizeArrowBinding(finalElements, finishedElement);
+        finalElements = resolveArrowBindings(finalElements);
 
         const finishedMode = dragState.mode;
 

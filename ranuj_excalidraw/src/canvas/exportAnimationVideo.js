@@ -7,17 +7,23 @@ function wait(ms) {
 }
 
 function pickSupportedMimeType() {
-    const candidates = [
-        "video/webm;codecs=vp9",
-        "video/webm;codecs=vp8",
-        "video/webm",
-    ];
-
     if (typeof MediaRecorder === "undefined") {
         return "";
     }
 
+    const candidates = [
+        "video/webm;codecs=vp9",
+        "video/webm;codecs=vp8",
+        "video/webm",
+        "video/mp4;codecs=h264",
+        "video/mp4",
+    ];
+
     return candidates.find((type) => MediaRecorder.isTypeSupported(type)) || "";
+}
+
+function getFileExtension(mimeType) {
+    return mimeType.includes("mp4") ? "mp4" : "webm";
 }
 
 function cloneElements(elements = []) {
@@ -29,13 +35,18 @@ function getFrames(historyStates = [], currentElements = []) {
         .filter((state) => Array.isArray(state))
         .map(cloneElements)
         .filter((state, index, arr) => {
-            // Keep the first frame, but remove repeated identical frames.
             if (index === 0) return true;
             return JSON.stringify(state) !== JSON.stringify(arr[index - 1]);
         });
 
-    const fallback = [cloneElements(currentElements || [])];
-    const frames = usableHistory.length > 0 ? usableHistory : fallback;
+    const currentFrame = cloneElements(currentElements || []);
+    const frames = usableHistory.length > 0 ? usableHistory : [currentFrame];
+
+    // Make sure the latest canvas state is always included.
+    const lastFrame = frames[frames.length - 1] || [];
+    if (JSON.stringify(lastFrame) !== JSON.stringify(currentFrame)) {
+        frames.push(currentFrame);
+    }
 
     const MAX_VIDEO_STEPS = 150;
     return frames.slice(Math.max(0, frames.length - MAX_VIDEO_STEPS));
@@ -97,10 +108,11 @@ function getVideoTransform(bounds, canvasSize) {
 }
 
 function drawFrame(canvas, elements, canvasSize, transform, canvasProps = {}) {
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { alpha: false });
+    if (!ctx) return;
 
-    canvas.width = canvasSize.width;
-    canvas.height = canvasSize.height;
+    canvas.width = Math.max(1, Math.round(canvasSize.width));
+    canvas.height = Math.max(1, Math.round(canvasSize.height));
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -141,6 +153,7 @@ async function preloadImages(frames = []) {
             (src) =>
                 new Promise((resolve) => {
                     const img = new Image();
+                    img.crossOrigin = "anonymous";
                     img.onload = resolve;
                     img.onerror = resolve;
                     img.src = src;
@@ -155,6 +168,7 @@ function downloadBlob(blob, fileName) {
     const link = document.createElement("a");
     link.href = url;
     link.download = fileName;
+    link.rel = "noopener";
     link.style.display = "none";
 
     document.body.appendChild(link);
@@ -163,7 +177,24 @@ function downloadBlob(blob, fileName) {
     setTimeout(() => {
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
-    }, 1000);
+    }, 3000);
+}
+
+function makeRecorder(stream, mimeType) {
+    try {
+        return new MediaRecorder(stream, {
+            mimeType,
+            videoBitsPerSecond: 4_000_000,
+        });
+    } catch {
+        return new MediaRecorder(stream);
+    }
+}
+
+function requestCanvasFrame(videoTrack) {
+    if (videoTrack && typeof videoTrack.requestFrame === "function") {
+        videoTrack.requestFrame();
+    }
 }
 
 export async function exportUndoRedoAnimationVideo({
@@ -171,27 +202,27 @@ export async function exportUndoRedoAnimationVideo({
                                                        currentElements = [],
                                                        canvasSize = { width: 1200, height: 700 },
                                                        canvasProps = {},
-                                                       fileName = "sketchy-animation.webm",
+                                                       fileName,
                                                        frameDelayMs = 500,
                                                        gapSeconds,
                                                        onProgress,
                                                    }) {
     if (typeof MediaRecorder === "undefined") {
-        alert("Video export is not supported in this browser.");
+        alert("Video export is not supported in this browser. Please use latest Chrome or Edge.");
         return;
     }
 
     const mimeType = pickSupportedMimeType();
 
     if (!mimeType) {
-        alert("Your browser does not support WebM video recording.");
+        alert("Your browser does not support browser video recording. Please try latest Chrome or Edge.");
         return;
     }
 
     const frames = getFrames(historyStates, currentElements);
 
-    if (!frames.length) {
-        alert("Nothing to export yet.");
+    if (!frames.length || !frames.some((frame) => frame.length > 0)) {
+        alert("Nothing to export yet. Draw something first, then export video.");
         return;
     }
 
@@ -199,24 +230,28 @@ export async function exportUndoRedoAnimationVideo({
         ? Math.max(100, Math.min(5000, Number(gapSeconds) * 1000))
         : frameDelayMs;
 
+    const safeCanvasSize = {
+        width: Math.max(320, Math.round(canvasSize?.width || 1200)),
+        height: Math.max(240, Math.round(canvasSize?.height || 700)),
+    };
+
     const exportCanvas = document.createElement("canvas");
-    exportCanvas.width = canvasSize.width;
-    exportCanvas.height = canvasSize.height;
+    exportCanvas.width = safeCanvasSize.width;
+    exportCanvas.height = safeCanvasSize.height;
 
     await preloadImages(frames);
 
     const contentBounds = getFramesContentBounds(frames);
-    const transform = getVideoTransform(contentBounds, canvasSize);
+    const transform = getVideoTransform(contentBounds, safeCanvasSize);
 
-    resetVideoFramesAsync();
+    await resetVideoFramesAsync();
 
-    drawFrame(exportCanvas, frames[0] || [], canvasSize, transform, canvasProps);
+    drawFrame(exportCanvas, frames[0] || [], safeCanvasSize, transform, canvasProps);
 
-    // 0 means manual frame capture. It avoids blank/unstable recordings in some browsers.
-    const stream = exportCanvas.captureStream(0);
-    const videoTrack = stream.getVideoTracks()[0];
-
-    const recorder = new MediaRecorder(stream, { mimeType });
+    // requestFrame is not reliable everywhere. Use 30 fps stream as fallback so chunks are produced.
+    const initialStream = exportCanvas.captureStream(30);
+    const videoTrack = initialStream.getVideoTracks()[0];
+    const recorder = makeRecorder(initialStream, mimeType);
     const chunks = [];
 
     recorder.ondataavailable = (event) => {
@@ -230,12 +265,18 @@ export async function exportUndoRedoAnimationVideo({
         recorder.onerror = (event) => reject(event.error || event);
     });
 
-    recorder.start(100);
+    const started = new Promise((resolve) => {
+        recorder.onstart = resolve;
+    });
+
+    recorder.start(250);
+    await started;
 
     for (let i = 0; i < frames.length; i++) {
         const elements = frames[i];
 
-        drawFrame(exportCanvas, elements, canvasSize, transform, canvasProps);
+        drawFrame(exportCanvas, elements, safeCanvasSize, transform, canvasProps);
+        requestCanvasFrame(videoTrack);
 
         let imageDataUrl = null;
         try {
@@ -250,38 +291,42 @@ export async function exportUndoRedoAnimationVideo({
             imageDataUrl,
         });
 
-        if (videoTrack && typeof videoTrack.requestFrame === "function") {
-            videoTrack.requestFrame();
-        }
-
         const progress = Math.round(((i + 1) / frames.length) * 100);
         onProgress?.(progress);
 
+        // Give the browser encoder a small chance to ingest the freshly drawn frame.
+        await wait(80);
         await wait(finalFrameDelayMs);
     }
 
-    // Hold the final drawing briefly so the video does not end too abruptly.
-    if (videoTrack && typeof videoTrack.requestFrame === "function") {
-        videoTrack.requestFrame();
+    // Hold final frame, request data, then stop.
+    requestCanvasFrame(videoTrack);
+    await wait(Math.max(600, finalFrameDelayMs));
+
+    if (recorder.state === "recording") {
+        recorder.requestData?.();
+        await wait(150);
+        recorder.stop();
     }
-    await wait(Math.max(400, finalFrameDelayMs));
 
-    recorder.stop();
     await stopped;
-
-    stream.getTracks().forEach((track) => track.stop());
+    initialStream.getTracks().forEach((track) => track.stop());
 
     if (chunks.length === 0) {
-        alert("Video was not created. No video frames were recorded.");
+        alert("Video was not created. No video frames were recorded. Please try latest Chrome/Edge and avoid external images without CORS.");
         return;
     }
 
     const blob = new Blob(chunks, { type: mimeType });
 
     if (blob.size === 0) {
-        alert("Video file is empty.");
+        alert("Video file is empty. Please try again after drawing one more step.");
         return;
     }
 
-    downloadBlob(blob, fileName);
+    const extension = getFileExtension(mimeType);
+    const finalFileName = fileName || `sketchy-animation.${extension}`;
+    const safeFileName = finalFileName.replace(/\.(webm|mp4)$/i, `.${extension}`);
+
+    downloadBlob(blob, safeFileName);
 }

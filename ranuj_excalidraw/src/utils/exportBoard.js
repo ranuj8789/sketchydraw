@@ -131,6 +131,113 @@ export function exportCanvasToPDF(
     pdf.save(fileName);
 }
 
+function escapeHtml(value) {
+    return String(value || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+}
+
+export function printCanvas(canvas, title = "SketchyDraw Canvas", options = {}) {
+    if (!canvas) return;
+
+    // IMPORTANT: open the print window immediately inside the click event.
+    // If we generate image first and then call window.open(), Chrome/Safari may block it.
+    const printWindow = window.open("", "_blank", "width=1200,height=800");
+
+    if (!printWindow) {
+        alert("Popup blocked. Please allow popups to print the canvas.");
+        return;
+    }
+
+    const safeTitle = escapeHtml(title || "SketchyDraw Canvas");
+
+    printWindow.document.open();
+    printWindow.document.write(`
+        <!doctype html>
+        <html>
+            <head>
+                <title>${safeTitle}</title>
+                <style>
+                    html, body {
+                        margin: 0;
+                        padding: 0;
+                        background: #ffffff;
+                    }
+
+                    body {
+                        min-height: 100vh;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-family: Arial, sans-serif;
+                    }
+
+                    .printing-message {
+                        color: #334155;
+                        font-size: 14px;
+                        font-weight: 700;
+                    }
+
+                    img {
+                        max-width: 100%;
+                        max-height: 100vh;
+                        object-fit: contain;
+                    }
+
+                    @media print {
+                        @page {
+                            margin: 8mm;
+                        }
+
+                        body {
+                            min-height: auto;
+                        }
+
+                        img {
+                            width: 100%;
+                            height: auto;
+                            max-height: none;
+                        }
+
+                        .printing-message {
+                            display: none;
+                        }
+                    }
+                </style>
+            </head>
+
+            <body>
+                <div class="printing-message">Preparing print...</div>
+            </body>
+        </html>
+    `);
+    printWindow.document.close();
+
+    window.setTimeout(() => {
+        const exportCanvas = createCanvasForExport(canvas, options);
+
+        if (!exportCanvas || printWindow.closed) return;
+
+        const imageData = exportCanvas.toDataURL("image/png", 1.0);
+        const img = printWindow.document.createElement("img");
+
+        img.alt = safeTitle;
+        img.onload = () => {
+            printWindow.focus();
+            window.setTimeout(() => {
+                printWindow.print();
+            }, 100);
+        };
+        img.src = imageData;
+
+        printWindow.document.body.innerHTML = "";
+        printWindow.document.body.appendChild(img);
+    }, 0);
+}
+
 function normalizeBox(el) {
     const x = el.w >= 0 ? el.x : el.x + el.w;
     const y = el.h >= 0 ? el.y : el.y + el.h;
