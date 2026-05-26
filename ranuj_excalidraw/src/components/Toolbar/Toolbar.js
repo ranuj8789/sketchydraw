@@ -508,23 +508,23 @@ export default function Toolbar({
                                     📄 Export as JSON
                                 </button>
 
-                                {/*<div className="export-video-box">*/}
-                                {/*    <label>*/}
-                                {/*        Gap seconds*/}
-                                {/*        <input*/}
-                                {/*            type="number"*/}
-                                {/*            min="0.1"*/}
-                                {/*            max="5"*/}
-                                {/*            step="0.1"*/}
-                                {/*            value={videoGapSeconds}*/}
-                                {/*            onChange={(event) => setVideoGapSeconds(event.target.value)}*/}
-                                {/*        />*/}
-                                {/*    </label>*/}
+                                <div className="export-video-box">
+                                    <label>
+                                        Gap seconds
+                                        <input
+                                            type="number"
+                                            min="0.1"
+                                            max="5"
+                                            step="0.1"
+                                            value={videoGapSeconds}
+                                            onChange={(event) => setVideoGapSeconds(event.target.value)}
+                                        />
+                                    </label>
 
-                                {/*    <button type="button" onClick={runVideoExport}>*/}
-                                {/*        🎬 Export Video*/}
-                                {/*    </button>*/}
-                                {/*</div>*/}
+                                    <button type="button" onClick={runVideoExport}>
+                                        🎬 Export Video
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </div>
