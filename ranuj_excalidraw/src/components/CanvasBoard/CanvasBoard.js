@@ -5,6 +5,7 @@ import "./CanvasBoard.css";
 import TextEditor from "./../TextEditor";
 import { getPointerPosition } from "../../utils/geometry";
 import {
+    createBindingForPoint,
     findBindableShapeNearPoint,
     isConnectorElement,
 } from "../../canvas/canvasConnectionHelpers";
@@ -1350,7 +1351,8 @@ export default function CanvasBoard({
             draft,
             tool,
             elements,
-            point,
+            point: drawStartPoint,
+            preferInputPoint: gridActive,
         });
 
         const next = [...elementsRef.current, finalDraft];
@@ -1636,17 +1638,22 @@ export default function CanvasBoard({
             let nextConnectionHint = null;
 
             if (movingEndpoint) {
-                const hint = findBindableShapeNearPoint(baseElements, point, 24, {
+                // Important rule:
+                // Grid ON  -> connector endpoint must stay on a grid point.
+                // Grid OFF -> connector endpoint follows exact mouse/object border point.
+                const bindSearchPoint = gridActive ? snapPoint : point;
+                const hint = findBindableShapeNearPoint(baseElements, bindSearchPoint, 24, {
                     excludeIds: [dragState.id],
                 });
 
                 if (hint) {
-                    snapPoint = hint.point;
+                    const bindPoint = gridActive ? snapPoint : hint.point;
+                    snapPoint = bindPoint;
                     snapShapeId = hint.shapeId;
-                    snapBinding = hint.binding;
+                    snapBinding = createBindingForPoint(hint.shape, bindPoint);
                     nextConnectionHint = {
                         shapeId: hint.shapeId,
-                        bindPoint: hint.point,
+                        bindPoint,
                     };
                 }
             }
@@ -1795,16 +1802,21 @@ export default function CanvasBoard({
             let endBinding = null;
 
             if (isConnectorElement(drawingElement)) {
-                const hint = findBindableShapeNearPoint(baseElements, point, 24, {
+                // Important rule:
+                // Grid ON  -> end point must stay on a grid point.
+                // Grid OFF -> end point follows exact mouse/object border point.
+                const bindSearchPoint = gridActive ? drawPoint : point;
+                const hint = findBindableShapeNearPoint(baseElements, bindSearchPoint, 24, {
                     excludeIds: [dragState.id],
                 });
 
                 if (hint) {
-                    drawPoint = hint.point;
-                    endBinding = hint.binding;
+                    const bindPoint = gridActive ? drawPoint : hint.point;
+                    drawPoint = bindPoint;
+                    endBinding = createBindingForPoint(hint.shape, bindPoint);
                     nextConnectionHint = {
                         shapeId: hint.shape.id,
-                        bindPoint: hint.point,
+                        bindPoint,
                     };
                 }
             }

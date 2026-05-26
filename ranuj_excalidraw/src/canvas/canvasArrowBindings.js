@@ -63,7 +63,13 @@ function snapConnectorEndpointToShape(connector, endpoint, shape) {
     return setEndpoint(connector, endpoint, snapPoint);
 }
 
-export function applyArrowStartBinding({ draft, tool, elements, point }) {
+export function applyArrowStartBinding({
+                                           draft,
+                                           tool,
+                                           elements,
+                                           point,
+                                           preferInputPoint = false,
+                                       }) {
     if (tool !== "arrow" && tool !== "line") return draft;
 
     const startHint = findBindableShapeNearPoint(elements, point, 18, {
@@ -72,13 +78,19 @@ export function applyArrowStartBinding({ draft, tool, elements, point }) {
 
     if (!startHint) return draft;
 
+    // Important rule:
+    // Grid ON callers pass a snapped `point` and set preferInputPoint=true,
+    // so the connector starts exactly on a grid point.
+    // Grid OFF keeps the natural object border point.
+    const bindPoint = preferInputPoint ? point : startHint.point;
+
     return {
         ...draft,
-        x1: startHint.point.x,
-        y1: startHint.point.y,
-        x2: startHint.point.x,
-        y2: startHint.point.y,
-        startBinding: startHint.binding,
+        x1: bindPoint.x,
+        y1: bindPoint.y,
+        x2: bindPoint.x,
+        y2: bindPoint.y,
+        startBinding: createBindingForPoint(startHint.shape, bindPoint),
     };
 }
 
