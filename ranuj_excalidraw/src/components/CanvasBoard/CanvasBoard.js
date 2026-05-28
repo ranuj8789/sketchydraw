@@ -47,7 +47,6 @@ import {
 } from "../../canvas/canvasText";
 import {
     applyArrowStartBinding,
-    updateArrowDuringDraw,
     finalizeArrowBinding,
     moveConnectedArrows,
     bindMovedShapesToNearbyConnectors,
@@ -95,7 +94,6 @@ const ERASER_CURSOR = `url("data:image/svg+xml;charset=utf-8,${encodeURIComponen
 
 const ALIGNMENT_SNAP_THRESHOLD = 18;
 const GRID_SIZE = 24;
-
 
 function snapValueToGrid(value, gridSize = GRID_SIZE) {
     return Math.round(value / gridSize) * gridSize;
@@ -238,7 +236,6 @@ const getIdleCanvasCursor = (tool, isSpacePressed) => {
     if (tool === "eraser") return "crosshair";
     return "default";
 };
-
 
 function readImageFileAsDataUrl(file) {
     return new Promise((resolve, reject) => {
@@ -986,12 +983,6 @@ export default function CanvasBoard({
         };
     }, [elements, selectedIds, setElements, commitHistory]);
 
-    const updateElement = (id, updater) => {
-        setElements((prev) =>
-            prev.map((el) => (el.id === id ? updater(el) : el))
-        );
-    };
-
     const handleBoardRightClick = (e) => {
         e.preventDefault();
 
@@ -1628,6 +1619,10 @@ export default function CanvasBoard({
             canvas.style.cursor = "pointer";
 
             const baseElements = dragBaseElementsRef.current || elementsRef.current;
+            const currentElement = baseElements.find((el) => el.id === dragState.id);
+
+            if (!currentElement) return;
+
             const movingEndpoint =
                 dragState.handle === "start" || dragState.handle === "end";
 
@@ -1638,12 +1633,21 @@ export default function CanvasBoard({
             let nextConnectionHint = null;
 
             if (movingEndpoint) {
-                // Important rule:
-                // Grid ON  -> connector endpoint must stay on a grid point.
-                // Grid OFF -> connector endpoint follows exact mouse/object border point.
-                const bindSearchPoint = gridActive ? snapPoint : point;
+                const oppositePoint =
+                    dragState.handle === "start"
+                        ? { x: currentElement.x2, y: currentElement.y2 }
+                        : { x: currentElement.x1, y: currentElement.y1 };
+
+                const rawEndpointPoint = gridActive ? snapPoint : point;
+
+                const bindSearchPoint =
+                    currentElement.lineStyle === "curved"
+                        ? rawEndpointPoint
+                        : getStableStraightLineEnd(oppositePoint, rawEndpointPoint);
+
                 const hint = findBindableShapeNearPoint(baseElements, bindSearchPoint, 24, {
                     excludeIds: [dragState.id],
+                    fromPoint: oppositePoint,
                 });
 
                 if (hint) {
@@ -1672,11 +1676,8 @@ export default function CanvasBoard({
                     let finalPoint;
 
                     if (snapBinding || alreadyCurved) {
-                        // When binding, use the exact detected border point.
-                        // Do not axis-snap it, otherwise it looks detached.
                         finalPoint = snapPoint;
                     } else {
-                        // If line is straight and not binding, keep stable axis/diagonal snapping.
                         finalPoint = getStableStraightLineEnd(
                             { x: el.x2, y: el.y2 },
                             snapPoint
@@ -1690,16 +1691,11 @@ export default function CanvasBoard({
                         ...el,
                         x1: finalPoint.x,
                         y1: finalPoint.y,
-
                         lineStyle: alreadyCurved ? "curved" : "straight",
-
-                        // For curved line: keep existing control point.
-                        // For straight line: keep control point at middle.
                         cx1: alreadyCurved ? el.cx1 ?? midX : midX,
                         cy1: alreadyCurved ? el.cy1 ?? midY : midY,
                         cx2: alreadyCurved ? el.cx2 ?? el.cx1 ?? midX : midX,
                         cy2: alreadyCurved ? el.cy2 ?? el.cy1 ?? midY : midY,
-
                         ...(isConnectorElement(el)
                             ? {
                                 startBinding: snapShapeId ? snapBinding : null,
@@ -1712,11 +1708,8 @@ export default function CanvasBoard({
                     let finalPoint;
 
                     if (snapBinding || alreadyCurved) {
-                        // When binding, use the exact detected border point.
-                        // Do not axis-snap it, otherwise it looks detached.
                         finalPoint = snapPoint;
                     } else {
-                        // If line is straight and not binding, keep stable axis/diagonal snapping.
                         finalPoint = getStableStraightLineEnd(
                             { x: el.x1, y: el.y1 },
                             snapPoint
@@ -1730,16 +1723,11 @@ export default function CanvasBoard({
                         ...el,
                         x2: finalPoint.x,
                         y2: finalPoint.y,
-
                         lineStyle: alreadyCurved ? "curved" : "straight",
-
-                        // For curved line: keep existing control point.
-                        // For straight line: keep control point at middle.
                         cx1: alreadyCurved ? el.cx1 ?? midX : midX,
                         cy1: alreadyCurved ? el.cy1 ?? midY : midY,
                         cx2: alreadyCurved ? el.cx2 ?? el.cx1 ?? midX : midX,
                         cy2: alreadyCurved ? el.cy2 ?? el.cy1 ?? midY : midY,
-
                         ...(isConnectorElement(el)
                             ? {
                                 endBinding: snapShapeId ? snapBinding : null,
@@ -1749,7 +1737,6 @@ export default function CanvasBoard({
                 }
 
                 if (dragState.handle === "cp1") {
-                    // Only middle/control point can make the line curved.
                     return {
                         ...el,
                         lineStyle: "curved",
@@ -1765,7 +1752,6 @@ export default function CanvasBoard({
 
             dragPreviewElementsRef.current = preview;
             elementsRef.current = preview;
-            // Avoid React re-render on every mousemove; live preview already draws the hint.
             renderLivePreview(preview, [], nextConnectionHint);
             return;
         }
@@ -1802,16 +1788,25 @@ export default function CanvasBoard({
             let endBinding = null;
 
             if (isConnectorElement(drawingElement)) {
-                // Important rule:
-                // Grid ON  -> end point must stay on a grid point.
-                // Grid OFF -> end point follows exact mouse/object border point.
-                const bindSearchPoint = gridActive ? drawPoint : point;
+                const oppositePoint = {
+                    x: drawingElement.x1,
+                    y: drawingElement.y1,
+                };
+
+                const rawEndpointPoint = gridActive ? drawPoint : point;
+
+                const bindSearchPoint =
+                    drawingElement.lineStyle === "curved"
+                        ? rawEndpointPoint
+                        : getStableStraightLineEnd(oppositePoint, rawEndpointPoint);
+
                 const hint = findBindableShapeNearPoint(baseElements, bindSearchPoint, 24, {
                     excludeIds: [dragState.id],
+                    fromPoint: oppositePoint,
                 });
 
                 if (hint) {
-                    const bindPoint = gridActive ? drawPoint : hint.point;
+                    const bindPoint = gridActive ? bindSearchPoint : hint.point;
                     drawPoint = bindPoint;
                     endBinding = createBindingForPoint(hint.shape, bindPoint);
                     nextConnectionHint = {
@@ -1855,7 +1850,6 @@ export default function CanvasBoard({
 
             dragPreviewElementsRef.current = preview;
             elementsRef.current = preview;
-            // Avoid React re-render on every mousemove; live preview already draws the hint.
             renderLivePreview(preview, [], nextConnectionHint);
             return;
         }
@@ -2017,7 +2011,6 @@ export default function CanvasBoard({
         }
     };
 
-
     const onMouseMove = (event) => {
         event.persist?.();
         latestPointerMoveEventRef.current = event;
@@ -2056,9 +2049,6 @@ export default function CanvasBoard({
         }
 
         if (dragState && event) {
-            // Important: process the final mouse-up position before committing.
-            // Otherwise the last throttled mousemove can be cancelled and the
-            // binding detected under the cursor is lost.
             runMouseMove(event);
         } else if (dragState && latestPointerMoveEventRef.current) {
             runMouseMove(latestPointerMoveEventRef.current);
