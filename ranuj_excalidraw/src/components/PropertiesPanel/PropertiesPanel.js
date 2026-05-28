@@ -1,726 +1,158 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef } from "react";
+import { measureTextBox } from "../canvas/textMetrics";
 import {
-    FONT_FAMILY_OPTIONS,
-    FONT_SIZE_OPTIONS,
-    getLineHeightForFontSize,
-} from "../../canvas/textStyle";
-import "./PropertiesPanel.css";
+    buildTextEditorFont,
+    normalizeTextStyle,
+} from "../canvas/textRenderStyle";
+import { worldToScreen } from "../canvas/canvasViewport";
 
-const LINE_WIDTHS = [1, 2, 3, 4, 6, 8];
-
-const CORNER_RADIUS_OPTIONS = [0, 6, 10, 14, 20, 28];
-
-const CANVAS_RADIUS_OPTIONS = [0, 8, 16, 24, 32];
-
-const CANVAS_PATTERNS = [
-    { label: "Blank", value: "blank" },
-    { label: "Grid", value: "grid" },
-    { label: "Notebook", value: "notebook" },
-    { label: "Dots", value: "dots" },
-    { label: "Blocks", value: "blocks" },
-];
-
-const DASH_OPTIONS = [
-    { label: "Solid", value: "solid" },
-    { label: "Dashed", value: "dashed" },
-    { label: "Dotted", value: "dotted" },
-];
-
-const ARROW_OPTIONS = [
-    { label: "None", value: "none" },
-    { label: "End", value: "end" },
-    { label: "Start", value: "start" },
-    { label: "Both", value: "both" },
-];
-
-function getArrowValue(element) {
-    const start = !!element?.arrowStart;
-    const end =
-        element?.type === "arrow"
-            ? element.arrowEnd !== false
-            : !!element?.arrowEnd;
-
-    if (start && end) return "both";
-    if (start) return "start";
-    if (end) return "end";
-    return "none";
-}
-
-function arrowPatch(value) {
-    if (value === "both") {
-        return {
-            arrowStart: true,
-            arrowEnd: true,
-        };
-    }
-
-    if (value === "start") {
-        return {
-            arrowStart: true,
-            arrowEnd: false,
-        };
-    }
-
-    if (value === "end") {
-        return {
-            arrowStart: false,
-            arrowEnd: true,
-        };
-    }
-
-    return {
-        arrowStart: false,
-        arrowEnd: false,
-    };
-}
-
-function cleanFontName(fontFamily) {
-    return String(fontFamily || "")
-        .split(",")[0]
-        .replace(/['"]/g, "")
-        .trim();
-}
-
-function toFontFamily(fontName) {
-    const clean = cleanFontName(fontName);
-
-    if (!clean) {
-        return '"Caveat", cursive';
-    }
-
-    return `"${clean}", cursive`;
-}
-
-function loadGoogleFont(fontName) {
-    if (typeof document === "undefined") return;
-
-    const clean = cleanFontName(fontName);
-
-    if (!clean) return;
-
-    const id = `google-font-${clean.replace(/\s+/g, "-").toLowerCase()}`;
-
-    if (document.getElementById(id)) return;
-
-    const link = document.createElement("link");
-    link.id = id;
-    link.rel = "stylesheet";
-    link.href = `https://fonts.googleapis.com/css2?family=${clean.replace(
-        /\s+/g,
-        "+"
-    )}&display=swap`;
-
-    document.head.appendChild(link);
-}
-
-export default function PropertiesPanel({
-                                            selectedElement,
-                                            colors,
-                                            updateSelectedElementStyle,
-                                            deleteSelected,
-                                            toggleSelectedLineCurve,
-
-                                            canvasProps = {},
-                                            updateCanvasProps,
-                                        }) {
-    const isText = selectedElement?.type === "text";
-
-    const [customFontFamily, setCustomFontFamily] = useState("Caveat");
-    const [customFontSize, setCustomFontSize] = useState(
-        String(FONT_SIZE_OPTIONS.M.fontSize)
-    );
+export default function TextEditor({
+                                       editor,
+                                       setEditor,
+                                       updateTextElement,
+                                       createTextElement,
+                                       viewport,
+                                       onCommitStart,
+                                   }) {
+    const inputRef = useRef(null);
+    const finishingRef = useRef(false);
 
     useEffect(() => {
-        if (!isText) return;
+        if (!editor || !inputRef.current) return;
 
-        const fontName = cleanFontName(
-            selectedElement?.fontFamily || '"Caveat", cursive'
-        );
+        inputRef.current.focus();
 
-        setCustomFontFamily(fontName || "Caveat");
-        setCustomFontSize(
-            String(selectedElement?.fontSize || FONT_SIZE_OPTIONS.M.fontSize)
-        );
+        const len = inputRef.current.value.length;
+        inputRef.current.setSelectionRange(len, len);
+    }, [editor?.id, editor?.mode]);
 
-        loadGoogleFont(fontName || "Caveat");
-    }, [isText, selectedElement?.id]);
+    useEffect(() => {
+        finishingRef.current = false;
+    }, [editor?.id, editor?.mode]);
 
-    const isLineLike =
-        selectedElement?.type === "line" ||
-        selectedElement?.type === "arrow" ||
-        selectedElement?.type === "pencil";
+    if (!editor) return null;
 
-    const isShape =
-        selectedElement?.type === "rect" ||
-        selectedElement?.type === "rectangle" ||
-        selectedElement?.type === "ellipse" ||
-        selectedElement?.type === "diamond";
+    const zoom = viewport?.zoom || 1;
+    const style = normalizeTextStyle(editor);
 
-    const supportsCornerRadius =
-        selectedElement?.type === "rect" ||
-        selectedElement?.type === "rectangle";
+    const screenPoint = worldToScreen(
+        { x: editor.x, y: editor.y },
+        viewport || { zoom: 1, offsetX: 0, offsetY: 0 }
+    );
 
-    const isCurved = selectedElement?.lineStyle === "curved";
+    const liveBox = measureTextBox(editor.value || " ", style);
 
-    const canvasBackgroundColor = canvasProps.backgroundColor || "#ffffff";
-    const canvasPattern = canvasProps.pattern || "blank";
-    const canvasCornerRadius = canvasProps.cornerRadius ?? 16;
+    const finishEditing = () => {
+        if (finishingRef.current) return;
+        finishingRef.current = true;
+
+        onCommitStart?.();
+
+        const value = editor.value.trim();
+
+        if (editor.mode === "create") {
+            if (!value) {
+                setEditor(null);
+                return;
+            }
+
+            createTextElement({
+                x: editor.x,
+                y: editor.y,
+                text: value,
+                stroke: style.stroke,
+                parentId: editor.parentId || null,
+                fontSize: style.fontSize,
+                lineHeight: style.lineHeight,
+                fontFamily: style.fontFamily,
+                bold: style.bold,
+                italic: style.italic,
+                underline: style.underline,
+                textAlign: style.textAlign,
+            });
+        } else if (editor.mode === "edit") {
+            updateTextElement(editor.id, value, {
+                stroke: style.stroke,
+                fontSize: style.fontSize,
+                lineHeight: style.lineHeight,
+                fontFamily: style.fontFamily,
+                bold: style.bold,
+                italic: style.italic,
+                underline: style.underline,
+                textAlign: style.textAlign,
+            });
+        }
+
+        setEditor(null);
+    };
+
+    const onKeyDown = (e) => {
+        e.stopPropagation();
+
+        if (e.key === "Escape") {
+            e.preventDefault();
+            setEditor(null);
+            return;
+        }
+
+        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            finishEditing();
+        }
+    };
+
+    const stopCanvasMouseEvent = (e) => {
+        e.stopPropagation();
+    };
 
     return (
-        <div className="properties-panel">
-            <div className="properties-header">
-                <div>
-                    <h3>Properties</h3>
-                    <p>
-                        {selectedElement
-                            ? `Selected: ${selectedElement.type}`
-                            : "Canvas settings"}
-                    </p>
-                </div>
-            </div>
+        <textarea
+            ref={inputRef}
+            className="canvas-text-editor"
+            style={{
+                position: "absolute",
 
-            {!selectedElement && (
-                <>
-                    <div className="property-section">
-                        <label>Canvas color</label>
+                // Same x/y as canvas text element.
+                // Do not shift this for center/right align.
+                left: screenPoint.x,
+                top: screenPoint.y,
 
-                        <div className="custom-color-row">
-                            <input
-                                type="color"
-                                value={canvasBackgroundColor}
-                                onChange={(e) =>
-                                    updateCanvasProps?.({
-                                        backgroundColor: e.target.value,
-                                    })
-                                }
-                            />
+                width: liveBox.w * zoom + 4,
+                height: liveBox.h * zoom + 4,
 
-                            <input
-                                type="text"
-                                value={canvasBackgroundColor}
-                                onChange={(e) =>
-                                    updateCanvasProps?.({
-                                        backgroundColor: e.target.value,
-                                    })
-                                }
-                            />
-                        </div>
-                    </div>
+                color: style.stroke,
+                font: buildTextEditorFont(style, zoom),
+                lineHeight: `${style.lineHeight * zoom}px`,
+                textAlign: style.textAlign,
+                textDecoration: style.underline ? "underline" : "none",
 
-                    <div className="property-section">
-                        <label>Canvas pattern</label>
-
-                        <div className="segmented-row">
-                            {CANVAS_PATTERNS.map((item) => (
-                                <button
-                                    key={item.value}
-                                    type="button"
-                                    className={canvasPattern === item.value ? "active" : ""}
-                                    onClick={() =>
-                                        updateCanvasProps?.({
-                                            pattern: item.value,
-                                        })
-                                    }
-                                >
-                                    {item.label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="property-section">
-                        <label>Canvas round corner</label>
-
-                        <div className="segmented-row">
-                            {CANVAS_RADIUS_OPTIONS.map((radius) => (
-                                <button
-                                    key={radius}
-                                    type="button"
-                                    className={canvasCornerRadius === radius ? "active" : ""}
-                                    onClick={() =>
-                                        updateCanvasProps?.({
-                                            cornerRadius: radius,
-                                        })
-                                    }
-                                >
-                                    {radius === 0 ? "Sharp" : radius}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="property-section">
-                        <label>Quick canvas colors</label>
-
-                        <div className="property-color-row">
-                            {[
-                                "#ffffff",
-                                "#f8fafc",
-                                "#fff7ed",
-                                "#fefce8",
-                                "#ecfeff",
-                                "#f0fdf4",
-                                "#fdf2f8",
-                                "#111827",
-                            ].map((color) => (
-                                <button
-                                    key={color}
-                                    type="button"
-                                    className={`property-color ${
-                                        canvasBackgroundColor === color ? "selected" : ""
-                                    }`}
-                                    style={{ backgroundColor: color }}
-                                    onClick={() =>
-                                        updateCanvasProps?.({
-                                            backgroundColor: color,
-                                        })
-                                    }
-                                    aria-label={`Set canvas color ${color}`}
-                                />
-                            ))}
-                        </div>
-                    </div>
-                </>
-            )}
-
-            {selectedElement && (
-                <>
-                    <div className="property-section">
-                        <label>{isText ? "Text color" : "Stroke color"}</label>
-
-                        <div className="custom-color-row">
-                            <input
-                                type="color"
-                                value={selectedElement.stroke || "#111827"}
-                                onChange={(e) =>
-                                    updateSelectedElementStyle?.({
-                                        stroke: e.target.value,
-                                    })
-                                }
-                            />
-
-                            <input
-                                type="text"
-                                value={selectedElement.stroke || "#111827"}
-                                onChange={(e) =>
-                                    updateSelectedElementStyle?.({
-                                        stroke: e.target.value,
-                                    })
-                                }
-                            />
-                        </div>
-
-                        <div className="property-color-row property-color-row-spaced">
-                            {colors.map((color) => (
-                                <button
-                                    key={color}
-                                    type="button"
-                                    className={`property-color ${
-                                        selectedElement.stroke === color ? "selected" : ""
-                                    }`}
-                                    style={{ backgroundColor: color }}
-                                    onClick={() =>
-                                        updateSelectedElementStyle?.({
-                                            stroke: color,
-                                        })
-                                    }
-                                    aria-label={`Set color ${color}`}
-                                />
-                            ))}
-                        </div>
-                    </div>
-
-                    {isShape && (
-                        <div className="property-section">
-                            <label>Fill color</label>
-
-                            <div className="custom-color-row">
-                                <input
-                                    type="color"
-                                    value={
-                                        selectedElement.fill &&
-                                        selectedElement.fill !== "transparent"
-                                            ? selectedElement.fill
-                                            : "#ffffff"
-                                    }
-                                    onChange={(e) =>
-                                        updateSelectedElementStyle?.({
-                                            fill: e.target.value,
-                                        })
-                                    }
-                                />
-
-                                <button
-                                    type="button"
-                                    className="mini-action-btn"
-                                    onClick={() =>
-                                        updateSelectedElementStyle?.({
-                                            fill: "transparent",
-                                        })
-                                    }
-                                >
-                                    Transparent
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {(isLineLike || isShape) && (
-                        <>
-                            <div className="property-section">
-                                <label>Line width</label>
-
-                                <div className="segmented-row">
-                                    {LINE_WIDTHS.map((width) => (
-                                        <button
-                                            key={width}
-                                            type="button"
-                                            className={
-                                                (selectedElement.strokeWidth || 2) === width
-                                                    ? "active"
-                                                    : ""
-                                            }
-                                            onClick={() =>
-                                                updateSelectedElementStyle?.({
-                                                    strokeWidth: width,
-                                                })
-                                            }
-                                        >
-                                            {width}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="property-section">
-                                <label>Dash</label>
-
-                                <div className="segmented-row">
-                                    {DASH_OPTIONS.map((item) => (
-                                        <button
-                                            key={item.value}
-                                            type="button"
-                                            className={
-                                                (selectedElement.strokeDash || "solid") === item.value
-                                                    ? "active"
-                                                    : ""
-                                            }
-                                            onClick={() =>
-                                                updateSelectedElementStyle?.({
-                                                    strokeDash: item.value,
-                                                })
-                                            }
-                                        >
-                                            {item.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        </>
-                    )}
-
-                    {supportsCornerRadius && (
-                        <div className="property-section">
-                            <label>Round corner</label>
-
-                            <div className="segmented-row">
-                                {CORNER_RADIUS_OPTIONS.map((radius) => (
-                                    <button
-                                        key={radius}
-                                        type="button"
-                                        className={
-                                            (selectedElement.cornerRadius ?? 0) === radius
-                                                ? "active"
-                                                : ""
-                                        }
-                                        onClick={() =>
-                                            updateSelectedElementStyle?.({
-                                                cornerRadius: radius,
-                                            })
-                                        }
-                                    >
-                                        {radius === 0 ? "Sharp" : radius}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {(selectedElement.type === "line" ||
-                        selectedElement.type === "arrow") && (
-                        <>
-                            <div className="property-section">
-                                <label>Arrow type</label>
-
-                                <div className="segmented-row">
-                                    {ARROW_OPTIONS.map((item) => (
-                                        <button
-                                            key={item.value}
-                                            type="button"
-                                            className={
-                                                getArrowValue(selectedElement) === item.value
-                                                    ? "active"
-                                                    : ""
-                                            }
-                                            onClick={() =>
-                                                updateSelectedElementStyle?.(
-                                                    arrowPatch(item.value)
-                                                )
-                                            }
-                                        >
-                                            {item.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="property-section">
-                                <label>Line style</label>
-
-                                <div className="segmented-row">
-                                    <button
-                                        type="button"
-                                        className={!isCurved ? "active" : ""}
-                                        onClick={() => {
-                                            if (isCurved) {
-                                                toggleSelectedLineCurve?.();
-                                            }
-                                        }}
-                                    >
-                                        Straight
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        className={isCurved ? "active" : ""}
-                                        onClick={() => {
-                                            if (!isCurved) {
-                                                toggleSelectedLineCurve?.();
-                                            }
-                                        }}
-                                    >
-                                        Curved
-                                    </button>
-                                </div>
-                            </div>
-                        </>
-                    )}
-
-                    {isText && (
-                        <>
-                            <div className="property-section">
-                                <label>Text style</label>
-
-                                <div className="segmented-row">
-                                    <button
-                                        type="button"
-                                        className={selectedElement.bold ? "active" : ""}
-                                        onClick={() =>
-                                            updateSelectedElementStyle?.({
-                                                bold: !selectedElement.bold,
-                                            })
-                                        }
-                                    >
-                                        Bold
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        className={selectedElement.italic ? "active" : ""}
-                                        onClick={() =>
-                                            updateSelectedElementStyle?.({
-                                                italic: !selectedElement.italic,
-                                            })
-                                        }
-                                    >
-                                        Italic
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        className={selectedElement.underline ? "active" : ""}
-                                        onClick={() =>
-                                            updateSelectedElementStyle?.({
-                                                underline: !selectedElement.underline,
-                                            })
-                                        }
-                                    >
-                                        Underline
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="property-section">
-                                <label>Text align</label>
-
-                                <div className="segmented-row">
-                                    {["left", "center", "right"].map((align) => (
-                                        <button
-                                            key={align}
-                                            type="button"
-                                            className={
-                                                (selectedElement.textAlign || "left") === align
-                                                    ? "active"
-                                                    : ""
-                                            }
-                                            onClick={() =>
-                                                updateSelectedElementStyle?.({
-                                                    textAlign: align,
-                                                })
-                                            }
-                                        >
-                                            {align === "left"
-                                                ? "Left"
-                                                : align === "center"
-                                                    ? "Center"
-                                                    : "Right"}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="property-section">
-                                <label>Font</label>
-
-                                <select
-                                    value={
-                                        FONT_FAMILY_OPTIONS.some(
-                                            (font) => font.value === selectedElement.fontFamily
-                                        )
-                                            ? selectedElement.fontFamily
-                                            : "__CUSTOM__"
-                                    }
-                                    onChange={(e) => {
-                                        const value = e.target.value;
-
-                                        if (value === "__CUSTOM__") {
-                                            return;
-                                        }
-
-                                        const fontName = cleanFontName(value);
-                                        setCustomFontFamily(fontName);
-                                        loadGoogleFont(fontName);
-
-                                        updateSelectedElementStyle?.({
-                                            fontFamily: value,
-                                        });
-                                    }}
-                                >
-                                    {FONT_FAMILY_OPTIONS.map((font) => (
-                                        <option key={font.id} value={font.value}>
-                                            {font.label}
-                                        </option>
-                                    ))}
-
-                                    <option value="__CUSTOM__">Custom Font</option>
-                                </select>
-
-                                <input
-                                    className="custom-font-input"
-                                    type="text"
-                                    value={customFontFamily}
-                                    onChange={(e) => {
-                                        const value = e.target.value;
-                                        setCustomFontFamily(value);
-
-                                        if (!value.trim()) return;
-
-                                        loadGoogleFont(value);
-
-                                        updateSelectedElementStyle?.({
-                                            fontFamily: toFontFamily(value),
-                                        });
-                                    }}
-                                    placeholder="Custom Google font, e.g. Caveat"
-                                />
-                            </div>
-
-                            <div className="property-section">
-                                <label>Size</label>
-
-                                <div className="segmented-row">
-                                    {Object.entries(FONT_SIZE_OPTIONS).map(
-                                        ([key, option]) => (
-                                            <button
-                                                key={key}
-                                                type="button"
-                                                className={
-                                                    selectedElement.fontSize === option.fontSize
-                                                        ? "active"
-                                                        : ""
-                                                }
-                                                onClick={() => {
-                                                    setCustomFontSize(String(option.fontSize));
-
-                                                    updateSelectedElementStyle?.({
-                                                        fontSize: option.fontSize,
-                                                        lineHeight: option.lineHeight,
-                                                    });
-                                                }}
-                                            >
-                                                {option.label}
-                                            </button>
-                                        )
-                                    )}
-                                </div>
-
-                                <div className="custom-font-size-row">
-                                    <span>Custom</span>
-
-                                    <input
-                                        type="number"
-                                        min="8"
-                                        max="120"
-                                        step="1"
-                                        value={customFontSize}
-                                        onChange={(e) => {
-                                            const value = e.target.value;
-                                            setCustomFontSize(value);
-
-                                            if (value === "") return;
-
-                                            const parsed = Number(value);
-
-                                            if (!Number.isFinite(parsed)) return;
-
-                                            const fontSize = Math.min(
-                                                120,
-                                                Math.max(8, parsed)
-                                            );
-
-                                            updateSelectedElementStyle?.({
-                                                fontSize,
-                                                lineHeight: getLineHeightForFontSize(fontSize),
-                                            });
-                                        }}
-                                        onBlur={() => {
-                                            if (customFontSize === "") {
-                                                const fallback = FONT_SIZE_OPTIONS.M.fontSize;
-                                                setCustomFontSize(String(fallback));
-
-                                                updateSelectedElementStyle?.({
-                                                    fontSize: fallback,
-                                                    lineHeight: getLineHeightForFontSize(fallback),
-                                                });
-                                            }
-                                        }}
-                                    />
-
-                                    <em>px</em>
-                                </div>
-                            </div>
-                        </>
-                    )}
-
-                    <button
-                        type="button"
-                        className="delete-selected-btn"
-                        onClick={deleteSelected}
-                    >
-                        Delete Selected
-                    </button>
-                </>
-            )}
-        </div>
+                padding: 0,
+                margin: 0,
+                border: "none",
+                outline: "1px dashed #2563eb",
+                background: "transparent",
+                resize: "none",
+                overflow: "hidden",
+                boxSizing: "border-box",
+                whiteSpace: "pre",
+                tabSize: 4,
+            }}
+            value={editor.value}
+            onMouseDown={stopCanvasMouseEvent}
+            onMouseUp={stopCanvasMouseEvent}
+            onClick={stopCanvasMouseEvent}
+            onDoubleClick={stopCanvasMouseEvent}
+            onPointerDown={stopCanvasMouseEvent}
+            onPointerUp={stopCanvasMouseEvent}
+            onChange={(e) =>
+                setEditor((prev) => ({
+                    ...prev,
+                    value: e.target.value,
+                }))
+            }
+            onBlur={finishEditing}
+            onKeyDown={onKeyDown}
+            rows={1}
+        />
     );
 }

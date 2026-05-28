@@ -1276,6 +1276,7 @@ export default function CanvasBoard({
     };
 
     const startTextCreate = (point, parentId = null, forcedStroke = stroke) => {
+        textCommitLockRef.current = Date.now() + 300;
         const textPoint = isGridSnapActive(showGridRef.current, canvasPropsRef.current)
             ? snapPointToGrid(point)
             : point;
@@ -2200,6 +2201,9 @@ export default function CanvasBoard({
     };
 
     const onDoubleClick = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
         const canvas = canvasRef.current;
         if (!canvas) return;
 
