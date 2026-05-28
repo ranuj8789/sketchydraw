@@ -1,5 +1,6 @@
 import { buildTextElement } from "./canvasFactories";
 import { measureTextBox } from "./textMetrics";
+import { normalizeTextStyle } from "./textRenderStyle";
 
 export function createTextElementHelper({
                                             elements,
@@ -22,12 +23,8 @@ export function createTextElementHelper({
     const finalText = text?.trim();
     if (!finalText) return;
 
-    const newText = buildTextElement({
-        x,
-        y,
-        text: finalText,
+    const style = normalizeTextStyle({
         stroke,
-        parentId,
         fontSize,
         lineHeight,
         fontFamily,
@@ -35,6 +32,21 @@ export function createTextElementHelper({
         italic,
         underline,
         textAlign,
+    });
+
+    const newText = buildTextElement({
+        x,
+        y,
+        text: finalText,
+        stroke: style.stroke,
+        parentId,
+        fontSize: style.fontSize,
+        lineHeight: style.lineHeight,
+        fontFamily: style.fontFamily,
+        bold: style.bold,
+        italic: style.italic,
+        underline: style.underline,
+        textAlign: style.textAlign,
     });
 
     const next = [...elements, newText];
@@ -51,28 +63,54 @@ export function updateTextElementHelper({
                                             commitHistory,
                                             id,
                                             value,
+                                            stroke,
+                                            fontSize,
+                                            lineHeight,
+                                            fontFamily,
+                                            bold,
+                                            italic,
+                                            underline,
+                                            textAlign,
                                         }) {
     const finalText = value?.trim() || "";
 
     const next = elements.map((el) => {
         if (el.id !== id) return el;
 
-        const box = measureTextBox(finalText, {
-            fontSize: el.fontSize,
-            lineHeight: el.lineHeight,
-            fontFamily: el.fontFamily,
-            bold: el.bold,
-            italic: el.italic,
+        const style = normalizeTextStyle({
+            ...el,
+            stroke: stroke ?? el.stroke,
+            fontSize: fontSize ?? el.fontSize,
+            lineHeight: lineHeight ?? el.lineHeight,
+            fontFamily: fontFamily ?? el.fontFamily,
+            bold: bold ?? el.bold,
+            italic: italic ?? el.italic,
+            underline: underline ?? el.underline,
+            textAlign: textAlign ?? el.textAlign,
         });
+
+        const box = measureTextBox(finalText, style);
 
         return {
             ...el,
             text: finalText,
+            stroke: style.stroke,
+
+            // Important:
+            // x/y is the top-left of the text box.
+            // Never change x/y on text edit, otherwise text jumps.
+            x: el.x,
+            y: el.y,
+
             w: box.w,
             h: box.h,
-            fontSize: box.fontSize,
-            lineHeight: box.lineHeight,
-            fontFamily: box.fontFamily,
+            fontSize: style.fontSize,
+            lineHeight: style.lineHeight,
+            fontFamily: style.fontFamily,
+            bold: style.bold,
+            italic: style.italic,
+            underline: style.underline,
+            textAlign: style.textAlign,
         };
     });
 

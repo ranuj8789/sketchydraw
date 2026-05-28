@@ -1,11 +1,9 @@
 import React, { useEffect, useRef } from "react";
+import { measureTextBox } from "../canvas/textMetrics";
 import {
-    TEXT_FONT_SIZE,
-    TEXT_LINE_HEIGHT,
-    TEXT_FONT_FAMILY,
-    measureTextBox,
-} from "../canvas/textMetrics";
-import { DEFAULT_TEXT_STYLE } from "../canvas/textStyle";
+    buildTextEditorFont,
+    normalizeTextStyle,
+} from "../canvas/textRenderStyle";
 import { worldToScreen } from "../canvas/canvasViewport";
 
 export default function TextEditor({
@@ -35,38 +33,14 @@ export default function TextEditor({
     if (!editor) return null;
 
     const zoom = viewport?.zoom || 1;
-
-    const fontSize =
-        editor.fontSize ||
-        DEFAULT_TEXT_STYLE.fontSize ||
-        TEXT_FONT_SIZE;
-
-    const lineHeight =
-        editor.lineHeight ||
-        DEFAULT_TEXT_STYLE.lineHeight ||
-        TEXT_LINE_HEIGHT;
-
-    const fontFamily =
-        editor.fontFamily ||
-        DEFAULT_TEXT_STYLE.fontFamily ||
-        TEXT_FONT_FAMILY;
-
-    const bold = !!editor.bold;
-    const italic = !!editor.italic;
-    const underline = !!editor.underline;
+    const style = normalizeTextStyle(editor);
 
     const screenPoint = worldToScreen(
         { x: editor.x, y: editor.y },
         viewport || { zoom: 1, offsetX: 0, offsetY: 0 }
     );
 
-    const liveBox = measureTextBox(editor.value || "", {
-        fontSize,
-        lineHeight,
-        fontFamily,
-        bold,
-        italic,
-    });
+    const liveBox = measureTextBox(editor.value || " ", style);
 
     const finishEditing = () => {
         if (finishingRef.current) return;
@@ -86,25 +60,26 @@ export default function TextEditor({
                 x: editor.x,
                 y: editor.y,
                 text: value,
-                stroke: editor.stroke,
+                stroke: style.stroke,
                 parentId: editor.parentId || null,
-                fontSize,
-                lineHeight,
-                fontFamily,
-                bold,
-                italic,
-                underline: !!editor.underline,
-                textAlign: editor.textAlign || "left",
+                fontSize: style.fontSize,
+                lineHeight: style.lineHeight,
+                fontFamily: style.fontFamily,
+                bold: style.bold,
+                italic: style.italic,
+                underline: style.underline,
+                textAlign: style.textAlign,
             });
         } else if (editor.mode === "edit") {
             updateTextElement(editor.id, value, {
-                fontSize,
-                lineHeight,
-                fontFamily,
-                bold,
-                italic,
-                underline: !!editor.underline,
-                textAlign: editor.textAlign || "left",
+                stroke: style.stroke,
+                fontSize: style.fontSize,
+                lineHeight: style.lineHeight,
+                fontFamily: style.fontFamily,
+                bold: style.bold,
+                italic: style.italic,
+                underline: style.underline,
+                textAlign: style.textAlign,
             });
         }
 
@@ -131,18 +106,21 @@ export default function TextEditor({
             className="canvas-text-editor"
             style={{
                 position: "absolute",
+
+                // Important:
+                // This is always the same x/y as the canvas text element.
+                // Do not center-shift it.
                 left: screenPoint.x,
                 top: screenPoint.y,
 
                 width: liveBox.w * zoom + 4,
                 height: liveBox.h * zoom + 4,
 
-                color: editor.stroke || "#111827",
-                font: `${italic ? "italic" : "normal"} ${
-                    bold ? "700" : "400"
-                } ${fontSize * zoom}px ${fontFamily}`,
-                lineHeight: `${lineHeight * zoom}px`,
-                textDecoration: underline ? "underline" : "none",
+                color: style.stroke,
+                font: buildTextEditorFont(style, zoom),
+                lineHeight: `${style.lineHeight * zoom}px`,
+                textAlign: style.textAlign,
+                textDecoration: style.underline ? "underline" : "none",
 
                 padding: 0,
                 margin: 0,
@@ -153,6 +131,7 @@ export default function TextEditor({
                 overflow: "hidden",
                 boxSizing: "border-box",
                 whiteSpace: "pre",
+                tabSize: 4,
             }}
             value={editor.value}
             onMouseDown={(e) => e.stopPropagation()}

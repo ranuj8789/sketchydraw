@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { normalizeTextStyle } from "../../canvas/textRenderStyle";
 import MyDrawingsPopup from "../MyDrawingsPopup/MyDrawingsPopup";
 import { isPaidUser } from "../../utils/auth";
 import "./CanvasBoard.css";
@@ -456,6 +457,7 @@ export default function CanvasBoard({
                                         setCurrentDrawingMeta,
                                         canvasProps = {},
                                         setCanvasProps,
+                                        currentTextStyle = DEFAULT_TEXT_STYLE,
                                     }) {
     const wrapRef = useRef(null);
     const localDraftIdRef = useRef(null);
@@ -544,6 +546,40 @@ export default function CanvasBoard({
             window.removeEventListener("sketchydraw:export-video", handleVideoExport);
         };
     }, [downloadUndoRedoVideo]);
+    useEffect(() => {
+        if (!editor || editor.mode !== "edit" || !editor.id) return;
+
+        const latestElement = elements.find(
+            (el) => el.id === editor.id && el.type === "text"
+        );
+
+        if (!latestElement) return;
+
+        setEditor((prev) => {
+            if (!prev || prev.mode !== "edit" || prev.id !== latestElement.id) {
+                return prev;
+            }
+
+            return {
+                ...prev,
+
+                // Do not overwrite prev.value here. User may be typing.
+                stroke: latestElement.stroke || prev.stroke,
+                fontSize: latestElement.fontSize || DEFAULT_TEXT_STYLE.fontSize,
+                lineHeight: latestElement.lineHeight || DEFAULT_TEXT_STYLE.lineHeight,
+                fontFamily: latestElement.fontFamily || DEFAULT_TEXT_STYLE.fontFamily,
+                bold: latestElement.bold ?? DEFAULT_TEXT_STYLE.bold,
+                italic: latestElement.italic ?? DEFAULT_TEXT_STYLE.italic,
+                underline: latestElement.underline ?? DEFAULT_TEXT_STYLE.underline,
+                textAlign: latestElement.textAlign || DEFAULT_TEXT_STYLE.textAlign || "left",
+
+                // Do not overwrite x/y here.
+                // x/y must stay stable while editing.
+                w: latestElement.w || prev.w,
+                h: latestElement.h || prev.h,
+            };
+        });
+    }, [elements, editor?.id, editor?.mode]);
 
     useCanvasRender({
         canvasRef,
@@ -563,6 +599,38 @@ export default function CanvasBoard({
     useEffect(() => {
         elementsRef.current = elements;
     }, [elements]);
+
+    useEffect(() => {
+        if (!editor || editor.mode !== "edit" || !editor.id) return;
+
+        const latestElement = elements.find(
+            (el) => el.id === editor.id && el.type === "text"
+        );
+
+        if (!latestElement) return;
+
+        setEditor((prev) => {
+            if (!prev || prev.mode !== "edit" || prev.id !== latestElement.id) {
+                return prev;
+            }
+
+            return {
+                ...prev,
+
+                // Do not overwrite prev.value here. User may be typing.
+                stroke: latestElement.stroke || prev.stroke,
+                fontSize: latestElement.fontSize || DEFAULT_TEXT_STYLE.fontSize,
+                lineHeight: latestElement.lineHeight || DEFAULT_TEXT_STYLE.lineHeight,
+                fontFamily: latestElement.fontFamily || DEFAULT_TEXT_STYLE.fontFamily,
+                bold: latestElement.bold ?? DEFAULT_TEXT_STYLE.bold,
+                italic: latestElement.italic ?? DEFAULT_TEXT_STYLE.italic,
+                underline: latestElement.underline ?? DEFAULT_TEXT_STYLE.underline,
+                textAlign: latestElement.textAlign || DEFAULT_TEXT_STYLE.textAlign || "left",
+                w: latestElement.w || prev.w,
+                h: latestElement.h || prev.h,
+            };
+        });
+    }, [elements, editor?.id, editor?.mode]);
 
     useEffect(() => {
         selectedIdsRef.current = selectedIds;
@@ -1224,20 +1292,27 @@ export default function CanvasBoard({
         setSelectedIds([]);
         setDragState(null);
 
+        const style = normalizeTextStyle({
+            ...DEFAULT_TEXT_STYLE,
+            ...currentTextStyle,
+            stroke: forcedStroke,
+        });
+
         setEditor({
             mode: "create",
             x: textPoint.x,
             y: textPoint.y,
             value: "",
-            stroke: forcedStroke,
+            stroke: style.stroke,
             parentId,
-            fontSize: DEFAULT_TEXT_STYLE.fontSize,
-            lineHeight: DEFAULT_TEXT_STYLE.lineHeight,
-            fontFamily: DEFAULT_TEXT_STYLE.fontFamily,
-            bold: DEFAULT_TEXT_STYLE.bold,
-            italic: false,
-            underline: false,
-            textAlign: "left",
+
+            fontSize: style.fontSize,
+            lineHeight: style.lineHeight,
+            fontFamily: style.fontFamily,
+            bold: style.bold,
+            italic: style.italic,
+            underline: style.underline,
+            textAlign: style.textAlign,
         });
     };
 
@@ -2164,7 +2239,7 @@ export default function CanvasBoard({
                 bold: !!target.bold,
                 italic: !!target.italic,
                 underline: !!target.underline,
-                textAlign: target.textAlign || "left",
+                textAlign: target.textAlign || DEFAULT_TEXT_STYLE.textAlign || "left",
             });
 
             return;
