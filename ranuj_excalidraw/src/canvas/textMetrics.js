@@ -1,11 +1,12 @@
+import { DEFAULT_TEXT_STYLE } from "./textStyle";
+import { buildTextCanvasFont, normalizeTextStyle } from "./textRenderStyle";
 
 export const TEXT_MIN_WIDTH = 60;
 export const TEXT_MIN_HEIGHT = 28;
-export const TEXT_FONT_SIZE = 20;
-export const TEXT_LINE_HEIGHT = 26;
+export const TEXT_FONT_SIZE = DEFAULT_TEXT_STYLE.fontSize;
+export const TEXT_LINE_HEIGHT = DEFAULT_TEXT_STYLE.lineHeight;
 
-export const HANDWRITING_FONT_FAMILY =
-    '"Caveat", "Patrick Hand", "Kalam", cursive';
+export const HANDWRITING_FONT_FAMILY = DEFAULT_TEXT_STYLE.fontFamily;
 export const TEXT_FONT_FAMILY = HANDWRITING_FONT_FAMILY;
 
 export const FONT_FAMILIES = [
@@ -13,23 +14,17 @@ export const FONT_FAMILIES = [
     'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
     "Arial, sans-serif",
     "Georgia, serif",
-    "Courier New, monospace",
+    '"Courier New", monospace',
 ];
 
-export function buildCanvasFont({
-                                    fontSize = TEXT_FONT_SIZE,
-                                    fontFamily = TEXT_FONT_FAMILY,
-                                    bold = false,
-                                    italic = false,
-                                } = {}) {
-    const style = italic ? "italic" : "normal";
-    const weight = bold ? "700" : "400";
-    return `${style} ${weight} ${fontSize}px ${fontFamily}`;
+export function buildCanvasFont(style = {}) {
+    return buildTextCanvasFont(style);
 }
 
 let measureCanvas = null;
 
 export function measureTextBox(text, style = {}) {
+    const normalized = normalizeTextStyle(style);
     const lines = String(text || "").split("\n");
 
     if (typeof document !== "undefined") {
@@ -38,33 +33,29 @@ export function measureTextBox(text, style = {}) {
         }
 
         const ctx = measureCanvas.getContext("2d");
-        ctx.font = buildCanvasFont(style);
+        ctx.font = buildTextCanvasFont(normalized);
 
         const maxLineWidth = Math.max(
             TEXT_MIN_WIDTH,
             ...lines.map((line) => ctx.measureText(line || " ").width)
         );
 
-        const lineHeight = style.lineHeight || TEXT_LINE_HEIGHT;
-
         return {
             w: Math.ceil(maxLineWidth) + 8,
-            h: Math.max(TEXT_MIN_HEIGHT, lines.length * lineHeight),
-            fontSize: style.fontSize || TEXT_FONT_SIZE,
-            lineHeight,
-            fontFamily: style.fontFamily || TEXT_FONT_FAMILY,
+            h: Math.max(TEXT_MIN_HEIGHT, lines.length * normalized.lineHeight),
+            fontSize: normalized.fontSize,
+            lineHeight: normalized.lineHeight,
+            fontFamily: normalized.fontFamily,
         };
     }
 
-    const fontSize = style.fontSize || TEXT_FONT_SIZE;
-    const lineHeight = style.lineHeight || TEXT_LINE_HEIGHT;
     const longestLineLength = Math.max(1, ...lines.map((line) => line.length));
 
     return {
-        w: Math.max(TEXT_MIN_WIDTH, longestLineLength * fontSize * 0.6),
-        h: Math.max(TEXT_MIN_HEIGHT, lines.length * lineHeight),
-        fontSize,
-        lineHeight,
-        fontFamily: style.fontFamily || TEXT_FONT_FAMILY,
+        w: Math.max(TEXT_MIN_WIDTH, longestLineLength * normalized.fontSize * 0.6),
+        h: Math.max(TEXT_MIN_HEIGHT, lines.length * normalized.lineHeight),
+        fontSize: normalized.fontSize,
+        lineHeight: normalized.lineHeight,
+        fontFamily: normalized.fontFamily,
     };
 }

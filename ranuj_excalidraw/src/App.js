@@ -20,6 +20,12 @@ import {
   DEFAULT_GROUP,
   DEFAULT_TITLE,
 } from "./components/DrawingGroupStore/drawingGroupStore";
+import { DEFAULT_TEXT_STYLE } from "./canvas/textStyle";
+import {
+  normalizeTextStyle,
+  pickTextStylePatch,
+  hasTextStylePatch,
+} from "./canvas/textRenderStyle";
 
 const COLORS = [
   "#111827",
@@ -119,11 +125,62 @@ function VerifyPage() {
       </div>
   );
 }
+const TEXT_STYLE_STORAGE_KEY = "sketchydraw_current_text_style";
 
+function loadCurrentTextStyle() {
+  if (typeof window === "undefined") {
+    return normalizeTextStyle(DEFAULT_TEXT_STYLE);
+  }
+
+  try {
+    const saved = window.localStorage.getItem(TEXT_STYLE_STORAGE_KEY);
+
+    if (!saved) {
+      return normalizeTextStyle(DEFAULT_TEXT_STYLE);
+    }
+
+    return normalizeTextStyle({
+      ...DEFAULT_TEXT_STYLE,
+      ...JSON.parse(saved),
+    });
+  } catch {
+    return normalizeTextStyle(DEFAULT_TEXT_STYLE);
+  }
+}
+
+function saveCurrentTextStyle(style) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(
+        TEXT_STYLE_STORAGE_KEY,
+        JSON.stringify(normalizeTextStyle(style))
+    );
+  } catch {
+    // ignore localStorage errors
+  }
+}
 function SketchyDrawPage() {
   const [showGrid, setShowGrid] = useState(false);
   const [tool, setTool] = useState("select");
   const [stroke, setStroke] = useState("#111827");
+  const [currentTextStyle, setCurrentTextStyle] = useState(loadCurrentTextStyle);
+
+  const updateCurrentTextStyle = useCallback((patch) => {
+    const textPatch = pickTextStylePatch(patch);
+
+    if (!Object.keys(textPatch).length) return;
+
+    setCurrentTextStyle((prev) => {
+      const next = normalizeTextStyle({
+        ...prev,
+        ...textPatch,
+      });
+
+      saveCurrentTextStyle(next);
+      return next;
+    });
+  }, []);
   const [elements, setElements] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
   const [history, setHistory] = useState([[]]);
@@ -240,6 +297,7 @@ function SketchyDrawPage() {
     if (!selectedIds.length) return;
 
     const selectedSet = new Set(selectedIds);
+    let touchedText = false;
 
     const next = elements.map((el) => {
       if (!selectedSet.has(el.id)) return el;
@@ -250,26 +308,39 @@ function SketchyDrawPage() {
       };
 
       if (updated.type === "text") {
-        const box = measureTextBox(updated.text || "", {
-          fontSize: updated.fontSize,
-          lineHeight: updated.lineHeight,
-          fontFamily: updated.fontFamily,
-          bold: updated.bold,
-          italic: updated.italic,
-        });
+        touchedText = true;
+
+        const style = normalizeTextStyle(updated);
+
+        const box = measureTextBox(updated.text || "", style);
 
         return {
           ...updated,
+
+          // Important:
+          // do not move text position when style changes
+          x: el.x,
+          y: el.y,
+
+          stroke: style.stroke,
           w: box.w,
           h: box.h,
-          fontSize: box.fontSize,
-          lineHeight: box.lineHeight,
-          fontFamily: box.fontFamily,
+          fontSize: style.fontSize,
+          lineHeight: style.lineHeight,
+          fontFamily: style.fontFamily,
+          bold: style.bold,
+          italic: style.italic,
+          underline: style.underline,
+          textAlign: style.textAlign,
         };
       }
 
       return updated;
     });
+
+    if (touchedText && hasTextStylePatch(patch)) {
+      updateCurrentTextStyle(patch);
+    }
 
     setElements(next);
     commitHistory(next);
@@ -495,6 +566,7 @@ function SketchyDrawPage() {
                 setCurrentDrawingMeta={setCurrentDrawingMeta}
                 canvasProps={canvasProps}
                 setCanvasProps={setCanvasProps}
+                currentTextStyle={currentTextStyle}
             />
           </div>
         </div>

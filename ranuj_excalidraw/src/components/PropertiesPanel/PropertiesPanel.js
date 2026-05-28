@@ -551,6 +551,35 @@ export default function PropertiesPanel({
                             </div>
 
                             <div className="property-section">
+                                <label>Text align</label>
+
+                                <div className="segmented-row">
+                                    {["left", "center", "right"].map((align) => (
+                                        <button
+                                            key={align}
+                                            type="button"
+                                            className={
+                                                (selectedElement.textAlign || "left") === align
+                                                    ? "active"
+                                                    : ""
+                                            }
+                                            onClick={() =>
+                                                updateSelectedElementStyle?.({
+                                                    textAlign: align,
+                                                })
+                                            }
+                                        >
+                                            {align === "left"
+                                                ? "Left"
+                                                : align === "center"
+                                                    ? "Center"
+                                                    : "Right"}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="property-section">
                                 <label>Font</label>
 
                                 <select

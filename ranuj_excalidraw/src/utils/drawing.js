@@ -1,3 +1,12 @@
+import {DEFAULT_TEXT_STYLE} from "../canvas/textStyle"
+import {
+    buildTextCanvasFont,
+    getTextAnchorX,
+    getUnderlineBounds,
+    normalizeTextStyle,
+} from "../canvas/textRenderStyle";
+
+
 function cubicBezierPoint(t, p0, p1, p2, p3) {
     const mt = 1 - t;
     const mt2 = mt * mt;
@@ -15,7 +24,7 @@ function cubicBezierPoint(t, p0, p1, p2, p3) {
         3 * mt * t2 * p2.y +
         t2 * t * p3.y;
 
-    return { x, y };
+    return {x, y};
 }
 
 function distanceToSegment(px, py, x1, y1, x2, y2) {
@@ -38,10 +47,10 @@ function distanceToSegment(px, py, x1, y1, x2, y2) {
 }
 
 function distanceToBezier(px, py, element) {
-    const p0 = { x: element.x1, y: element.y1 };
-    const p1 = { x: element.cx1 ?? element.x1, y: element.cy1 ?? element.y1 };
-    const p2 = { x: element.cx2 ?? element.x2, y: element.cy2 ?? element.y2 };
-    const p3 = { x: element.x2, y: element.y2 };
+    const p0 = {x: element.x1, y: element.y1};
+    const p1 = {x: element.cx1 ?? element.x1, y: element.cy1 ?? element.y1};
+    const p2 = {x: element.cx2 ?? element.x2, y: element.cy2 ?? element.y2};
+    const p3 = {x: element.x2, y: element.y2};
 
     let min = Infinity;
     let prev = p0;
@@ -141,7 +150,7 @@ function normalizeImageBox(element) {
     const w = Math.abs(element.w || 0);
     const h = Math.abs(element.h || 0);
 
-    return { x, y, w, h };
+    return {x, y, w, h};
 }
 
 function getSelectionBox(element) {
@@ -286,7 +295,7 @@ export function hitTest(element, x, y) {
     }
 
     if (element.type === "image") {
-        const { x: ix, y: iy, w, h } = normalizeImageBox(element);
+        const {x: ix, y: iy, w, h} = normalizeImageBox(element);
 
         return x >= ix && x <= ix + w && y >= iy && y <= iy + h;
     }
@@ -429,7 +438,7 @@ export function drawElement(ctx, element, selected = false) {
             ctx.stroke();
         }
     } else if (element.type === "image") {
-        const { x, y, w, h } = normalizeImageBox(element);
+        const {x, y, w, h} = normalizeImageBox(element);
         const img = getCachedCanvasImage(element.src);
 
         ctx.setLineDash([]);
@@ -460,43 +469,43 @@ export function drawElement(ctx, element, selected = false) {
 
         ctx.globalAlpha = previousAlpha;
     } else if (element.type === "text") {
-        const fontSize = element.fontSize || 20;
-        const lineHeight = element.lineHeight || Math.round(fontSize * 1.2);
-        const fontFamily =
-            element.fontFamily ||
-            "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif";
-        const bold = !!element.bold;
-        const italic = !!element.italic;
-        const underline = !!element.underline;
+        const style = normalizeTextStyle(element);
 
         ctx.setLineDash([]);
-        ctx.font = `${italic ? "italic" : "normal"} ${bold ? "700" : "400"} ${fontSize}px ${fontFamily}`;
-        ctx.fillStyle = element.stroke || "#111827";
+        ctx.font = buildTextCanvasFont(style);
+        ctx.fillStyle = style.stroke;
         ctx.textBaseline = "top";
+        ctx.textAlign = style.textAlign;
 
         const lines = String(element.text || "").split("\n");
 
         lines.forEach((line, index) => {
-            const textX = element.x;
-            const textY = element.y + index * lineHeight;
+            const textX = getTextAnchorX(element, style);
+            const textY = element.y + index * style.lineHeight;
 
             ctx.fillText(line, textX, textY);
 
-            if (underline && line) {
+            if (style.underline && line) {
                 const metrics = ctx.measureText(line);
-                const underlineY = textY + fontSize + 2;
+                const underlineY = textY + style.fontSize + 2;
+                const underlineBounds = getUnderlineBounds(
+                    textX,
+                    metrics.width,
+                    style
+                );
 
                 ctx.save();
                 ctx.beginPath();
-                ctx.strokeStyle = element.stroke || "#111827";
-                ctx.lineWidth = Math.max(1, Math.round(fontSize / 14));
-                ctx.moveTo(textX, underlineY);
-                ctx.lineTo(textX + metrics.width, underlineY);
+                ctx.strokeStyle = style.stroke;
+                ctx.lineWidth = Math.max(1, Math.round(style.fontSize / 14));
+                ctx.moveTo(underlineBounds.startX, underlineY);
+                ctx.lineTo(underlineBounds.endX, underlineY);
                 ctx.stroke();
                 ctx.restore();
             }
         });
     }
+
 
     if (selected) {
         const box = getSelectionBox(element);

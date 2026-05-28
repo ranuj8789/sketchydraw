@@ -48,7 +48,7 @@ export const FONT_FAMILY_OPTIONS = [
     {
         id: "notebook",
         label: "Notebook Sans",
-        value: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif",
+        value: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
     },
     {
         id: "sans",
@@ -58,7 +58,7 @@ export const FONT_FAMILY_OPTIONS = [
     {
         id: "mono",
         label: "Code",
-        value: "Courier New, monospace",
+        value: '"Courier New", monospace',
     },
     {
         id: "serif",
@@ -70,8 +70,10 @@ export const FONT_FAMILY_OPTIONS = [
 export const DEFAULT_TEXT_STYLE = {
     fontSize: FONT_SIZE_OPTIONS.M.fontSize,
     lineHeight: FONT_SIZE_OPTIONS.M.lineHeight,
-    fontFamily: '"Caveat", cursive',
+    fontFamily: '"Kalam", cursive',
     bold: false,
     italic: false,
     underline: false,
+    textAlign: "left",
+    stroke: "#111827",
 };
