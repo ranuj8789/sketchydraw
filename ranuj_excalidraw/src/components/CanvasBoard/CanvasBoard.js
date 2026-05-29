@@ -1733,7 +1733,7 @@ export default function CanvasBoard({
                 });
 
                 if (hint) {
-                    const bindPoint = gridActive ? snapPoint : hint.point;
+                    const bindPoint = hint.point;
                     snapPoint = bindPoint;
                     snapShapeId = hint.shapeId;
                     snapBinding = createBindingForPoint(hint.shape, bindPoint);
@@ -1888,7 +1888,7 @@ export default function CanvasBoard({
                 });
 
                 if (hint) {
-                    const bindPoint = gridActive ? bindSearchPoint : hint.point;
+                    const bindPoint = hint.point;
                     drawPoint = bindPoint;
                     endBinding = createBindingForPoint(hint.shape, bindPoint);
                     nextConnectionHint = {

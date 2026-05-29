@@ -82,7 +82,7 @@ export function applyArrowStartBinding({
     // Grid ON callers pass a snapped `point` and set preferInputPoint=true,
     // so the connector starts exactly on a grid point.
     // Grid OFF keeps the natural object border point.
-    const bindPoint = preferInputPoint ? point : startHint.point;
+    const bindPoint = startHint.point;
 
     return {
         ...draft,
@@ -243,7 +243,11 @@ export function moveConnectedArrows(elements, movingIds, dx, dy, moveElement) {
 
 function findEndpointNearMovedShape({ connector, endpoint, movedShapes, threshold }) {
     const point = endpointPoint(connector, endpoint);
-    return findBindableShapeNearPoint(movedShapes, point, threshold);
+    const oppositePoint = endpointPoint(connector, endpoint === "start" ? "end" : "start");
+
+    return findBindableShapeNearPoint(movedShapes, point, threshold, {
+        fromPoint: oppositePoint,
+    });
 }
 
 export function bindMovedShapesToNearbyConnectors(elements, movingIds, threshold = 18) {

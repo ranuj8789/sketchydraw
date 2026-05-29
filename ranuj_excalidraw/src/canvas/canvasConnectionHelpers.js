@@ -87,17 +87,6 @@ function getClosestPointOnRectBounds(bounds, point) {
     return { x: clampedX, y: b.bottom };
 }
 
-/**
- * This is the important function.
- *
- * It finds where the connector line from `fromPoint` to `toPoint`
- * touches the shape box.
- *
- * Example:
- * line starts left side, mouse near rectangle left edge
- * => attach to rectangle left edge at same Y
- * => no jump to top/bottom/right.
- */
 function getLineRectIntersectionPoint(bounds, fromPoint, toPoint) {
     if (!bounds || !fromPoint || !toPoint) {
         return null;
@@ -119,22 +108,14 @@ function getLineRectIntersectionPoint(bounds, fromPoint, toPoint) {
         const yLeft = fromPoint.y + tLeft * dy;
 
         if (tLeft >= 0 && yLeft >= b.top && yLeft <= b.bottom) {
-            candidates.push({
-                x: b.left,
-                y: yLeft,
-                t: tLeft,
-            });
+            candidates.push({ x: b.left, y: yLeft, t: tLeft });
         }
 
         const tRight = (b.right - fromPoint.x) / dx;
         const yRight = fromPoint.y + tRight * dy;
 
         if (tRight >= 0 && yRight >= b.top && yRight <= b.bottom) {
-            candidates.push({
-                x: b.right,
-                y: yRight,
-                t: tRight,
-            });
+            candidates.push({ x: b.right, y: yRight, t: tRight });
         }
     }
 
@@ -143,22 +124,14 @@ function getLineRectIntersectionPoint(bounds, fromPoint, toPoint) {
         const xTop = fromPoint.x + tTop * dx;
 
         if (tTop >= 0 && xTop >= b.left && xTop <= b.right) {
-            candidates.push({
-                x: xTop,
-                y: b.top,
-                t: tTop,
-            });
+            candidates.push({ x: xTop, y: b.top, t: tTop });
         }
 
         const tBottom = (b.bottom - fromPoint.y) / dy;
         const xBottom = fromPoint.x + tBottom * dx;
 
         if (tBottom >= 0 && xBottom >= b.left && xBottom <= b.right) {
-            candidates.push({
-                x: xBottom,
-                y: b.bottom,
-                t: tBottom,
-            });
+            candidates.push({ x: xBottom, y: b.bottom, t: tBottom });
         }
     }
 
@@ -174,10 +147,81 @@ function getLineRectIntersectionPoint(bounds, fromPoint, toPoint) {
     };
 }
 
+function getEllipseBoundaryPoint(shape, fromPoint) {
+    const bounds = getElementBounds(shape);
+    if (!bounds || !fromPoint) return null;
+
+    const b = normalizeBounds(bounds);
+
+    const cx = b.x + b.w / 2;
+    const cy = b.y + b.h / 2;
+    const rx = b.w / 2;
+    const ry = b.h / 2;
+
+    const dx = fromPoint.x - cx;
+    const dy = fromPoint.y - cy;
+
+    if (Math.abs(dx) < 0.0001 && Math.abs(dy) < 0.0001) {
+        return { x: cx + rx, y: cy };
+    }
+
+    const scale = 1 / Math.sqrt((dx * dx) / (rx * rx) + (dy * dy) / (ry * ry));
+
+    return {
+        x: cx + dx * scale,
+        y: cy + dy * scale,
+    };
+}
+
+function getDiamondBoundaryPoint(shape, fromPoint) {
+    const bounds = getElementBounds(shape);
+    if (!bounds || !fromPoint) return null;
+
+    const b = normalizeBounds(bounds);
+
+    const cx = b.x + b.w / 2;
+    const cy = b.y + b.h / 2;
+    const halfW = b.w / 2;
+    const halfH = b.h / 2;
+
+    const dx = fromPoint.x - cx;
+    const dy = fromPoint.y - cy;
+
+    if (Math.abs(dx) < 0.0001 && Math.abs(dy) < 0.0001) {
+        return { x: cx + halfW, y: cy };
+    }
+
+    const scale = 1 / (Math.abs(dx) / halfW + Math.abs(dy) / halfH);
+
+    return {
+        x: cx + dx * scale,
+        y: cy + dy * scale,
+    };
+}
+
 export function getClosestPointOnBounds(element, point, fromPoint = null) {
     const bounds = getElementBounds(element);
     if (!bounds) return null;
 
+    /**
+     * Ellipse/diamond must bind to the real visible outline, not the
+     * rectangular selection box. If fromPoint is available, use the connector's
+     * opposite endpoint to calculate the natural boundary intersection. If it
+     * is not available, use the pointer itself as the direction reference.
+     */
+    const referencePoint = fromPoint || point;
+
+    if (element.type === "ellipse") {
+        return getEllipseBoundaryPoint(element, referencePoint);
+    }
+
+    if (element.type === "diamond") {
+        return getDiamondBoundaryPoint(element, referencePoint);
+    }
+
+    /**
+     * Rect/image/text keep the old stable bounds behavior.
+     */
     if (fromPoint) {
         return getLineRectIntersectionPoint(bounds, fromPoint, point);
     }
@@ -214,10 +258,26 @@ export function getPointFromBinding(shape, binding) {
     const anchorX = typeof binding?.anchorX === "number" ? binding.anchorX : 0.5;
     const anchorY = typeof binding?.anchorY === "number" ? binding.anchorY : 0.5;
 
-    return {
+    const rawPoint = {
         x: b.x + b.w * anchorX,
         y: b.y + b.h * anchorY,
     };
+
+    /**
+     * Important:
+     * For ellipse/diamond, older bindings may have been saved against the
+     * rectangular selection bounds. Always project the stored anchor back to
+     * the actual visible outline when resolving the connector.
+     */
+    if (shape.type === "ellipse") {
+        return getEllipseBoundaryPoint(shape, rawPoint);
+    }
+
+    if (shape.type === "diamond") {
+        return getDiamondBoundaryPoint(shape, rawPoint);
+    }
+
+    return rawPoint;
 }
 
 export function findBindableShapeNearPoint(elements, point, threshold = 14, options = {}) {
@@ -234,16 +294,14 @@ export function findBindableShapeNearPoint(elements, point, threshold = 14, opti
         const dy = closest.y - point.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
-        if (dist <= threshold) {
-            if (!best || dist < best.dist) {
-                best = {
-                    shapeId: shape.id,
-                    shape,
-                    point: closest,
-                    dist,
-                    binding: createBindingForPoint(shape, closest),
-                };
-            }
+        if (dist <= threshold && (!best || dist < best.dist)) {
+            best = {
+                shapeId: shape.id,
+                shape,
+                point: closest,
+                dist,
+                binding: createBindingForPoint(shape, closest),
+            };
         }
     }
 
