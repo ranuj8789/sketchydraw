@@ -1,21 +1,21 @@
-import React, { useEffect, useRef, useState } from "react";
-import { normalizeTextStyle } from "../../canvas/textRenderStyle";
+import React, {useEffect, useRef, useState} from "react";
+import {normalizeTextStyle} from "../../canvas/textRenderStyle";
 import MyDrawingsPopup from "../MyDrawingsPopup/MyDrawingsPopup";
-import { isPaidUser } from "../../utils/auth";
+import {isPaidUser} from "../../utils/auth";
 import "./CanvasBoard.css";
 import TextEditor from "./../TextEditor";
-import { getPointerPosition } from "../../utils/geometry";
+import {getPointerPosition} from "../../utils/geometry";
 import {
     createBindingForPoint,
     findBindableShapeNearPoint,
     isConnectorElement,
 } from "../../canvas/canvasConnectionHelpers";
-import { DEFAULT_TEXT_STYLE } from "../../canvas/textStyle";
+import {DEFAULT_TEXT_STYLE} from "../../canvas/textStyle";
 import {
     getElementBounds,
     getResizeHandleAtPoint,
 } from "../../utils/elementBounds";
-import { resizeElement } from "../../utils/resize";
+import {resizeElement} from "../../utils/resize";
 import {
     AUTO_SELECT_TYPES,
     SHAPE_TYPES,
@@ -41,7 +41,7 @@ import {
     normalizeSelectionRect,
     rectsIntersect,
 } from "../../canvas/canvasBoardUtils";
-import { getCursorForHandle } from "../../canvas/canvasCursor";
+import {getCursorForHandle} from "../../canvas/canvasCursor";
 import {
     createTextElementHelper,
     updateTextElementHelper,
@@ -53,11 +53,11 @@ import {
     bindMovedShapesToNearbyConnectors,
     resolveArrowBindings,
 } from "../../canvas/canvasArrowBindings";
-import { useCanvasResize } from "../../canvas/useCanvasResize";
-import { useCanvasRender } from "../../canvas/useCanvasRender";
-import { renderCanvas } from "../../canvas/canvasRender";
-import { useCanvasKeyboardShortcuts } from "../../canvas/useCanvasKeyboardShortcuts";
-import { screenToWorld } from "../../canvas/canvasViewport";
+import {useCanvasResize} from "../../canvas/useCanvasResize";
+import {useCanvasRender} from "../../canvas/useCanvasRender";
+import {renderCanvas} from "../../canvas/canvasRender";
+import {useCanvasKeyboardShortcuts} from "../../canvas/useCanvasKeyboardShortcuts";
+import {screenToWorld} from "../../canvas/canvasViewport";
 import BoardContextMenu from "../BoardContextMenu";
 import {
     exportCanvasToPDF,
@@ -68,16 +68,16 @@ import {
 } from "../../utils/exportBoard";
 
 import CanvasBoardActions from "./CanvasBoardActions/CanvasBoardActions";
-import { useSaveDrawing } from "./useSaveDrawing";
-import { useVideoExport } from "./useVideoExport";
+import {useSaveDrawing} from "./useSaveDrawing";
+import {useVideoExport} from "./useVideoExport";
 import SaveDrawingPopup from "../SaveDrawingPopup/SaveDrawingPopup";
-import { DEFAULT_GROUP, DEFAULT_TITLE } from "../DrawingGroupStore/drawingGroupStore";
+import {DEFAULT_GROUP, DEFAULT_TITLE} from "../DrawingGroupStore/drawingGroupStore";
 import {
     getLocalDrawingById,
     getLatestLocalDrawing,
     saveLocalDrawing,
 } from "../DrawingGroupStore/localDrawingStore";
-import { saveDrawingSnapshotAsync } from "../../utils/indexedDbStorage";
+import {saveDrawingSnapshotAsync} from "../../utils/indexedDbStorage";
 
 const ERASER_CURSOR_SVG = `
 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
@@ -95,6 +95,7 @@ const ERASER_CURSOR = `url("data:image/svg+xml;charset=utf-8,${encodeURIComponen
 
 const ALIGNMENT_SNAP_THRESHOLD = 18;
 const GRID_SIZE = 24;
+const SINGLE_CLICK_DELAY = 20;
 
 function snapValueToGrid(value, gridSize = GRID_SIZE) {
     return Math.round(value / gridSize) * gridSize;
@@ -134,6 +135,28 @@ function getGroupBounds(items) {
 
 function isRectangleContainer(element) {
     return element?.type === "rect" || element?.type === "rectangle";
+}
+
+function isPointOnRectangleStroke(element, point, tolerance = 14) {
+    if (!isRectangleContainer(element)) return false;
+
+    const bounds = getElementBounds(element);
+    if (!bounds) return false;
+
+    const inside =
+        point.x >= bounds.x &&
+        point.x <= bounds.x + bounds.w &&
+        point.y >= bounds.y &&
+        point.y <= bounds.y + bounds.h;
+
+    if (!inside) return false;
+
+    const nearLeft = Math.abs(point.x - bounds.x) <= tolerance;
+    const nearRight = Math.abs(point.x - (bounds.x + bounds.w)) <= tolerance;
+    const nearTop = Math.abs(point.y - bounds.y) <= tolerance;
+    const nearBottom = Math.abs(point.y - (bounds.y + bounds.h)) <= tolerance;
+
+    return nearLeft || nearRight || nearTop || nearBottom;
 }
 
 function isBoundsInside(inner, outer, padding = 1) {
@@ -274,19 +297,19 @@ function getImageSize(src) {
 function getAlignmentPoints(bounds) {
     return {
         vertical: [
-            { key: "left", value: bounds.x },
-            { key: "centerX", value: bounds.x + bounds.w / 2 },
-            { key: "right", value: bounds.x + bounds.w },
+            {key: "left", value: bounds.x},
+            {key: "centerX", value: bounds.x + bounds.w / 2},
+            {key: "right", value: bounds.x + bounds.w},
         ],
         horizontal: [
-            { key: "top", value: bounds.y },
-            { key: "centerY", value: bounds.y + bounds.h / 2 },
-            { key: "bottom", value: bounds.y + bounds.h },
+            {key: "top", value: bounds.y},
+            {key: "centerY", value: bounds.y + bounds.h / 2},
+            {key: "bottom", value: bounds.y + bounds.h},
         ],
     };
 }
 
-function getSmartAlignment({ elements, movingIds, movedElements }) {
+function getSmartAlignment({elements, movingIds, movedElements}) {
     let bestVertical = null;
     let bestHorizontal = null;
 
@@ -354,10 +377,10 @@ function getSmartAlignment({ elements, movingIds, movedElements }) {
     };
 }
 
-function getResizeSmartAlignment({ elements, resizingId, resizedElement, handle }) {
+function getResizeSmartAlignment({elements, resizingId, resizedElement, handle}) {
     const resizedBounds = getElementBounds(resizedElement);
     if (!resizedBounds) {
-        return { guides: [], snapDx: 0, snapDy: 0 };
+        return {guides: [], snapDx: 0, snapDy: 0};
     }
 
     const resizedPoints = getAlignmentPoints(resizedBounds);
@@ -463,6 +486,7 @@ export default function CanvasBoard({
     const imageInsertPointRef = useRef(null);
     const pointerMoveFrameRef = useRef(null);
     const latestPointerMoveEventRef = useRef(null);
+    const singleClickTimerRef = useRef(null);
 
     const elementsRef = useRef(elements);
     const selectedIdsRef = useRef(selectedIds);
@@ -654,6 +678,13 @@ export default function CanvasBoard({
         dragPreviewElementsRef.current = null;
     };
 
+    const clearSingleClickTimer = () => {
+        if (singleClickTimerRef.current) {
+            window.clearTimeout(singleClickTimerRef.current);
+            singleClickTimerRef.current = null;
+        }
+    };
+
     const renderLivePreview = (nextElements, guides = [], hint = null, nextSelectedIds = selectedIdsRef.current) => {
         const canvas = canvasRef.current;
 
@@ -699,6 +730,11 @@ export default function CanvasBoard({
             if (pointerMoveFrameRef.current !== null) {
                 window.cancelAnimationFrame(pointerMoveFrameRef.current);
                 pointerMoveFrameRef.current = null;
+            }
+
+            if (singleClickTimerRef.current) {
+                window.clearTimeout(singleClickTimerRef.current);
+                singleClickTimerRef.current = null;
             }
         };
     }, []);
@@ -1277,11 +1313,15 @@ export default function CanvasBoard({
 
     const startTextCreate = (point, parentId = null, forcedStroke = stroke) => {
         textCommitLockRef.current = Date.now() + 300;
+
         const textPoint = isGridSnapActive(showGridRef.current, canvasPropsRef.current)
             ? snapPointToGrid(point)
             : point;
 
-        setSelectedIds([]);
+        if (!parentId) {
+            setSelectedIds([]);
+        }
+
         setDragState(null);
 
         const style = normalizeTextStyle({
@@ -1384,6 +1424,36 @@ export default function CanvasBoard({
             return;
         }
 
+        const isAlreadySelected = selectedIds.includes(target.id);
+
+        /**
+         * Rectangle behavior:
+         * - Inside single click: select after delay, move nahi.
+         * - Inside double click: delayed select cancel hoga, text create hoga.
+         * - Border/circumference click+drag: immediate select + move.
+         */
+        if (isRectangleContainer(target)) {
+            const isOnStroke = isPointOnRectangleStroke(target, point);
+
+            if (!isOnStroke) {
+                clearSingleClickTimer();
+
+                singleClickTimerRef.current = window.setTimeout(() => {
+                    setSelectedIds([target.id]);
+                    setDragState(null);
+                    clearDragPreviewRefs();
+                    singleClickTimerRef.current = null;
+                }, SINGLE_CLICK_DELAY);
+
+                return;
+            }
+
+            clearSingleClickTimer();
+            setSelectedIds([target.id]);
+            startMove(target, point);
+            return;
+        }
+
         if (target.type === "text") {
             startMove(target, point);
             return;
@@ -1393,6 +1463,13 @@ export default function CanvasBoard({
 
         if (handle && target.type !== "pencil") {
             startResize(target, handle, point);
+            return;
+        }
+
+        if (!isAlreadySelected) {
+            setSelectedIds([target.id]);
+            setDragState(null);
+            clearDragPreviewRefs();
             return;
         }
 
@@ -1497,6 +1574,10 @@ export default function CanvasBoard({
         if (Date.now() < textCommitLockRef.current) {
             event.preventDefault();
             event.stopPropagation();
+            return;
+        }
+
+        if (editor) {
             return;
         }
 
@@ -1618,6 +1699,7 @@ export default function CanvasBoard({
 
         if (!dragState && tool === "select" && !isSpacePressed) {
             let cursor = "default";
+            const target = findTopElementAtPoint(elements, point);
 
             if (selectedIds.length === 1) {
                 const selectedElementObj = elements.find(
@@ -1645,9 +1727,12 @@ export default function CanvasBoard({
 
                         if (handle) {
                             cursor = getCursorForHandle(handle);
-                        } else {
-                            const target = findTopElementAtPoint(elements, point);
-                            if (target) {
+                        } else if (target) {
+                            if (isRectangleContainer(target)) {
+                                cursor = isPointOnRectangleStroke(target, point)
+                                    ? "move"
+                                    : "default";
+                            } else {
                                 cursor =
                                     target.type === "line" || target.type === "arrow"
                                         ? "pointer"
@@ -1666,9 +1751,12 @@ export default function CanvasBoard({
 
                     if (handle) {
                         cursor = getCursorForHandle(handle);
-                    } else {
-                        const target = findTopElementAtPoint(elements, point);
-                        if (target) {
+                    } else if (target) {
+                        if (isRectangleContainer(target)) {
+                            cursor = isPointOnRectangleStroke(target, point)
+                                ? "move"
+                                : "default";
+                        } else {
                             cursor =
                                 target.type === "line" || target.type === "arrow"
                                     ? "pointer"
@@ -1676,9 +1764,12 @@ export default function CanvasBoard({
                         }
                     }
                 }
-            } else {
-                const target = findTopElementAtPoint(elements, point);
-                if (target) {
+            } else if (target) {
+                if (isRectangleContainer(target)) {
+                    cursor = isPointOnRectangleStroke(target, point)
+                        ? "move"
+                        : "default";
+                } else {
                     cursor =
                         target.type === "line" || target.type === "arrow"
                             ? "pointer"
@@ -1711,8 +1802,8 @@ export default function CanvasBoard({
             if (movingEndpoint) {
                 const oppositePoint =
                     dragState.handle === "start"
-                        ? { x: currentElement.x2, y: currentElement.y2 }
-                        : { x: currentElement.x1, y: currentElement.y1 };
+                        ? {x: currentElement.x2, y: currentElement.y2}
+                        : {x: currentElement.x1, y: currentElement.y1};
 
                 const rawEndpointPoint = gridActive ? snapPoint : point;
 
@@ -1755,7 +1846,7 @@ export default function CanvasBoard({
                         finalPoint = snapPoint;
                     } else {
                         finalPoint = getStableStraightLineEnd(
-                            { x: el.x2, y: el.y2 },
+                            {x: el.x2, y: el.y2},
                             snapPoint
                         );
                     }
@@ -1787,7 +1878,7 @@ export default function CanvasBoard({
                         finalPoint = snapPoint;
                     } else {
                         finalPoint = getStableStraightLineEnd(
-                            { x: el.x1, y: el.y1 },
+                            {x: el.x1, y: el.y1},
                             snapPoint
                         );
                     }
@@ -1935,7 +2026,14 @@ export default function CanvasBoard({
 
             let dx = point.x - dragState.startX;
             let dy = point.y - dragState.startY;
+            const dragDistance = Math.hypot(dx, dy);
+
+            if (dragDistance < 3) {
+                return;
+            }
+
             const movingIds = new Set(dragState.ids);
+
             const baseElements = dragBaseElementsRef.current || elementsRef.current;
             const gridActive = isGridSnapActive(showGridRef.current, canvasPropsRef.current);
 
@@ -2124,6 +2222,50 @@ export default function CanvasBoard({
             return;
         }
 
+        const canvas = canvasRef.current;
+
+        /**
+         * IMPORTANT:
+         * Double-click text create/edit ke time first click move mode start kar deta hai.
+         * Agar mouse 1-2px bhi hila, rectangle thoda shift ho jata hai.
+         * Isliye mouseUp pe bhi check kar rahe hain:
+         * agar actual movement 3px se kam hai, toh move commit mat karo.
+         */
+        if (dragState?.mode === "move" && event && canvas) {
+            const rawPoint = getPointerPosition(event, canvas);
+            const point = screenToWorld(rawPoint, viewportRef.current);
+
+            const dx = point.x - dragState.startX;
+            const dy = point.y - dragState.startY;
+            const dragDistance = Math.hypot(dx, dy);
+
+            if (dragDistance < 3) {
+                if (pointerMoveFrameRef.current !== null) {
+                    window.cancelAnimationFrame(pointerMoveFrameRef.current);
+                    pointerMoveFrameRef.current = null;
+                }
+
+                latestPointerMoveEventRef.current = null;
+
+                // restore original elements, because tiny move should not update canvas state
+                const baseElements = dragBaseElementsRef.current || elementsRef.current || elements;
+
+                elementsRef.current = baseElements;
+                dragPreviewElementsRef.current = null;
+                dragBaseElementsRef.current = null;
+
+                setDragState(null);
+                setConnectionHint(null);
+                setAlignmentGuides([]);
+
+                if (canvas) {
+                    canvas.style.cursor = getIdleCanvasCursor(tool, isSpacePressed);
+                }
+
+                return;
+            }
+        }
+
         if (dragState && event) {
             runMouseMove(event);
         } else if (dragState && latestPointerMoveEventRef.current) {
@@ -2134,6 +2276,7 @@ export default function CanvasBoard({
             window.cancelAnimationFrame(pointerMoveFrameRef.current);
             pointerMoveFrameRef.current = null;
         }
+
         latestPointerMoveEventRef.current = null;
 
         setAlignmentGuides([]);
@@ -2144,7 +2287,6 @@ export default function CanvasBoard({
             setDragState(null);
             clearDragPreviewRefs();
 
-            const canvas = canvasRef.current;
             if (canvas) {
                 canvas.style.cursor = getIdleCanvasCursor(tool, isSpacePressed);
             }
@@ -2158,7 +2300,6 @@ export default function CanvasBoard({
             setConnectionHint(null);
             clearDragPreviewRefs();
 
-            const canvas = canvasRef.current;
             if (canvas) {
                 canvas.style.cursor = getIdleCanvasCursor(tool, isSpacePressed);
             }
@@ -2194,7 +2335,6 @@ export default function CanvasBoard({
             setTool("select");
         }
 
-        const canvas = canvasRef.current;
         if (canvas) {
             canvas.style.cursor = getIdleCanvasCursor(tool, isSpacePressed);
         }
@@ -2203,6 +2343,10 @@ export default function CanvasBoard({
     const onDoubleClick = (event) => {
         event.preventDefault();
         event.stopPropagation();
+
+        clearSingleClickTimer();
+        setDragState(null);
+        clearDragPreviewRefs();
 
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -2345,7 +2489,7 @@ export default function CanvasBoard({
                     ref={imageInputRef}
                     type="file"
                     accept="image/*"
-                    style={{ display: "none" }}
+                    style={{display: "none"}}
                     onChange={handleImageFileSelected}
                 />
 
