@@ -95,7 +95,6 @@ const ERASER_CURSOR = `url("data:image/svg+xml;charset=utf-8,${encodeURIComponen
 
 const ALIGNMENT_SNAP_THRESHOLD = 18;
 const GRID_SIZE = 24;
-const SINGLE_CLICK_DELAY = 20;
 
 function snapValueToGrid(value, gridSize = GRID_SIZE) {
     return Math.round(value / gridSize) * gridSize;
@@ -135,28 +134,6 @@ function getGroupBounds(items) {
 
 function isRectangleContainer(element) {
     return element?.type === "rect" || element?.type === "rectangle";
-}
-
-function isPointOnRectangleStroke(element, point, tolerance = 14) {
-    if (!isRectangleContainer(element)) return false;
-
-    const bounds = getElementBounds(element);
-    if (!bounds) return false;
-
-    const inside =
-        point.x >= bounds.x &&
-        point.x <= bounds.x + bounds.w &&
-        point.y >= bounds.y &&
-        point.y <= bounds.y + bounds.h;
-
-    if (!inside) return false;
-
-    const nearLeft = Math.abs(point.x - bounds.x) <= tolerance;
-    const nearRight = Math.abs(point.x - (bounds.x + bounds.w)) <= tolerance;
-    const nearTop = Math.abs(point.y - bounds.y) <= tolerance;
-    const nearBottom = Math.abs(point.y - (bounds.y + bounds.h)) <= tolerance;
-
-    return nearLeft || nearRight || nearTop || nearBottom;
 }
 
 function isBoundsInside(inner, outer, padding = 1) {
@@ -486,7 +463,6 @@ export default function CanvasBoard({
     const imageInsertPointRef = useRef(null);
     const pointerMoveFrameRef = useRef(null);
     const latestPointerMoveEventRef = useRef(null);
-    const singleClickTimerRef = useRef(null);
 
     const elementsRef = useRef(elements);
     const selectedIdsRef = useRef(selectedIds);
@@ -678,13 +654,6 @@ export default function CanvasBoard({
         dragPreviewElementsRef.current = null;
     };
 
-    const clearSingleClickTimer = () => {
-        if (singleClickTimerRef.current) {
-            window.clearTimeout(singleClickTimerRef.current);
-            singleClickTimerRef.current = null;
-        }
-    };
-
     const renderLivePreview = (nextElements, guides = [], hint = null, nextSelectedIds = selectedIdsRef.current) => {
         const canvas = canvasRef.current;
 
@@ -730,11 +699,6 @@ export default function CanvasBoard({
             if (pointerMoveFrameRef.current !== null) {
                 window.cancelAnimationFrame(pointerMoveFrameRef.current);
                 pointerMoveFrameRef.current = null;
-            }
-
-            if (singleClickTimerRef.current) {
-                window.clearTimeout(singleClickTimerRef.current);
-                singleClickTimerRef.current = null;
             }
         };
     }, []);
@@ -1300,7 +1264,6 @@ export default function CanvasBoard({
 
         dragBaseElementsRef.current = elementsRef.current;
         dragPreviewElementsRef.current = elementsRef.current;
-
         setSelectedIds(idsToMove);
 
         setDragState({
@@ -1313,15 +1276,11 @@ export default function CanvasBoard({
 
     const startTextCreate = (point, parentId = null, forcedStroke = stroke) => {
         textCommitLockRef.current = Date.now() + 300;
-
         const textPoint = isGridSnapActive(showGridRef.current, canvasPropsRef.current)
             ? snapPointToGrid(point)
             : point;
 
-        if (!parentId) {
-            setSelectedIds([]);
-        }
-
+        setSelectedIds([]);
         setDragState(null);
 
         const style = normalizeTextStyle({
@@ -1426,31 +1385,10 @@ export default function CanvasBoard({
 
         const isAlreadySelected = selectedIds.includes(target.id);
 
-        /**
-         * Rectangle behavior:
-         * - Inside single click: select after delay, move nahi.
-         * - Inside double click: delayed select cancel hoga, text create hoga.
-         * - Border/circumference click+drag: immediate select + move.
-         */
-        if (isRectangleContainer(target)) {
-            const isOnStroke = isPointOnRectangleStroke(target, point);
-
-            if (!isOnStroke) {
-                clearSingleClickTimer();
-
-                singleClickTimerRef.current = window.setTimeout(() => {
-                    setSelectedIds([target.id]);
-                    setDragState(null);
-                    clearDragPreviewRefs();
-                    singleClickTimerRef.current = null;
-                }, SINGLE_CLICK_DELAY);
-
-                return;
-            }
-
-            clearSingleClickTimer();
+        if (!isAlreadySelected) {
             setSelectedIds([target.id]);
-            startMove(target, point);
+            setDragState(null);
+            clearDragPreviewRefs();
             return;
         }
 
@@ -1463,13 +1401,6 @@ export default function CanvasBoard({
 
         if (handle && target.type !== "pencil") {
             startResize(target, handle, point);
-            return;
-        }
-
-        if (!isAlreadySelected) {
-            setSelectedIds([target.id]);
-            setDragState(null);
-            clearDragPreviewRefs();
             return;
         }
 
@@ -1570,12 +1501,6 @@ export default function CanvasBoard({
 
         const canvas = canvasRef.current;
         if (!canvas) return;
-
-        if (Date.now() < textCommitLockRef.current) {
-            event.preventDefault();
-            event.stopPropagation();
-            return;
-        }
 
         if (editor) {
             return;
@@ -1699,7 +1624,6 @@ export default function CanvasBoard({
 
         if (!dragState && tool === "select" && !isSpacePressed) {
             let cursor = "default";
-            const target = findTopElementAtPoint(elements, point);
 
             if (selectedIds.length === 1) {
                 const selectedElementObj = elements.find(
@@ -1727,12 +1651,9 @@ export default function CanvasBoard({
 
                         if (handle) {
                             cursor = getCursorForHandle(handle);
-                        } else if (target) {
-                            if (isRectangleContainer(target)) {
-                                cursor = isPointOnRectangleStroke(target, point)
-                                    ? "move"
-                                    : "default";
-                            } else {
+                        } else {
+                            const target = findTopElementAtPoint(elements, point);
+                            if (target) {
                                 cursor =
                                     target.type === "line" || target.type === "arrow"
                                         ? "pointer"
@@ -1751,12 +1672,9 @@ export default function CanvasBoard({
 
                     if (handle) {
                         cursor = getCursorForHandle(handle);
-                    } else if (target) {
-                        if (isRectangleContainer(target)) {
-                            cursor = isPointOnRectangleStroke(target, point)
-                                ? "move"
-                                : "default";
-                        } else {
+                    } else {
+                        const target = findTopElementAtPoint(elements, point);
+                        if (target) {
                             cursor =
                                 target.type === "line" || target.type === "arrow"
                                     ? "pointer"
@@ -1764,12 +1682,9 @@ export default function CanvasBoard({
                         }
                     }
                 }
-            } else if (target) {
-                if (isRectangleContainer(target)) {
-                    cursor = isPointOnRectangleStroke(target, point)
-                        ? "move"
-                        : "default";
-                } else {
+            } else {
+                const target = findTopElementAtPoint(elements, point);
+                if (target) {
                     cursor =
                         target.type === "line" || target.type === "arrow"
                             ? "pointer"
@@ -2026,11 +1941,6 @@ export default function CanvasBoard({
 
             let dx = point.x - dragState.startX;
             let dy = point.y - dragState.startY;
-            const dragDistance = Math.hypot(dx, dy);
-
-            if (dragDistance < 3) {
-                return;
-            }
 
             const movingIds = new Set(dragState.ids);
 
@@ -2222,50 +2132,6 @@ export default function CanvasBoard({
             return;
         }
 
-        const canvas = canvasRef.current;
-
-        /**
-         * IMPORTANT:
-         * Double-click text create/edit ke time first click move mode start kar deta hai.
-         * Agar mouse 1-2px bhi hila, rectangle thoda shift ho jata hai.
-         * Isliye mouseUp pe bhi check kar rahe hain:
-         * agar actual movement 3px se kam hai, toh move commit mat karo.
-         */
-        if (dragState?.mode === "move" && event && canvas) {
-            const rawPoint = getPointerPosition(event, canvas);
-            const point = screenToWorld(rawPoint, viewportRef.current);
-
-            const dx = point.x - dragState.startX;
-            const dy = point.y - dragState.startY;
-            const dragDistance = Math.hypot(dx, dy);
-
-            if (dragDistance < 3) {
-                if (pointerMoveFrameRef.current !== null) {
-                    window.cancelAnimationFrame(pointerMoveFrameRef.current);
-                    pointerMoveFrameRef.current = null;
-                }
-
-                latestPointerMoveEventRef.current = null;
-
-                // restore original elements, because tiny move should not update canvas state
-                const baseElements = dragBaseElementsRef.current || elementsRef.current || elements;
-
-                elementsRef.current = baseElements;
-                dragPreviewElementsRef.current = null;
-                dragBaseElementsRef.current = null;
-
-                setDragState(null);
-                setConnectionHint(null);
-                setAlignmentGuides([]);
-
-                if (canvas) {
-                    canvas.style.cursor = getIdleCanvasCursor(tool, isSpacePressed);
-                }
-
-                return;
-            }
-        }
-
         if (dragState && event) {
             runMouseMove(event);
         } else if (dragState && latestPointerMoveEventRef.current) {
@@ -2278,10 +2144,11 @@ export default function CanvasBoard({
         }
 
         latestPointerMoveEventRef.current = null;
-
         setAlignmentGuides([]);
 
         if (!dragState) return;
+
+        const canvas = canvasRef.current;
 
         if (dragState.mode === "pan") {
             setDragState(null);
@@ -2343,10 +2210,6 @@ export default function CanvasBoard({
     const onDoubleClick = (event) => {
         event.preventDefault();
         event.stopPropagation();
-
-        clearSingleClickTimer();
-        setDragState(null);
-        clearDragPreviewRefs();
 
         const canvas = canvasRef.current;
         if (!canvas) return;
