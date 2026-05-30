@@ -33,6 +33,46 @@ const ARROW_OPTIONS = [
     { label: "Both", value: "both" },
 ];
 
+const TEXT_ANIMATION_OPTIONS = [
+    { label: "None", value: "none" },
+    { label: "Fade In", value: "fadeIn" },
+    { label: "Typewriter", value: "typewriter" },
+    { label: "Slide Up", value: "slideUp" },
+];
+
+const TEXT_ANIMATION_DURATION_OPTIONS = [
+    { label: "Fast", value: 600 },
+    { label: "Normal", value: 1000 },
+    { label: "Slow", value: 1500 },
+    { label: "Very Slow", value: 2200 },
+];
+
+const TEXT_ANIMATION_DELAY_OPTIONS = [
+    { label: "No Delay", value: 0 },
+    { label: "0.25s", value: 250 },
+    { label: "0.5s", value: 500 },
+    { label: "1s", value: 1000 },
+];
+
+function getTextAnimation(element) {
+    const animation = element?.animation || {};
+
+    return {
+        type: animation.type || "none",
+        durationMs: Number(animation.durationMs) || 1000,
+        delayMs: Number(animation.delayMs) || 0,
+    };
+}
+
+function textAnimationPatch(element, patch) {
+    return {
+        animation: {
+            ...getTextAnimation(element),
+            ...patch,
+        },
+    };
+}
+
 function getArrowValue(element) {
     const start = !!element?.arrowStart;
     const end =
@@ -124,6 +164,7 @@ export default function PropertiesPanel({
                                             updateCanvasProps,
                                         }) {
     const isText = selectedElement?.type === "text";
+    const currentTextAnimation = getTextAnimation(selectedElement);
 
     const [customFontFamily, setCustomFontFamily] = useState("Caveat");
     const [customFontSize, setCustomFontSize] = useState(
@@ -681,6 +722,77 @@ export default function PropertiesPanel({
                                 </div>
                             </div>
                         </>
+                    )}
+
+                    {isText && (
+                        <div className="property-section animation-property-section">
+                            <label>Text animation</label>
+
+                            <select
+                                value={currentTextAnimation.type}
+                                onChange={(e) =>
+                                    updateSelectedElementStyle?.(
+                                        textAnimationPatch(selectedElement, {
+                                            type: e.target.value,
+                                        })
+                                    )
+                                }
+                            >
+                                {TEXT_ANIMATION_OPTIONS.map((item) => (
+                                    <option key={item.value} value={item.value}>
+                                        {item.label}
+                                    </option>
+                                ))}
+                            </select>
+
+                            <div className="animation-config-grid">
+                                <label>
+                                    <span>Speed</span>
+                                    <select
+                                        value={currentTextAnimation.durationMs}
+                                        disabled={currentTextAnimation.type === "none"}
+                                        onChange={(e) =>
+                                            updateSelectedElementStyle?.(
+                                                textAnimationPatch(selectedElement, {
+                                                    durationMs: Number(e.target.value),
+                                                })
+                                            )
+                                        }
+                                    >
+                                        {TEXT_ANIMATION_DURATION_OPTIONS.map((item) => (
+                                            <option key={item.value} value={item.value}>
+                                                {item.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+
+                                <label>
+                                    <span>Delay</span>
+                                    <select
+                                        value={currentTextAnimation.delayMs}
+                                        disabled={currentTextAnimation.type === "none"}
+                                        onChange={(e) =>
+                                            updateSelectedElementStyle?.(
+                                                textAnimationPatch(selectedElement, {
+                                                    delayMs: Number(e.target.value),
+                                                })
+                                            )
+                                        }
+                                    >
+                                        {TEXT_ANIMATION_DELAY_OPTIONS.map((item) => (
+                                            <option key={item.value} value={item.value}>
+                                                {item.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+                            </div>
+
+                            <p className="animation-help-text">
+                                Animation applies during video export. Normal canvas editing stays stable.
+                            </p>
+                        </div>
                     )}
 
                     <button

@@ -1,6 +1,6 @@
 import { drawElement } from "../utils/drawing";
 import { getElementBounds } from "../utils/elementBounds";
-import { resetVideoFramesAsync, saveVideoFrameAsync } from "../utils/indexedDbStorage";
+import { resetVideoFramesNow, saveVideoFrameNow } from "../utils/indexedDbStorage";
 
 function wait(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -107,7 +107,72 @@ function getVideoTransform(bounds, canvasSize) {
     };
 }
 
-function drawFrame(canvas, elements, canvasSize, transform, canvasProps = {}) {
+function getElementSignature(element) {
+    if (!element) return "";
+
+    return JSON.stringify({
+        type: element.type,
+        text: element.text,
+        x: element.x,
+        y: element.y,
+        w: element.w,
+        h: element.h,
+        stroke: element.stroke,
+        fontSize: element.fontSize,
+        lineHeight: element.lineHeight,
+        fontFamily: element.fontFamily,
+        bold: element.bold,
+        italic: element.italic,
+        underline: element.underline,
+        textAlign: element.textAlign,
+        animation: element.animation,
+    });
+}
+
+function getAnimatedTextIds(previousElements = [], currentElements = []) {
+    const previousById = new Map(
+        (previousElements || []).map((element) => [element.id, element])
+    );
+
+    const ids = new Set();
+
+    (currentElements || []).forEach((element) => {
+        if (element?.type !== "text") return;
+        if (!element.animation || element.animation.type === "none") return;
+
+        const previous = previousById.get(element.id);
+
+        if (!previous || getElementSignature(previous) !== getElementSignature(element)) {
+            ids.add(element.id);
+        }
+    });
+
+    return ids;
+}
+
+function getMaxAnimationDuration(elements = [], activeAnimatedElementIds = new Set()) {
+    let maxDuration = 0;
+
+    (elements || []).forEach((element) => {
+        if (!activeAnimatedElementIds.has(element.id)) return;
+
+        const animation = element.animation || {};
+        const durationMs = Math.max(1, Number(animation.durationMs) || 1000);
+        const delayMs = Math.max(0, Number(animation.delayMs) || 0);
+        maxDuration = Math.max(maxDuration, durationMs + delayMs);
+    });
+
+    return maxDuration;
+}
+
+function drawFrame(
+    canvas,
+    elements,
+    canvasSize,
+    transform,
+    canvasProps = {},
+    renderOptions = {}
+) {
     const ctx = canvas.getContext("2d", { alpha: false });
     if (!ctx) return;
 
@@ -125,7 +190,7 @@ function drawFrame(canvas, elements, canvasSize, transform, canvasProps = {}) {
     ctx.scale(transform.scale, transform.scale);
 
     (elements || []).forEach((element) => {
-        drawElement(ctx, element, false);
+        drawElement(ctx, element, false, renderOptions);
     });
 
     ctx.restore();
@@ -244,7 +309,7 @@ export async function exportUndoRedoAnimationVideo({
     const contentBounds = getFramesContentBounds(frames);
     const transform = getVideoTransform(contentBounds, safeCanvasSize);
 
-    await resetVideoFramesAsync();
+    await resetVideoFramesNow();
 
     drawFrame(exportCanvas, frames[0] || [], safeCanvasSize, transform, canvasProps);
 
@@ -274,28 +339,58 @@ export async function exportUndoRedoAnimationVideo({
 
     for (let i = 0; i < frames.length; i++) {
         const elements = frames[i];
+        const previousElements = i > 0 ? frames[i - 1] : [];
+        const activeAnimatedElementIds = getAnimatedTextIds(previousElements, elements);
+        const maxAnimationDuration = getMaxAnimationDuration(elements, activeAnimatedElementIds);
 
-        drawFrame(exportCanvas, elements, safeCanvasSize, transform, canvasProps);
-        requestCanvasFrame(videoTrack);
+        const renderAndSaveFrame = async (animationTimeMs = 0, saveFrame = false) => {
+            drawFrame(exportCanvas, elements, safeCanvasSize, transform, canvasProps, {
+                animationMode: activeAnimatedElementIds.size > 0,
+                activeAnimatedElementIds,
+                animationTimeMs,
+            });
 
-        let imageDataUrl = null;
-        try {
-            imageDataUrl = exportCanvas.toDataURL("image/webp", 0.86);
-        } catch {
-            imageDataUrl = null;
+            requestCanvasFrame(videoTrack);
+
+            if (saveFrame) {
+                let imageDataUrl = null;
+                try {
+                    imageDataUrl = exportCanvas.toDataURL("image/webp", 0.86);
+                } catch {
+                    imageDataUrl = null;
+                }
+
+                await saveVideoFrameNow({
+                    index: i,
+                    elements,
+                    imageDataUrl,
+                });
+            }
+        };
+
+        if (activeAnimatedElementIds.size > 0 && maxAnimationDuration > 0) {
+            const animationFrameStepMs = 80;
+            const subFrameCount = Math.max(
+                4,
+                Math.min(45, Math.ceil(maxAnimationDuration / animationFrameStepMs))
+            );
+
+            for (let subFrame = 0; subFrame <= subFrameCount; subFrame++) {
+                const animationTimeMs = Math.round(
+                    (maxAnimationDuration * subFrame) / subFrameCount
+                );
+
+                await renderAndSaveFrame(animationTimeMs, subFrame === subFrameCount);
+                await wait(animationFrameStepMs);
+            }
+        } else {
+            await renderAndSaveFrame(0, true);
+            await wait(80);
         }
-
-        saveVideoFrameAsync({
-            index: i,
-            elements,
-            imageDataUrl,
-        });
 
         const progress = Math.round(((i + 1) / frames.length) * 100);
         onProgress?.(progress);
 
-        // Give the browser encoder a small chance to ingest the freshly drawn frame.
-        await wait(80);
         await wait(finalFrameDelayMs);
     }
 

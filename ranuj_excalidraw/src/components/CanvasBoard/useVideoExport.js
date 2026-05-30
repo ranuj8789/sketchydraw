@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { exportUndoRedoAnimationVideo } from "../../canvas/exportAnimationVideo";
 
+
 const DEFAULT_GAP_SECONDS = 0.5;
 
 export function useVideoExport({ history, elements, canvasSize, canvasProps }) {

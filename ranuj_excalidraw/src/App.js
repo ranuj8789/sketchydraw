@@ -26,6 +26,12 @@ import {
   pickTextStylePatch,
   hasTextStylePatch,
 } from "./canvas/textRenderStyle";
+import {
+  saveHistoryStackAsync,
+  loadHistoryStack,
+  clearHistoryStackNow,
+  resetVideoFramesNow,
+} from "./utils/indexedDbStorage";
 
 const COLORS = [
   "#111827",
@@ -72,6 +78,73 @@ function cloneElements(elements) {
   }
 
   return JSON.parse(JSON.stringify(elements || []));
+}
+
+const MAX_VIDEO_STEPS = 150;
+
+function areElementStatesEqual(a, b) {
+  try {
+    return JSON.stringify(a || []) === JSON.stringify(b || []);
+  } catch {
+    return false;
+  }
+}
+
+function getVideoStackStats(history, historyIndex, elements) {
+  const safeHistory = Array.isArray(history) ? history : [];
+  const safeElements = Array.isArray(elements) ? elements : [];
+
+  const hasAnyContent =
+      safeElements.length > 0 ||
+      safeHistory.some((state) => Array.isArray(state) && state.length > 0);
+
+  if (!hasAnyContent) {
+    return {
+      currentStep: 0,
+      totalSteps: 0,
+      undoCount: 0,
+      redoCount: 0,
+      videoFramesCount: 0,
+      rawVideoFramesCount: 0,
+      maxVideoSteps: MAX_VIDEO_STEPS,
+      isVideoFramesCapped: false,
+    };
+  }
+
+  const currentStep = Math.max(0, historyIndex + 1);
+  const totalSteps = safeHistory.length;
+  const undoCount = Math.max(0, historyIndex);
+  const redoCount = Math.max(0, safeHistory.length - historyIndex - 1);
+
+  const uniqueFrames = safeHistory
+      .filter((state) => Array.isArray(state))
+      .map(cloneElements)
+      .filter((state, index, arr) => {
+        if (index === 0) return true;
+        return !areElementStatesEqual(state, arr[index - 1]);
+      });
+
+  const currentFrame = cloneElements(safeElements);
+  const frames = uniqueFrames.length > 0 ? [...uniqueFrames] : [currentFrame];
+
+  const lastFrame = frames[frames.length - 1] || [];
+  if (!areElementStatesEqual(lastFrame, currentFrame)) {
+    frames.push(currentFrame);
+  }
+
+  const rawVideoFramesCount = frames.length;
+  const videoFramesCount = Math.min(MAX_VIDEO_STEPS, rawVideoFramesCount);
+
+  return {
+    currentStep,
+    totalSteps,
+    undoCount,
+    redoCount,
+    videoFramesCount,
+    rawVideoFramesCount,
+    maxVideoSteps: MAX_VIDEO_STEPS,
+    isVideoFramesCapped: rawVideoFramesCount > MAX_VIDEO_STEPS,
+  };
 }
 
 function VerifyPage() {
@@ -186,6 +259,7 @@ function SketchyDrawPage() {
   const [history, setHistory] = useState([[]]);
   const [historyIndex, setHistoryIndex] = useState(0);
   const [maxHistoryLength] = useState(getConfiguredMaxHistoryLength);
+  const [historyStorageReady, setHistoryStorageReady] = useState(false);
   const [sketchyAlert, setSketchyAlert] = useState(null);
 
   const showSketchyAlert = useCallback((payload) => {
@@ -233,6 +307,12 @@ function SketchyDrawPage() {
     const snapshot = cloneElements(nextElements);
 
     setHistory((prevHistory) => {
+      const currentSnapshot = prevHistory[historyIndex];
+
+      if (areElementStatesEqual(currentSnapshot, snapshot)) {
+        return prevHistory;
+      }
+
       const trimmed = prevHistory.slice(0, historyIndex + 1);
       trimmed.push(snapshot);
 
@@ -245,6 +325,55 @@ function SketchyDrawPage() {
       return limited;
     });
   }, [historyIndex, maxHistoryLength]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    loadHistoryStack()
+        .then((record) => {
+          if (cancelled) return;
+
+          const storedHistory = Array.isArray(record?.history)
+              ? record.history.filter((state) => Array.isArray(state))
+              : [];
+
+          if (!storedHistory.length) return;
+
+          const safeIndex = Math.max(
+              0,
+              Math.min(
+                  Number.isFinite(record?.historyIndex) ? record.historyIndex : storedHistory.length - 1,
+                  storedHistory.length - 1
+              )
+          );
+
+          const restoredHistory = storedHistory.map(cloneElements);
+          const restoredElements = cloneElements(restoredHistory[safeIndex] || []);
+
+          setHistory(restoredHistory);
+          setHistoryIndex(safeIndex);
+          setElements(restoredElements);
+          setSelectedIds([]);
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setHistoryStorageReady(true);
+          }
+        });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!historyStorageReady) return;
+
+    saveHistoryStackAsync({
+      history,
+      historyIndex,
+    });
+  }, [historyStorageReady, history, historyIndex]);
   const {
     canvasRef,
     jsonInputRef,
@@ -400,6 +529,8 @@ function SketchyDrawPage() {
       message: "All canvas steps/history will be cleared and the whole canvas will become empty.",
       confirmText: "Clear canvas",
       onConfirm: () => {
+        clearHistoryStackNow();
+        resetVideoFramesNow();
         setElements([]);
         setSelectedIds([]);
         setHistory([[]]);
@@ -487,6 +618,11 @@ function SketchyDrawPage() {
     commitHistory(next);
   };
 
+  const videoStackStats = useMemo(
+      () => getVideoStackStats(history, historyIndex, elements),
+      [history, historyIndex, elements]
+  );
+
   return (
       <div className="app-shell">
         <SketchyAlert
@@ -543,6 +679,7 @@ function SketchyDrawPage() {
                       title: title || "Untitled",
                     }))
                 }
+                videoStackStats={videoStackStats}
             />
 
             <CanvasBoard

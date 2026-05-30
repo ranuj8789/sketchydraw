@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, {useEffect, useRef, useState} from "react";
 import "./Toolbar.css";
 
 import {
@@ -13,9 +13,9 @@ import {
 import SketchyLoginModal from "../SketchyLoginModal/SketchyLoginModal";
 import SubscriptionPopup from "../SubscriptionPopup/SubscriptionPopup";
 
-import { getActiveAnnouncement } from "../../api/announcementApi";
-import { getSubscriptionStatus, getPaymentHistory } from "../../api/paymentApi";
-import { getMyProfile, updateMyProfile } from "../../api/authApi";
+import {getActiveAnnouncement} from "../../api/announcementApi";
+import {getSubscriptionStatus, getPaymentHistory} from "../../api/paymentApi";
+import {getMyProfile, updateMyProfile} from "../../api/authApi";
 
 export default function Toolbar({
                                     undo,
@@ -36,6 +36,7 @@ export default function Toolbar({
                                     openJsonPicker,
                                     drawingTitle,
                                     onDrawingTitleChange,
+                                    videoStackStats,
                                 }) {
     const [loginOpen, setLoginOpen] = useState(false);
     const [subscriptionOpen, setSubscriptionOpen] = useState(false);
@@ -63,7 +64,16 @@ export default function Toolbar({
     const [profileMessage, setProfileMessage] = useState("");
 
     const proUser = isProUser(user);
-
+    const stackStats = videoStackStats || {
+        currentStep: 0,
+        totalSteps: 0,
+        undoCount: 0,
+        redoCount: 0,
+        videoFramesCount: 0,
+        rawVideoFramesCount: 0,
+        maxVideoSteps: 150,
+        isVideoFramesCapped: false,
+    };
     const profileRef = useRef(null);
     const alignRef = useRef(null);
     const saveRef = useRef(null);
@@ -281,7 +291,7 @@ export default function Toolbar({
     const triggerSaveExisting = () => {
         window.dispatchEvent(
             new CustomEvent("sketchydraw:save-drawing", {
-                detail: { saveAsNew: false },
+                detail: {saveAsNew: false},
             })
         );
 
@@ -291,7 +301,7 @@ export default function Toolbar({
     const triggerSaveAsNew = () => {
         window.dispatchEvent(
             new CustomEvent("sketchydraw:save-drawing", {
-                detail: { saveAsNew: true },
+                detail: {saveAsNew: true},
             })
         );
 
@@ -306,7 +316,7 @@ export default function Toolbar({
     const triggerAlign = (type) => {
         window.dispatchEvent(
             new CustomEvent("sketchydraw:align-selected", {
-                detail: { type },
+                detail: {type},
             })
         );
 
@@ -326,7 +336,7 @@ export default function Toolbar({
 
         window.dispatchEvent(
             new CustomEvent("sketchydraw:export-video", {
-                detail: { gapSeconds },
+                detail: {gapSeconds},
             })
         );
 
@@ -423,12 +433,20 @@ export default function Toolbar({
                     <button type="button" onClick={redo} disabled={!canRedo} title="Redo last action">
                         Redo
                     </button>
-
+                    <div className="history-stack-counter" title="Undo/Redo stack and video frames">
+                        <span>Step {stackStats.currentStep}/{stackStats.totalSteps}</span>
+                        <span>Undo {stackStats.undoCount}</span>
+                        <span>Redo {stackStats.redoCount}</span>
+                        <span>
+        Frames {stackStats.videoFramesCount}
+                            {stackStats.isVideoFramesCapped ? `/${stackStats.rawVideoFramesCount}` : ""}
+    </span>
+                    </div>
                     <button type="button" onClick={clearCanvas} className="danger" title="Clear current canvas">
                         Clear
                     </button>
 
-                    <span className="topbar-separator" />
+                    <span className="topbar-separator"/>
 
                     <div className="save-menu-wrap" title="Save this drawing" ref={saveRef}>
                         <button
@@ -552,7 +570,7 @@ export default function Toolbar({
                                     Align Right
                                 </button>
 
-                                <div className="align-divider" />
+                                <div className="align-divider"/>
 
                                 <button type="button" onClick={() => triggerAlign("top")}>
                                     Align Top
@@ -713,7 +731,7 @@ export default function Toolbar({
                                         {proUser ? "⭐ Manage Pro" : "⭐ Subscribe / Buy Credits"}
                                     </button>
 
-                                    <div className="profile-menu-divider" />
+                                    <div className="profile-menu-divider"/>
 
                                     <button
                                         type="button"
@@ -867,7 +885,7 @@ function ProfileModal({
 
                     <label>
                         <span>Email</span>
-                        <input value={user?.email || ""} disabled />
+                        <input value={user?.email || ""} disabled/>
                     </label>
 
                     {profileMessage && (
@@ -885,7 +903,7 @@ function ProfileModal({
     );
 }
 
-function PaymentHistoryModal({ open, rows, loading, onClose }) {
+function PaymentHistoryModal({open, rows, loading, onClose}) {
     if (!open) return null;
 
     return (
@@ -937,7 +955,8 @@ function PaymentHistoryModal({ open, rows, loading, onClose }) {
                                     </td>
 
                                     <td>
-                                            <span className={`payment-status ${String(row.status || "").toLowerCase()}`}>
+                                            <span
+                                                className={`payment-status ${String(row.status || "").toLowerCase()}`}>
                                                 {row.status || "-"}
                                             </span>
                                     </td>

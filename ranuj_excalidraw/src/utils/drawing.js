@@ -239,6 +239,55 @@ function getSelectionBox(element) {
     };
 }
 
+
+function clamp01(value) {
+    return Math.max(0, Math.min(1, Number(value) || 0));
+}
+
+function easeOutCubic(t) {
+    const value = clamp01(t);
+    return 1 - Math.pow(1 - value, 3);
+}
+
+function getAnimationProgress(element, renderOptions = {}) {
+    const animation = element?.animation || {};
+    const type = animation.type || "none";
+
+    if (
+        !renderOptions.animationMode ||
+        type === "none" ||
+        !renderOptions.activeAnimatedElementIds?.has?.(element.id)
+    ) {
+        return {
+            active: false,
+            type: "none",
+            progress: 1,
+        };
+    }
+
+    const durationMs = Math.max(1, Number(animation.durationMs) || 1000);
+    const delayMs = Math.max(0, Number(animation.delayMs) || 0);
+    const animationTimeMs = Math.max(0, Number(renderOptions.animationTimeMs) || 0);
+    const rawProgress = (animationTimeMs - delayMs) / durationMs;
+
+    return {
+        active: true,
+        type,
+        progress: clamp01(rawProgress),
+    };
+}
+
+function getAnimatedTextLines(text, animationState) {
+    const fullText = String(text || "");
+
+    if (!animationState.active || animationState.type !== "typewriter") {
+        return fullText.split("\n");
+    }
+
+    const visibleChars = Math.ceil(fullText.length * animationState.progress);
+    return fullText.slice(0, visibleChars).split("\n");
+}
+
 export function hitTest(element, x, y) {
     if (!element) return false;
 
@@ -315,7 +364,7 @@ export function hitTest(element, x, y) {
     return false;
 }
 
-export function drawElement(ctx, element, selected = false) {
+export function drawElement(ctx, element, selected = false, renderOptions = {}) {
     if (!element) return;
 
     ctx.save();
@@ -473,6 +522,9 @@ export function drawElement(ctx, element, selected = false) {
         ctx.globalAlpha = previousAlpha;
     } else if (element.type === "text") {
         const style = normalizeTextStyle(element);
+        const animationState = getAnimationProgress(element, renderOptions);
+        const easedProgress = easeOutCubic(animationState.progress);
+        const lines = getAnimatedTextLines(element.text, animationState);
 
         ctx.setLineDash([]);
         ctx.font = buildTextCanvasFont(style);
@@ -480,7 +532,16 @@ export function drawElement(ctx, element, selected = false) {
         ctx.textBaseline = "top";
         ctx.textAlign = style.textAlign;
 
-        const lines = String(element.text || "").split("\n");
+        const previousAlpha = ctx.globalAlpha;
+
+        if (animationState.active && animationState.type === "fadeIn") {
+            ctx.globalAlpha = previousAlpha * easedProgress;
+        }
+
+        if (animationState.active && animationState.type === "slideUp") {
+            ctx.translate(0, (1 - easedProgress) * 18);
+            ctx.globalAlpha = previousAlpha * easedProgress;
+        }
 
         lines.forEach((line, index) => {
             const textX = getTextAnchorX(element, style);
@@ -507,6 +568,8 @@ export function drawElement(ctx, element, selected = false) {
                 ctx.restore();
             }
         });
+
+        ctx.globalAlpha = previousAlpha;
     }
 
 
