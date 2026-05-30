@@ -324,6 +324,9 @@ export function drawElement(ctx, element, selected = false) {
     const stroke = element.stroke || "#111827";
     const strokeWidth = element.strokeWidth || 2;
 
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
     if (element.type === "rect" || element.type === "rectangle") {
         const radius = element.cornerRadius ?? 0;
 

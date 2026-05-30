@@ -21,8 +21,6 @@ export function getStableStraightLineEnd(start, point) {
         return point;
     }
 
-    // Make straight lines stable: a small mouse shake near the tip should not
-    // break horizontal/vertical alignment.
     const axisSnap = Math.max(18, distance * 0.18);
 
     if (absDy <= axisSnap) {
@@ -37,6 +35,7 @@ export function getStableStraightLineEnd(start, point) {
 
     if (Math.abs(absDx - absDy) <= diagonalSnap) {
         const size = Math.max(absDx, absDy);
+
         return {
             x: start.x + Math.sign(dx || 1) * size,
             y: start.y + Math.sign(dy || 1) * size,
@@ -50,9 +49,9 @@ export function moveElement(element, dx, dy) {
     if (element.type === "pencil") {
         return {
             ...element,
-            points: element.points.map((point) => ({
-                x: point.x + dx,
-                y: point.y + dy,
+            points: (element.points || []).map((p) => ({
+                x: p.x + dx,
+                y: p.y + dy,
             })),
         };
     }
@@ -101,9 +100,19 @@ export function updateDrawnElement(element, dragState, point) {
     }
 
     if (element.type === "pencil") {
+        const points = element.points || [];
+        const lastPoint = points[points.length - 1];
+
+        if (
+            lastPoint &&
+            Math.hypot(point.x - lastPoint.x, point.y - lastPoint.y) < 1.5
+        ) {
+            return element;
+        }
+
         return {
             ...element,
-            points: [...element.points, { x: point.x, y: point.y }],
+            points: [...points, { x: point.x, y: point.y }],
         };
     }
 

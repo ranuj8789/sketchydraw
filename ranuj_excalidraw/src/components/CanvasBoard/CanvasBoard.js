@@ -1860,7 +1860,18 @@ export default function CanvasBoard({
 
         if (dragState.mode === "draw") {
             const baseElements = dragBaseElementsRef.current || elementsRef.current;
-            const drawingElement = baseElements.find((el) => el.id === dragState.id);
+
+// Pencil/freehand must continue from the latest preview element.
+// If we always use dragBaseElementsRef, pencil keeps only:
+// [startPoint, currentPoint], so it behaves like a straight line.
+            const baseDrawingElement = baseElements.find((el) => el.id === dragState.id);
+            const drawElementsSource =
+                baseDrawingElement?.type === "pencil"
+                    ? dragPreviewElementsRef.current || elementsRef.current || baseElements
+                    : baseElements;
+
+            const drawingElement =
+                drawElementsSource.find((el) => el.id === dragState.id) || baseDrawingElement;
 
             if (!drawingElement) return;
 
@@ -1898,7 +1909,7 @@ export default function CanvasBoard({
                 }
             }
 
-            const preview = baseElements.map((el) => {
+            const preview = drawElementsSource.map((el) => {
                 if (el.id !== dragState.id) return el;
 
                 const updated = updateDrawnElement(el, dragState, drawPoint);
