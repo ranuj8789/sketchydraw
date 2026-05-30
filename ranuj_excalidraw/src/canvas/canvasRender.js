@@ -107,7 +107,7 @@ function drawNotebookPattern(ctx, canvasSize, viewport) {
     ctx.save();
 
     // Notebook paper background tint.
-    ctx.fillStyle = "rgba(255, 251, 235, 0.34)";
+    ctx.fillStyle = "#ffffff";
     ctx.fillRect(
         visibleWorldLeft,
         visibleWorldTop,

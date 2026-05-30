@@ -95,11 +95,45 @@ const ERASER_CURSOR = `url("data:image/svg+xml;charset=utf-8,${encodeURIComponen
 
 const ALIGNMENT_SNAP_THRESHOLD = 18;
 const GRID_SIZE = 24;
+const NOTEBOOK_LINE_GAP = 28;
+const NOTEBOOK_TEXT_LINE_PADDING =-2;
 
 function snapValueToGrid(value, gridSize = GRID_SIZE) {
     return Math.round(value / gridSize) * gridSize;
 }
 
+function isNotebookPattern(canvasProps) {
+    return canvasProps?.pattern === "notebook";
+}
+
+function snapValueToNotebookLine(value) {
+    return Math.round(value / NOTEBOOK_LINE_GAP) * NOTEBOOK_LINE_GAP;
+}
+
+function getNotebookTextAlignedTopY(y, lineHeight) {
+    const finalLineHeight = lineHeight || DEFAULT_TEXT_STYLE.lineHeight || 26;
+
+    // Text should sit slightly above the notebook line,
+    // not directly on top of the blue grid line.
+    return (
+        snapValueToNotebookLine(y + finalLineHeight) -
+        finalLineHeight -
+        NOTEBOOK_TEXT_LINE_PADDING
+    );
+}
+
+function snapTextPointToNotebookLine(point, style, canvasProps) {
+    if (!isNotebookPattern(canvasProps)) {
+        return point;
+    }
+
+    const lineHeight = style?.lineHeight || DEFAULT_TEXT_STYLE.lineHeight || 26;
+
+    return {
+        x: point.x,
+        y: getNotebookTextAlignedTopY(point.y, lineHeight),
+    };
+}
 function snapPointToGrid(point, gridSize = GRID_SIZE) {
     return {
         x: snapValueToGrid(point.x, gridSize),
@@ -1276,9 +1310,6 @@ export default function CanvasBoard({
 
     const startTextCreate = (point, parentId = null, forcedStroke = stroke) => {
         textCommitLockRef.current = Date.now() + 300;
-        const textPoint = isGridSnapActive(showGridRef.current, canvasPropsRef.current)
-            ? snapPointToGrid(point)
-            : point;
 
         setSelectedIds([]);
         setDragState(null);
@@ -1288,6 +1319,20 @@ export default function CanvasBoard({
             ...currentTextStyle,
             stroke: forcedStroke,
         });
+
+        let textPoint = point;
+
+        // Normal grid snap should remain normal.
+        // Notebook text snap is special: only Y aligns to notebook writing line.
+        if (isNotebookPattern(canvasPropsRef.current)) {
+            textPoint = snapTextPointToNotebookLine(
+                point,
+                style,
+                canvasPropsRef.current
+            );
+        } else if (isGridSnapActive(showGridRef.current, canvasPropsRef.current)) {
+            textPoint = snapPointToGrid(point);
+        }
 
         setEditor({
             mode: "create",
@@ -1969,12 +2014,35 @@ export default function CanvasBoard({
                     moveElement
                 );
 
-                const rawMovedElements = rawMovedPreview.filter((el) => movingIds.has(el.id));
-                const movedBounds = getGroupBounds(rawMovedElements);
+                const rawMovedElements = rawMovedPreview.filter((el) =>
+                    movingIds.has(el.id)
+                );
 
-                if (movedBounds) {
-                    dx += snapValueToGrid(movedBounds.x) - movedBounds.x;
-                    dy += snapValueToGrid(movedBounds.y) - movedBounds.y;
+                // Notebook special rule:
+                // if only one text is selected, align text center to notebook line.
+                if (
+                    isNotebookPattern(canvasPropsRef.current) &&
+                    rawMovedElements.length === 1 &&
+                    rawMovedElements[0]?.type === "text"
+                ) {
+                    const movedText = rawMovedElements[0];
+                    const lineHeight =
+                        movedText.lineHeight || DEFAULT_TEXT_STYLE.lineHeight || 26;
+
+                    const alignedY = getNotebookTextAlignedTopY(
+                        movedText.y,
+                        lineHeight
+                    );
+
+                    dy += alignedY - movedText.y;
+                } else {
+                    // Normal grid behavior for all other cases.
+                    const movedBounds = getGroupBounds(rawMovedElements);
+
+                    if (movedBounds) {
+                        dx += snapValueToGrid(movedBounds.x) - movedBounds.x;
+                        dy += snapValueToGrid(movedBounds.y) - movedBounds.y;
+                    }
                 }
             } else {
                 const movedPreview = moveConnectedArrows(
