@@ -37,6 +37,7 @@ export default function Toolbar({
                                     drawingTitle,
                                     onDrawingTitleChange,
                                     videoStackStats,
+                                    openFramesPanel,
                                 }) {
     const [loginOpen, setLoginOpen] = useState(false);
     const [subscriptionOpen, setSubscriptionOpen] = useState(false);
@@ -442,6 +443,15 @@ export default function Toolbar({
                             {stackStats.isVideoFramesCapped ? `/${stackStats.rawVideoFramesCount}` : ""}
     </span>
                     </div>
+                    <button
+                        type="button"
+                        className="frames-toolbar-btn"
+                        onClick={openFramesPanel}
+                        title="View, add, delete and play frames"
+                    >
+                        Frames
+                    </button>
+
                     <button type="button" onClick={clearCanvas} className="danger" title="Clear current canvas">
                         Clear
                     </button>

@@ -1001,3 +1001,19 @@
     margin-right: 6px;
     color: #cbd5e1;
 }
+
+.frames-toolbar-btn {
+    height: 30px !important;
+    padding: 0 12px !important;
+    border: 1px solid #dbe3ef;
+    border-radius: 999px !important;
+    background: #ffffff;
+    color: #334155;
+    font-size: 11px;
+    font-weight: 850;
+    white-space: nowrap;
+}
+
+.frames-toolbar-btn:hover {
+    background: #f8fafc;
+}

@@ -4,6 +4,7 @@ import "./App.css";
 import Toolbar from "./components/Toolbar/Toolbar";
 import Sidebar from "./components/Sidebar/Sidebar";
 import CanvasBoard from "./components/CanvasBoard/CanvasBoard";
+import FramesPanel from "./components/FramesPanel/FramesPanel";
 import SketchyAlert from "./components/SketchyAlert";
 import { verifyEmail, resetPassword } from "./api/authApi";
 import { measureTextBox } from "./canvas/textMetrics";
@@ -261,6 +262,8 @@ function SketchyDrawPage() {
   const [maxHistoryLength] = useState(getConfiguredMaxHistoryLength);
   const [historyStorageReady, setHistoryStorageReady] = useState(false);
   const [sketchyAlert, setSketchyAlert] = useState(null);
+  const [framesPanelOpen, setFramesPanelOpen] = useState(false);
+  const [slideshowPlaying, setSlideshowPlaying] = useState(false);
 
   const showSketchyAlert = useCallback((payload) => {
     setSketchyAlert({
@@ -531,6 +534,7 @@ function SketchyDrawPage() {
       onConfirm: () => {
         clearHistoryStackNow();
         resetVideoFramesNow();
+        setSlideshowPlaying(false);
         setElements([]);
         setSelectedIds([]);
         setHistory([[]]);
@@ -623,6 +627,81 @@ function SketchyDrawPage() {
       [history, historyIndex, elements]
   );
 
+  const selectFrame = useCallback((index) => {
+    const safeIndex = Math.max(0, Math.min(index, history.length - 1));
+    const nextElements = cloneElements(history[safeIndex] || []);
+
+    setHistoryIndex(safeIndex);
+    setElements(nextElements);
+    setSelectedIds([]);
+  }, [history]);
+
+  const deleteFrame = useCallback((index) => {
+    setHistory((prevHistory) => {
+      if (!Array.isArray(prevHistory) || prevHistory.length <= 1) {
+        setHistoryIndex(0);
+        setElements([]);
+        setSelectedIds([]);
+        return [[]];
+      }
+
+      const nextHistory = prevHistory.filter((_, frameIndex) => frameIndex !== index);
+      const nextIndex = Math.max(0, Math.min(historyIndex >= index ? historyIndex - 1 : historyIndex, nextHistory.length - 1));
+      const nextElements = cloneElements(nextHistory[nextIndex] || []);
+
+      setHistoryIndex(nextIndex);
+      setElements(nextElements);
+      setSelectedIds([]);
+      return nextHistory;
+    });
+  }, [historyIndex]);
+
+  const addCurrentFrameAfter = useCallback((index) => {
+    const snapshot = cloneElements(elements);
+
+    setHistory((prevHistory) => {
+      const safeHistory = Array.isArray(prevHistory) && prevHistory.length ? prevHistory : [[]];
+      const insertIndex = Math.max(0, Math.min(index + 1, safeHistory.length));
+      const nextHistory = [
+        ...safeHistory.slice(0, insertIndex),
+        snapshot,
+        ...safeHistory.slice(insertIndex),
+      ];
+
+      const limited =
+          nextHistory.length > maxHistoryLength
+              ? nextHistory.slice(nextHistory.length - maxHistoryLength)
+              : nextHistory;
+
+      const nextIndex = Math.max(0, Math.min(insertIndex, limited.length - 1));
+
+      setHistoryIndex(nextIndex);
+      setElements(cloneElements(limited[nextIndex] || []));
+      setSelectedIds([]);
+      return limited;
+    });
+  }, [elements, maxHistoryLength]);
+
+  useEffect(() => {
+    if (!slideshowPlaying) return undefined;
+
+    if (!Array.isArray(history) || history.length <= 1) {
+      setSlideshowPlaying(false);
+      return undefined;
+    }
+
+    const timer = window.setInterval(() => {
+      setHistoryIndex((prevIndex) => {
+        const nextIndex = prevIndex >= history.length - 1 ? 0 : prevIndex + 1;
+        setElements(cloneElements(history[nextIndex] || []));
+        setSelectedIds([]);
+        return nextIndex;
+      });
+    }, 850);
+
+    return () => window.clearInterval(timer);
+  }, [slideshowPlaying, history]);
+
   return (
       <div className="app-shell">
         <SketchyAlert
@@ -680,6 +759,20 @@ function SketchyDrawPage() {
                     }))
                 }
                 videoStackStats={videoStackStats}
+                openFramesPanel={() => setFramesPanelOpen(true)}
+            />
+
+            <FramesPanel
+                open={framesPanelOpen}
+                frames={history}
+                currentIndex={historyIndex}
+                canvasProps={canvasProps}
+                slideshowPlaying={slideshowPlaying}
+                onClose={() => setFramesPanelOpen(false)}
+                onSelectFrame={selectFrame}
+                onDeleteFrame={deleteFrame}
+                onAddFrameAfter={addCurrentFrameAfter}
+                onToggleSlideshow={() => setSlideshowPlaying((value) => !value)}
             />
 
             <CanvasBoard

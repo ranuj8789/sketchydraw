@@ -311,7 +311,17 @@ export async function exportUndoRedoAnimationVideo({
 
     await resetVideoFramesNow();
 
-    drawFrame(exportCanvas, frames[0] || [], safeCanvasSize, transform, canvasProps);
+    const firstFrameElements = frames[0] || [];
+    const firstFrameAnimatedIds = getAnimatedTextIds([], firstFrameElements);
+
+    // Important: the MediaRecorder can capture the current canvas immediately when
+    // recording starts. If the first frame contains animated text, render it at
+    // animation time 0 instead of rendering the final/full text first.
+    drawFrame(exportCanvas, firstFrameElements, safeCanvasSize, transform, canvasProps, {
+        animationMode: firstFrameAnimatedIds.size > 0,
+        activeAnimatedElementIds: firstFrameAnimatedIds,
+        animationTimeMs: 0,
+    });
 
     // requestFrame is not reliable everywhere. Use 30 fps stream as fallback so chunks are produced.
     const initialStream = exportCanvas.captureStream(30);
