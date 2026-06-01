@@ -69,21 +69,29 @@ export function buildTextElement({
                                      underline = false,
                                      textAlign = "left",
                                  }) {
-    const finalText = text && text.trim() ? text : "";
+    const finalText = text ?? "";
 
-    const box = measureTextBox(finalText, {
+    const box = measureTextBox(finalText || " ", {
         fontSize,
         lineHeight,
         fontFamily,
         bold,
         italic,
+        underline,
+        textAlign,
+        stroke,
     });
 
     return {
         id: uid(),
         type: "text",
+
+        // IMPORTANT:
+        // x/y is always top-left anchor.
+        // Do not adjust this after create/edit.
         x,
         y,
+
         text: finalText,
         stroke,
         parentId,
@@ -98,6 +106,7 @@ export function buildTextElement({
         h: box.h,
     };
 }
+
 export function buildImageElement({
                                       point,
                                       src,

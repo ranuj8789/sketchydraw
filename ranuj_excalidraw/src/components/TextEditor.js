@@ -20,10 +20,14 @@ export default function TextEditor({
     useEffect(() => {
         if (!editor || !inputRef.current) return;
 
-        inputRef.current.focus();
+        const input = inputRef.current;
+        input.focus();
 
-        const len = inputRef.current.value.length;
-        inputRef.current.setSelectionRange(len, len);
+        const len = input.value.length;
+        input.setSelectionRange(len, len);
+
+        input.scrollTop = 0;
+        input.scrollLeft = 0;
     }, [editor?.id, editor?.mode]);
 
     useEffect(() => {
@@ -41,12 +45,11 @@ export default function TextEditor({
     );
 
     const liveBox = measureTextBox(editor.value || " ", style);
-    const editorBox = editor.mode === "edit"
-        ? {
-            w: Math.max(editor.w || liveBox.w, liveBox.w),
-            h: Math.max(editor.h || liveBox.h, liveBox.h),
-        }
-        : liveBox;
+
+    const editorBox = {
+        w: Math.max(editor.w || liveBox.w, liveBox.w, 40),
+        h: Math.max(editor.h || liveBox.h, liveBox.h, style.lineHeight),
+    };
 
     const finishEditing = () => {
         if (finishingRef.current) return;
@@ -54,10 +57,11 @@ export default function TextEditor({
 
         onCommitStart?.();
 
-        const value = editor.value.trim();
+        const rawValue = editor.value ?? "";
+        const hasText = rawValue.trim().length > 0;
 
         if (editor.mode === "create") {
-            if (!value) {
+            if (!hasText) {
                 setEditor(null);
                 return;
             }
@@ -65,7 +69,7 @@ export default function TextEditor({
             createTextElement({
                 x: editor.x,
                 y: editor.y,
-                text: value,
+                text: rawValue,
                 stroke: style.stroke,
                 parentId: editor.parentId || null,
                 fontSize: style.fontSize,
@@ -77,7 +81,7 @@ export default function TextEditor({
                 textAlign: style.textAlign,
             });
         } else if (editor.mode === "edit") {
-            updateTextElement(editor.id, value, {
+            updateTextElement(editor.id, hasText ? rawValue : "", {
                 stroke: style.stroke,
                 fontSize: style.fontSize,
                 lineHeight: style.lineHeight,
@@ -113,44 +117,82 @@ export default function TextEditor({
             style={{
                 position: "absolute",
 
-                // Important:
-                // This is always the same x/y as the canvas text element.
-                // Do not center-shift it.
-                left: screenPoint.x,
-                top: screenPoint.y,
+                // x/y is the stored top-left anchor. Never shift it in editor mode.
+                left: `${screenPoint.x}px`,
+                top: `${screenPoint.y}px`,
 
-                width: editorBox.w * zoom + 4,
-                height: editorBox.h * zoom + 4,
+                // Keep the textarea in world-size and scale the whole editor.
+                // Scaling font-size directly can create 1px visual drift between edit/final modes.
+                width: `${editorBox.w}px`,
+                height: `${editorBox.h}px`,
+                transform: `scale(${zoom})`,
+                transformOrigin: "top left",
 
-                color: style.stroke,
-                font: buildTextEditorFont(style, zoom),
-                lineHeight: `${style.lineHeight * zoom}px`,
+                minWidth: 0,
+                minHeight: 0,
+
+                // Visible text is drawn on canvas using drawElement().
+                // Textarea is kept only for keyboard input, caret, selection, copy/paste, IME.
+                color: "transparent",
+                caretColor: style.stroke,
+                font: buildTextEditorFont(style, 1),
+                fontSize: `${style.fontSize}px`,
+                lineHeight: `${style.lineHeight}px`,
+                fontFamily: style.fontFamily,
+                fontWeight: style.bold ? 700 : 400,
+                fontStyle: style.italic ? "italic" : "normal",
                 textAlign: style.textAlign,
                 textDecoration: style.underline ? "underline" : "none",
 
                 padding: 0,
                 margin: 0,
                 border: "none",
-                outline: "1px dashed #2563eb",
+                outline: "none",
                 background: "transparent",
                 resize: "none",
                 overflow: "hidden",
                 boxSizing: "border-box",
+
                 whiteSpace: "pre",
                 tabSize: 4,
+
+                display: "block",
+                appearance: "none",
+                WebkitAppearance: "none",
+                borderRadius: 0,
+                verticalAlign: "top",
+                letterSpacing: "normal",
+                wordSpacing: "normal",
+                textTransform: "none",
+                textIndent: 0,
+                textShadow: "none",
+                fontKerning: "normal",
+                fontVariantLigatures: "normal",
+                WebkitFontSmoothing: "antialiased",
+                MozOsxFontSmoothing: "grayscale",
             }}
             value={editor.value}
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
-            onChange={(e) =>
+            onChange={(e) => {
+                const value = e.target.value;
+
+                e.target.scrollTop = 0;
+                e.target.scrollLeft = 0;
+
+                const nextBox = measureTextBox(value || " ", style);
+
                 setEditor((prev) => ({
                     ...prev,
-                    value: e.target.value,
-                }))
-            }
+                    value,
+                    w: nextBox.w,
+                    h: nextBox.h,
+                }));
+            }}
             onBlur={finishEditing}
             onKeyDown={onKeyDown}
             rows={1}
+            spellCheck={false}
         />
     );
 }

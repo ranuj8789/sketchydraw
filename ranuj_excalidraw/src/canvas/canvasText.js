@@ -20,8 +20,8 @@ export function createTextElementHelper({
                                             underline,
                                             textAlign,
                                         }) {
-    const finalText = text?.trim();
-    if (!finalText) return;
+    const finalText = text ?? "";
+    if (!finalText.trim()) return;
 
     const style = normalizeTextStyle({
         stroke,
@@ -72,7 +72,10 @@ export function updateTextElementHelper({
                                             underline,
                                             textAlign,
                                         }) {
-    const finalText = value?.trim() || "";
+    // IMPORTANT:
+    // Do not trim edited text.
+    // Trimming changes visible width/content and can make text feel shifted.
+    const finalText = value ?? "";
 
     const next = elements.map((el) => {
         if (el.id !== id) return el;
@@ -89,16 +92,16 @@ export function updateTextElementHelper({
             textAlign: textAlign ?? el.textAlign,
         });
 
-        const box = measureTextBox(finalText, style);
+        const box = measureTextBox(finalText || " ", style);
 
         return {
             ...el,
             text: finalText,
             stroke: style.stroke,
 
-            // Important:
-            // x/y is the top-left of the text box.
-            // Never change x/y on text edit, otherwise text jumps.
+            // IMPORTANT:
+            // Text edit must NEVER change x/y.
+            // Only width/height can change.
             x: el.x,
             y: el.y,
 

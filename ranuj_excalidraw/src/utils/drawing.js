@@ -1,4 +1,3 @@
-import {DEFAULT_TEXT_STYLE} from "../canvas/textStyle"
 import {
     buildTextCanvasFont,
     getTextAnchorX,
@@ -6,6 +5,12 @@ import {
     normalizeTextStyle,
 } from "../canvas/textRenderStyle";
 
+const SELECTION_COLOR = "#6965db";
+const SELECTION_PADDING = 6;
+const TEXT_SELECTION_PADDING_X = 7;
+const TEXT_SELECTION_PADDING_Y = 5;
+const HANDLE_SIZE = 7;
+const TEXT_HANDLE_SIZE = 6;
 
 function cubicBezierPoint(t, p0, p1, p2, p3) {
     const mt = 1 - t;
@@ -236,6 +241,26 @@ function getSelectionBox(element) {
         y: element.y,
         w: element.w,
         h: element.h,
+    };
+}
+
+function getSelectionVisualBox(element, box) {
+    if (!element || !box) return box;
+
+    if (element.type === "text") {
+        return {
+            x: box.x - TEXT_SELECTION_PADDING_X,
+            y: box.y - TEXT_SELECTION_PADDING_Y,
+            w: box.w + TEXT_SELECTION_PADDING_X * 2,
+            h: box.h + TEXT_SELECTION_PADDING_Y * 2,
+        };
+    }
+
+    return {
+        x: box.x - SELECTION_PADDING,
+        y: box.y - SELECTION_PADDING,
+        w: box.w + SELECTION_PADDING * 2,
+        h: box.h + SELECTION_PADDING * 2,
     };
 }
 
@@ -514,15 +539,24 @@ export function drawElement(ctx, element, selected = false) {
         const box = getSelectionBox(element);
 
         if (box) {
+            const visualBox = getSelectionVisualBox(element, box);
+
             ctx.save();
-            ctx.setLineDash([4, 4]);
-            ctx.strokeStyle = "#2563eb";
-            ctx.lineWidth = 1.5;
-            ctx.strokeRect(box.x - 4, box.y - 4, box.w + 8, box.h + 8);
+            ctx.setLineDash([]);
+            ctx.strokeStyle = SELECTION_COLOR;
+            ctx.lineWidth = 1;
+            ctx.strokeRect(
+                visualBox.x,
+                visualBox.y,
+                visualBox.w,
+                visualBox.h
+            );
             ctx.restore();
 
             if (element.type !== "pencil") {
-                drawSelectionResizeHandles(ctx, box);
+                drawSelectionResizeHandles(ctx, visualBox, {
+                    text: element.type === "text",
+                });
             }
         }
     }
@@ -531,27 +565,46 @@ export function drawElement(ctx, element, selected = false) {
 }
 
 
-function drawSelectionResizeHandles(ctx, box) {
-    const points = [
-        {x: box.x, y: box.y},
-        {x: box.x + box.w / 2, y: box.y},
-        {x: box.x + box.w, y: box.y},
-        {x: box.x, y: box.y + box.h / 2},
-        {x: box.x + box.w, y: box.y + box.h / 2},
-        {x: box.x, y: box.y + box.h},
-        {x: box.x + box.w / 2, y: box.y + box.h},
-        {x: box.x + box.w, y: box.y + box.h},
-    ];
+function drawSelectionResizeHandles(ctx, box, options = {}) {
+    const isText = !!options.text;
+
+    // Text selection is intentionally quieter: only 4 corner handles.
+    const points = isText
+        ? [
+            { x: box.x, y: box.y },
+            { x: box.x + box.w, y: box.y },
+            { x: box.x, y: box.y + box.h },
+            { x: box.x + box.w, y: box.y + box.h },
+        ]
+        : [
+            { x: box.x, y: box.y },
+            { x: box.x + box.w / 2, y: box.y },
+            { x: box.x + box.w, y: box.y },
+            { x: box.x, y: box.y + box.h / 2 },
+            { x: box.x + box.w, y: box.y + box.h / 2 },
+            { x: box.x, y: box.y + box.h },
+            { x: box.x + box.w / 2, y: box.y + box.h },
+            { x: box.x + box.w, y: box.y + box.h },
+        ];
+
+    const size = isText ? TEXT_HANDLE_SIZE : HANDLE_SIZE;
+    const half = size / 2;
 
     ctx.save();
     ctx.setLineDash([]);
     ctx.fillStyle = "#ffffff";
-    ctx.strokeStyle = "#2563eb";
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = SELECTION_COLOR;
+    ctx.lineWidth = 1;
 
     points.forEach((point) => {
         ctx.beginPath();
-        ctx.rect(point.x - 4, point.y - 4, 8, 8);
+
+        if (typeof ctx.roundRect === "function") {
+            ctx.roundRect(point.x - half, point.y - half, size, size, 1.5);
+        } else {
+            ctx.rect(point.x - half, point.y - half, size, size);
+        }
+
         ctx.fill();
         ctx.stroke();
     });

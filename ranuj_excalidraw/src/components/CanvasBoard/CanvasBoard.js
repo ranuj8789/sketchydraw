@@ -97,7 +97,7 @@ const ERASER_CURSOR = `url("data:image/svg+xml;charset=utf-8,${encodeURIComponen
 const ALIGNMENT_SNAP_THRESHOLD = 18;
 const GRID_SIZE = 24;
 const NOTEBOOK_LINE_GAP = 28;
-const NOTEBOOK_TEXT_LINE_PADDING =-2;
+const NOTEBOOK_TEXT_BASELINE_RATIO = 1;
 
 function snapValueToGrid(value, gridSize = GRID_SIZE) {
     return Math.round(value / gridSize) * gridSize;
@@ -111,16 +111,21 @@ function snapValueToNotebookLine(value) {
     return Math.round(value / NOTEBOOK_LINE_GAP) * NOTEBOOK_LINE_GAP;
 }
 
-function getNotebookTextAlignedTopY(y, lineHeight) {
-    const finalLineHeight = lineHeight || DEFAULT_TEXT_STYLE.lineHeight || 26;
+function getNotebookTextBaselineOffset(styleOrElement = {}) {
+    const fontSize =
+        typeof styleOrElement === "number"
+            ? DEFAULT_TEXT_STYLE.fontSize || 20
+            : styleOrElement?.fontSize || DEFAULT_TEXT_STYLE.fontSize || 20;
 
-    // Text should sit slightly above the notebook line,
-    // not directly on top of the blue grid line.
-    return (
-        snapValueToNotebookLine(y + finalLineHeight) -
-        finalLineHeight -
-        NOTEBOOK_TEXT_LINE_PADDING
-    );
+    return Math.round(fontSize * NOTEBOOK_TEXT_BASELINE_RATIO);
+}
+
+function getNotebookTextAlignedTopY(y, styleOrElement = {}) {
+    const baselineOffset = getNotebookTextBaselineOffset(styleOrElement);
+
+    // Store text y as top-left, but align its visual baseline to the notebook line.
+    // This keeps notebook text on the ruled line without changing text during edit.
+    return snapValueToNotebookLine(y + baselineOffset) - baselineOffset;
 }
 
 function snapTextPointToNotebookLine(point, style, canvasProps) {
@@ -128,11 +133,9 @@ function snapTextPointToNotebookLine(point, style, canvasProps) {
         return point;
     }
 
-    const lineHeight = style?.lineHeight || DEFAULT_TEXT_STYLE.lineHeight || 26;
-
     return {
         x: point.x,
-        y: getNotebookTextAlignedTopY(point.y, lineHeight),
+        y: getNotebookTextAlignedTopY(point.y, style),
     };
 }
 function snapPointToGrid(point, gridSize = GRID_SIZE) {
@@ -555,10 +558,83 @@ export default function CanvasBoard({
 
     useCanvasResize(wrapRef, setCanvasSize);
 
-    const renderElements =
-        editor?.mode === "edit" && editor?.id
-            ? elements.filter((el) => el.id !== editor.id)
-            : elements;
+    const TEXT_EDITOR_PREVIEW_ID = "__text_editor_preview__";
+
+    const getEditorPreviewTextElement = (activeEditor, currentElements) => {
+        if (!activeEditor) return null;
+
+        const baseElement =
+            activeEditor.mode === "edit" && activeEditor.id
+                ? currentElements.find(
+                    (el) => el.id === activeEditor.id && el.type === "text"
+                )
+                : null;
+
+        const value = activeEditor.value ?? "";
+
+        if (!value && activeEditor.mode === "create") {
+            return null;
+        }
+
+        return {
+            ...(baseElement || {}),
+            id: baseElement?.id || TEXT_EDITOR_PREVIEW_ID,
+            type: "text",
+
+            // Important: edit mode and final mode now use the same canvas renderer.
+            x: activeEditor.x,
+            y: activeEditor.y,
+            w: activeEditor.w || baseElement?.w || 120,
+            h: activeEditor.h || baseElement?.h || 32,
+            text: value || " ",
+            stroke: activeEditor.stroke || baseElement?.stroke || stroke,
+            parentId: activeEditor.parentId || baseElement?.parentId || null,
+
+            fontSize:
+                activeEditor.fontSize ||
+                baseElement?.fontSize ||
+                DEFAULT_TEXT_STYLE.fontSize,
+            lineHeight:
+                activeEditor.lineHeight ||
+                baseElement?.lineHeight ||
+                DEFAULT_TEXT_STYLE.lineHeight,
+            fontFamily:
+                activeEditor.fontFamily ||
+                baseElement?.fontFamily ||
+                DEFAULT_TEXT_STYLE.fontFamily,
+            bold:
+                activeEditor.bold ?? baseElement?.bold ?? DEFAULT_TEXT_STYLE.bold,
+            italic:
+                activeEditor.italic ?? baseElement?.italic ?? DEFAULT_TEXT_STYLE.italic,
+            underline:
+                activeEditor.underline ??
+                baseElement?.underline ??
+                DEFAULT_TEXT_STYLE.underline,
+            textAlign:
+                activeEditor.textAlign ||
+                baseElement?.textAlign ||
+                DEFAULT_TEXT_STYLE.textAlign ||
+                "left",
+
+            __textEditorPreview: true,
+        };
+    };
+
+    const renderElements = (() => {
+        if (!editor) return elements;
+
+        const previewElement = getEditorPreviewTextElement(editor, elements);
+
+        if (!previewElement) return elements;
+
+        if (editor.mode === "edit" && editor.id) {
+            return elements.map((el) =>
+                el.id === editor.id ? previewElement : el
+            );
+        }
+
+        return [...elements, previewElement];
+    })();
 
     const renderSelectedIds =
         editor?.mode === "edit" && editor?.id
@@ -1324,16 +1400,14 @@ export default function CanvasBoard({
 
         let textPoint = point;
 
-        // Normal grid snap should remain normal.
-        // Notebook text snap is special: only Y aligns to notebook writing line.
+        // Text should never snap in normal grid/blank mode.
+        // Only notebook mode aligns text to the ruled writing line.
         if (isNotebookPattern(canvasPropsRef.current)) {
             textPoint = snapTextPointToNotebookLine(
                 point,
                 style,
                 canvasPropsRef.current
             );
-        } else if (isGridSnapActive(showGridRef.current, canvasPropsRef.current)) {
-            textPoint = snapPointToGrid(point);
         }
 
         setEditor({
@@ -1439,45 +1513,42 @@ export default function CanvasBoard({
 
         if (!target) return "default";
 
-        const handle = getResizeHandleAtPoint(target, point.x, point.y);
+        const handle = getResizeHandleAtPoint(
+            target,
+            point.x,
+            point.y,
+            viewportRef.current?.zoom || 1
+        );
 
-        // Border / corner / resize handle pe resize cursor
         if (handle && target.type !== "pencil") {
             return getCursorForHandle(handle);
         }
 
         const isAlreadySelected = currentSelectedIds.includes(target.id);
 
-        /**
-         * IMPORTANT:
-         * Agar selected container rectangle ke andar empty area hai,
-         * to cursor move wala nahi hona chahiye.
-         * Yahan drag karne pe marquee/multi-select start hota hai,
-         * isliye cursor normal select/crosshair type rakho.
-         */
+        // Selected rectangle/container ke andar empty area:
+        // yahan marquee/multi-select start hoga, move cursor nahi.
         if (
             isAlreadySelected &&
             isRectangleElement(target) &&
-            isContainerRectangle(target, currentElements)
+            isContainerRectangle(target, currentElements) &&
+            hit?.kind === "fill"
         ) {
             return "crosshair";
         }
 
-        // Line / arrow body hover
         if (target.type === "line" || target.type === "arrow") {
             return "pointer";
         }
 
-        // Normal shape body hover = move
-        return "move";
+        return isAlreadySelected ? "move" : "pointer";
     };
 
     const handleSelectModeMouseDown = (point) => {
         const currentSelectedIds = selectedIdsRef.current || [];
         const currentElements = elementsRef.current || [];
 
-        // Resize / curve handles win first, but only for a single selected object.
-        // Multi-select drag must remain group move.
+        // Already selected single element ke handles/curve handles first priority.
         if (currentSelectedIds.length === 1) {
             const selectedElementObj = currentElements.find(
                 (el) => el.id === currentSelectedIds[0]
@@ -1507,7 +1578,12 @@ export default function CanvasBoard({
             }
 
             const selectedHandle = selectedElementObj
-                ? getResizeHandleAtPoint(selectedElementObj, point.x, point.y)
+                ? getResizeHandleAtPoint(
+                    selectedElementObj,
+                    point.x,
+                    point.y,
+                    viewportRef.current?.zoom || 1
+                )
                 : null;
 
             if (
@@ -1530,55 +1606,52 @@ export default function CanvasBoard({
 
         const isAlreadySelected = currentSelectedIds.includes(target.id);
 
-        /**
-         * 1. Border / corner / resize handle pe click = resize.
-         * Yeh parent rectangle aur child objects dono ke liye same rahega.
-         */
-        const directHandle = getResizeHandleAtPoint(target, point.x, point.y);
+        // Edge / corner pe click = resize, even if not selected.
+        const directHandle = getResizeHandleAtPoint(
+            target,
+            point.x,
+            point.y,
+            viewportRef.current?.zoom || 1
+        );
 
         if (directHandle && target.type !== "pencil") {
-            selectedIdsRef.current = [target.id];
-            setSelectedIds([target.id]);
+            const nextSelectedIds = [target.id];
+            selectedIdsRef.current = nextSelectedIds;
+            setSelectedIds(nextSelectedIds);
             startResize(target, directHandle, point);
             return;
         }
 
         /**
-         * 2. IMPORTANT FIX:
-         * Agar selected rectangle/container ke andar empty area se drag karo,
-         * to parent rectangle move nahi hoga.
+         * Important behavior:
          *
-         * Instead marquee/multi-select box start hoga.
+         * 1. Selected rectangle/container + inside empty fill drag
+         *    => marquee/multi-select.
          *
-         * Note:
-         * hit.kind === "fill" condition intentionally remove kari hai,
-         * because tumhare hit detection mein kind kabhi "inside/body/fill"
-         * mismatch ho sakta hai. Bas selected rectangle + container hona enough hai.
+         * 2. Selected rectangle border/edge drag
+         *    => resize handled above.
+         *
+         * 3. Selected normal rectangle body drag
+         *    => move.
+         *
+         * 4. Child object inside rectangle
+         *    => child wins because findTopElementHitAtPoint picks smaller/top object.
          */
         if (
             isAlreadySelected &&
             isRectangleElement(target) &&
-            isContainerRectangle(target, currentElements)
+            isContainerRectangle(target, currentElements) &&
+            hit?.kind === "fill"
         ) {
             startMarqueeSelection(point);
             return;
         }
 
-        /**
-         * 3. Agar selected object rectangle/container nahi hai,
-         * ya rectangle empty container nahi hai,
-         * to normal move.
-         */
         if (isAlreadySelected) {
             startMove(target, point, currentSelectedIds);
             return;
         }
 
-        /**
-         * 4. New object click:
-         * Child object pe click hua to child select/move hoga,
-         * kyunki findTopElementHitAtPoint top/small object deta hai.
-         */
         const nextSelectedIds = [target.id];
         selectedIdsRef.current = nextSelectedIds;
         setSelectedIds(nextSelectedIds);
@@ -2133,25 +2206,23 @@ export default function CanvasBoard({
                     movingIds.has(el.id)
                 );
 
-                // Notebook special rule:
-                // if only one text is selected, align text center to notebook line.
-                if (
-                    isNotebookPattern(canvasPropsRef.current) &&
-                    rawMovedElements.length === 1 &&
-                    rawMovedElements[0]?.type === "text"
-                ) {
-                    const movedText = rawMovedElements[0];
-                    const lineHeight =
-                        movedText.lineHeight || DEFAULT_TEXT_STYLE.lineHeight || 26;
+                const onlyTextMoving =
+                    rawMovedElements.length === 1 && rawMovedElements[0]?.type === "text";
 
-                    const alignedY = getNotebookTextAlignedTopY(
-                        movedText.y,
-                        lineHeight
-                    );
+                if (onlyTextMoving) {
+                    // Normal grid/blank: text keeps exact dragged position.
+                    // Notebook: text snaps only vertically to the ruled writing line.
+                    if (isNotebookPattern(canvasPropsRef.current)) {
+                        const movedText = rawMovedElements[0];
+                        const alignedY = getNotebookTextAlignedTopY(
+                            movedText.y,
+                            movedText
+                        );
 
-                    dy += alignedY - movedText.y;
+                        dy += alignedY - movedText.y;
+                    }
                 } else {
-                    // Normal grid behavior for all other cases.
+                    // Shapes/groups still use normal grid snap.
                     const movedBounds = getGroupBounds(rawMovedElements);
 
                     if (movedBounds) {
