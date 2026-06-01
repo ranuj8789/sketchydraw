@@ -97,7 +97,7 @@ const ERASER_CURSOR = `url("data:image/svg+xml;charset=utf-8,${encodeURIComponen
 const ALIGNMENT_SNAP_THRESHOLD = 18;
 const GRID_SIZE = 24;
 const NOTEBOOK_LINE_GAP = 28;
-const NOTEBOOK_TEXT_BASELINE_RATIO = 1;
+const NOTEBOOK_TEXT_BASELINE_RATIO = 0.8;
 
 function snapValueToGrid(value, gridSize = GRID_SIZE) {
     return Math.round(value / gridSize) * gridSize;
@@ -392,6 +392,17 @@ function getSmartAlignment({elements, movingIds, movedElements}) {
     };
 }
 
+function getNotebookTextStyle(style, canvasProps) {
+    if (!isNotebookPattern(canvasProps)) {
+        return style;
+    }
+
+    return {
+        ...style,
+        lineHeight: NOTEBOOK_LINE_GAP,
+    };
+}
+
 function getResizeSmartAlignment({elements, resizingId, resizedElement, handle}) {
     const resizedBounds = getElementBounds(resizedElement);
     if (!resizedBounds) {
@@ -594,8 +605,9 @@ export default function CanvasBoard({
                 activeEditor.fontSize ||
                 baseElement?.fontSize ||
                 DEFAULT_TEXT_STYLE.fontSize,
-            lineHeight:
-                activeEditor.lineHeight ||
+            lineHeight: isNotebookPattern(canvasPropsRef.current)
+                ? NOTEBOOK_LINE_GAP
+                : activeEditor.lineHeight ||
                 baseElement?.lineHeight ||
                 DEFAULT_TEXT_STYLE.lineHeight,
             fontFamily:
@@ -1392,11 +1404,16 @@ export default function CanvasBoard({
         setSelectedIds([]);
         setDragState(null);
 
-        const style = normalizeTextStyle({
+        const baseStyle = normalizeTextStyle({
             ...DEFAULT_TEXT_STYLE,
             ...currentTextStyle,
             stroke: forcedStroke,
         });
+
+        const style = getNotebookTextStyle(
+            baseStyle,
+            canvasPropsRef.current
+        );
 
         let textPoint = point;
 
@@ -2498,7 +2515,9 @@ export default function CanvasBoard({
                 parentId: target.parentId || null,
 
                 fontSize: target.fontSize || DEFAULT_TEXT_STYLE.fontSize,
-                lineHeight: target.lineHeight || DEFAULT_TEXT_STYLE.lineHeight,
+                lineHeight: isNotebookPattern(canvasPropsRef.current)
+                    ? NOTEBOOK_LINE_GAP
+                    : target.lineHeight || DEFAULT_TEXT_STYLE.lineHeight,
                 fontFamily: target.fontFamily || DEFAULT_TEXT_STYLE.fontFamily,
                 bold: !!target.bold,
                 italic: !!target.italic,
