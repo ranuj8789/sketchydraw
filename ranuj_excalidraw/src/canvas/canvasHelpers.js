@@ -1,4 +1,4 @@
-export function findTopElementAtPoint(elements, point) {
+export function findTopElementHitAtPoint(elements, point) {
     const hits = [];
 
     for (let i = elements.length - 1; i >= 0; i--) {
@@ -7,7 +7,7 @@ export function findTopElementAtPoint(elements, point) {
 
         if (hit) {
             hits.push({
-                el,
+                element: el,
                 index: i,
                 kind: hit.kind,
                 area: getElementArea(el),
@@ -17,17 +17,21 @@ export function findTopElementAtPoint(elements, point) {
 
     if (hits.length === 0) return null;
 
-    // 1. If clicked near border/line, prefer topmost border hit.
-    const borderHit = hits.find((h) => h.kind === "border");
-    if (borderHit) return borderHit.el;
-
-    // 2. If shapes overlap/nested, select smallest object first.
+    // Smallest hit object wins, so an object inside a rectangle
+    // is selected before the outer rectangle.
     hits.sort((a, b) => {
         if (a.area !== b.area) return a.area - b.area;
         return b.index - a.index;
     });
 
-    return hits[0].el;
+    return {
+        element: hits[0].element,
+        kind: hits[0].kind,
+    };
+}
+
+export function findTopElementAtPoint(elements, point) {
+    return findTopElementHitAtPoint(elements, point)?.element || null;
 }
 
 function getElementHit(el, point) {

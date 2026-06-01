@@ -41,6 +41,12 @@ export default function TextEditor({
     );
 
     const liveBox = measureTextBox(editor.value || " ", style);
+    const editorBox = editor.mode === "edit"
+        ? {
+            w: Math.max(editor.w || liveBox.w, liveBox.w),
+            h: Math.max(editor.h || liveBox.h, liveBox.h),
+        }
+        : liveBox;
 
     const finishEditing = () => {
         if (finishingRef.current) return;
@@ -113,8 +119,8 @@ export default function TextEditor({
                 left: screenPoint.x,
                 top: screenPoint.y,
 
-                width: liveBox.w * zoom + 4,
-                height: liveBox.h * zoom + 4,
+                width: editorBox.w * zoom + 4,
+                height: editorBox.h * zoom + 4,
 
                 color: style.stroke,
                 font: buildTextEditorFont(style, zoom),

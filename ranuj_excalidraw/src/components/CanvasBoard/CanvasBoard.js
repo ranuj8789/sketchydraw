@@ -35,6 +35,7 @@ import {
 } from "../../canvas/canvasElementOps";
 import {
     findTopElementAtPoint,
+    findTopElementHitAtPoint,
     getCurveHandleAtPoint,
 } from "../../canvas/canvasHelpers";
 import {
@@ -1291,20 +1292,21 @@ export default function CanvasBoard({
         });
     };
 
-    const startMove = (target, point) => {
-        const idsToMove = selectedIds.includes(target.id)
-            ? selectedIds
+    const startMove = (target, point, forcedSelectedIds = null) => {
+        if (!target || !point) return;
+
+        const movingIds = Array.isArray(forcedSelectedIds) && forcedSelectedIds.length > 0
+            ? forcedSelectedIds
             : [target.id];
 
         dragBaseElementsRef.current = elementsRef.current;
-        dragPreviewElementsRef.current = elementsRef.current;
-        setSelectedIds(idsToMove);
+        dragPreviewElementsRef.current = null;
 
         setDragState({
             mode: "move",
-            ids: idsToMove,
             startX: point.x,
             startY: point.y,
+            ids: movingIds,
         });
     };
 
@@ -1380,10 +1382,105 @@ export default function CanvasBoard({
         });
     };
 
+    const isRectangleElement = (element) =>
+        element?.type === "rect" || element?.type === "rectangle";
+
+    const isSelectionBoxInsideElement = (selectionBox, element) => {
+        const bounds = getElementBounds(element);
+        if (!selectionBox || !bounds) return false;
+
+        return (
+            selectionBox.x >= bounds.x &&
+            selectionBox.y >= bounds.y &&
+            selectionBox.x + selectionBox.w <= bounds.x + bounds.w &&
+            selectionBox.y + selectionBox.h <= bounds.y + bounds.h
+        );
+    };
+
+    const shouldSelectElementByMarquee = (selectionBox, element) => {
+        const bounds = getElementBounds(element);
+        if (!bounds) return false;
+
+        /**
+         * Important:
+         * If user is dragging selection box INSIDE a rectangle,
+         * that rectangle behaves like canvas/frame.
+         * So do NOT select that outer rectangle.
+         */
+        if (
+            isRectangleElement(element) &&
+            isSelectionBoxInsideElement(selectionBox, element)
+        ) {
+            return false;
+        }
+
+        return rectsIntersect(selectionBox, bounds);
+    };
+
+    const isContainerRectangle = (element, currentElements) => {
+        if (!isRectangleElement(element)) return false;
+
+        const bounds = getElementBounds(element);
+        if (!bounds) return false;
+
+        return findContainedElementIds(
+            currentElements,
+            element,
+            bounds
+        ).length > 0;
+    };
+
+    const getSelectCursorForPoint = (point) => {
+        const currentElements = elementsRef.current || [];
+        const currentSelectedIds = selectedIdsRef.current || [];
+
+        const hit = findTopElementHitAtPoint(currentElements, point);
+        const target = hit?.element || null;
+
+        if (!target) return "default";
+
+        const handle = getResizeHandleAtPoint(target, point.x, point.y);
+
+        // Border / corner / resize handle pe resize cursor
+        if (handle && target.type !== "pencil") {
+            return getCursorForHandle(handle);
+        }
+
+        const isAlreadySelected = currentSelectedIds.includes(target.id);
+
+        /**
+         * IMPORTANT:
+         * Agar selected container rectangle ke andar empty area hai,
+         * to cursor move wala nahi hona chahiye.
+         * Yahan drag karne pe marquee/multi-select start hota hai,
+         * isliye cursor normal select/crosshair type rakho.
+         */
+        if (
+            isAlreadySelected &&
+            isRectangleElement(target) &&
+            isContainerRectangle(target, currentElements)
+        ) {
+            return "crosshair";
+        }
+
+        // Line / arrow body hover
+        if (target.type === "line" || target.type === "arrow") {
+            return "pointer";
+        }
+
+        // Normal shape body hover = move
+        return "move";
+    };
+
     const handleSelectModeMouseDown = (point) => {
-        if (selectedIds.length === 1) {
-            const selectedElementObj = elements.find(
-                (el) => el.id === selectedIds[0]
+        const currentSelectedIds = selectedIdsRef.current || [];
+        const currentElements = elementsRef.current || [];
+
+        // Resize / curve handles win first, but only for a single selected object.
+        // Multi-select drag must remain group move.
+        if (currentSelectedIds.length === 1) {
+            const selectedElementObj = currentElements.find(
+                (el) => el.id === currentSelectedIds[0]
             );
 
             if (
@@ -1393,12 +1490,12 @@ export default function CanvasBoard({
                 const curveHandle = getCurveHandleAtPoint(
                     selectedElementObj,
                     point,
-                    viewport.zoom
+                    viewportRef.current.zoom
                 );
 
                 if (curveHandle) {
-                    dragBaseElementsRef.current = elementsRef.current;
-                    dragPreviewElementsRef.current = elementsRef.current;
+                    dragBaseElementsRef.current = currentElements;
+                    dragPreviewElementsRef.current = null;
 
                     setDragState({
                         mode: "curve-handle",
@@ -1409,47 +1506,83 @@ export default function CanvasBoard({
                 }
             }
 
-            const selectedHandle = getResizeHandleAtPoint(
-                selectedElementObj,
-                point.x,
-                point.y
-            );
+            const selectedHandle = selectedElementObj
+                ? getResizeHandleAtPoint(selectedElementObj, point.x, point.y)
+                : null;
 
-            if (selectedElementObj && selectedHandle) {
+            if (
+                selectedElementObj &&
+                selectedHandle &&
+                selectedElementObj.type !== "pencil"
+            ) {
                 startResize(selectedElementObj, selectedHandle, point);
                 return;
             }
         }
 
-        const target = findTopElementAtPoint(elements, point);
+        const hit = findTopElementHitAtPoint(currentElements, point);
+        const target = hit?.element || null;
 
         if (!target) {
             startMarqueeSelection(point);
             return;
         }
 
-        const isAlreadySelected = selectedIds.includes(target.id);
+        const isAlreadySelected = currentSelectedIds.includes(target.id);
 
-        if (!isAlreadySelected) {
+        /**
+         * 1. Border / corner / resize handle pe click = resize.
+         * Yeh parent rectangle aur child objects dono ke liye same rahega.
+         */
+        const directHandle = getResizeHandleAtPoint(target, point.x, point.y);
+
+        if (directHandle && target.type !== "pencil") {
+            selectedIdsRef.current = [target.id];
             setSelectedIds([target.id]);
-            setDragState(null);
-            clearDragPreviewRefs();
+            startResize(target, directHandle, point);
             return;
         }
 
-        if (target.type === "text") {
-            startMove(target, point);
+        /**
+         * 2. IMPORTANT FIX:
+         * Agar selected rectangle/container ke andar empty area se drag karo,
+         * to parent rectangle move nahi hoga.
+         *
+         * Instead marquee/multi-select box start hoga.
+         *
+         * Note:
+         * hit.kind === "fill" condition intentionally remove kari hai,
+         * because tumhare hit detection mein kind kabhi "inside/body/fill"
+         * mismatch ho sakta hai. Bas selected rectangle + container hona enough hai.
+         */
+        if (
+            isAlreadySelected &&
+            isRectangleElement(target) &&
+            isContainerRectangle(target, currentElements)
+        ) {
+            startMarqueeSelection(point);
             return;
         }
 
-        const handle = getResizeHandleAtPoint(target, point.x, point.y);
-
-        if (handle && target.type !== "pencil") {
-            startResize(target, handle, point);
+        /**
+         * 3. Agar selected object rectangle/container nahi hai,
+         * ya rectangle empty container nahi hai,
+         * to normal move.
+         */
+        if (isAlreadySelected) {
+            startMove(target, point, currentSelectedIds);
             return;
         }
 
-        startMove(target, point);
+        /**
+         * 4. New object click:
+         * Child object pe click hua to child select/move hoga,
+         * kyunki findTopElementHitAtPoint top/small object deta hai.
+         */
+        const nextSelectedIds = [target.id];
+        selectedIdsRef.current = nextSelectedIds;
+        setSelectedIds(nextSelectedIds);
+        startMove(target, point, nextSelectedIds);
     };
 
     const handleDrawModeMouseDown = (point) => {
@@ -1697,13 +1830,7 @@ export default function CanvasBoard({
                         if (handle) {
                             cursor = getCursorForHandle(handle);
                         } else {
-                            const target = findTopElementAtPoint(elements, point);
-                            if (target) {
-                                cursor =
-                                    target.type === "line" || target.type === "arrow"
-                                        ? "pointer"
-                                        : "move";
-                            }
+                            cursor = getSelectCursorForPoint(point);
                         }
                     }
                 } else {
@@ -1718,23 +1845,11 @@ export default function CanvasBoard({
                     if (handle) {
                         cursor = getCursorForHandle(handle);
                     } else {
-                        const target = findTopElementAtPoint(elements, point);
-                        if (target) {
-                            cursor =
-                                target.type === "line" || target.type === "arrow"
-                                    ? "pointer"
-                                    : "move";
-                        }
+                        cursor = getSelectCursorForPoint(point);
                     }
                 }
             } else {
-                const target = findTopElementAtPoint(elements, point);
-                if (target) {
-                    cursor =
-                        target.type === "line" || target.type === "arrow"
-                            ? "pointer"
-                            : "move";
-                }
+                cursor = getSelectCursorForPoint(point);
             }
 
             canvas.style.cursor = cursor;
@@ -2162,17 +2277,15 @@ export default function CanvasBoard({
 
             setSelectionBox(box);
 
-            const insideIds = elements
-                .filter((el) => {
-                    const bounds = getElementBounds(el);
-                    if (!bounds) return false;
-                    return rectsIntersect(box, bounds);
-                })
+            const insideIds = elementsRef.current
+                .filter((el) => shouldSelectElementByMarquee(box, el))
                 .map((el) => el.id);
 
             setSelectedIds(insideIds);
+            selectedIdsRef.current = insideIds;
         }
     };
+
 
     const onMouseMove = (event) => {
         event.persist?.();

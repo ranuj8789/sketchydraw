@@ -520,8 +520,41 @@ export function drawElement(ctx, element, selected = false) {
             ctx.lineWidth = 1.5;
             ctx.strokeRect(box.x - 4, box.y - 4, box.w + 8, box.h + 8);
             ctx.restore();
+
+            if (element.type !== "pencil") {
+                drawSelectionResizeHandles(ctx, box);
+            }
         }
     }
+
+    ctx.restore();
+}
+
+
+function drawSelectionResizeHandles(ctx, box) {
+    const points = [
+        {x: box.x, y: box.y},
+        {x: box.x + box.w / 2, y: box.y},
+        {x: box.x + box.w, y: box.y},
+        {x: box.x, y: box.y + box.h / 2},
+        {x: box.x + box.w, y: box.y + box.h / 2},
+        {x: box.x, y: box.y + box.h},
+        {x: box.x + box.w / 2, y: box.y + box.h},
+        {x: box.x + box.w, y: box.y + box.h},
+    ];
+
+    ctx.save();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 1.5;
+
+    points.forEach((point) => {
+        ctx.beginPath();
+        ctx.rect(point.x - 4, point.y - 4, 8, 8);
+        ctx.fill();
+        ctx.stroke();
+    });
 
     ctx.restore();
 }

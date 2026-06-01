@@ -8,29 +8,44 @@ export function getElementBounds(element) {
         element.type === "diamond" ||
         element.type === "image"
     ) {
+        const w = element.w || 0;
+        const h = element.h || 0;
+
         return {
-            x: element.x,
-            y: element.y,
-            w: element.w,
-            h: element.h,
+            x: w < 0 ? element.x + w : element.x,
+            y: h < 0 ? element.y + h : element.y,
+            w: Math.abs(w),
+            h: Math.abs(h),
         };
     }
 
     if (element.type === "text") {
+        const w = element.w || 120;
+        const h = element.h || 32;
+
         return {
-            x: element.x,
-            y: element.y,
-            w: element.w || 120,
-            h: element.h || 32,
+            x: w < 0 ? element.x + w : element.x,
+            y: h < 0 ? element.y + h : element.y,
+            w: Math.abs(w),
+            h: Math.abs(h),
         };
     }
 
     if (element.type === "line" || element.type === "arrow") {
-        const x = Math.min(element.x1, element.x2);
-        const y = Math.min(element.y1, element.y2);
-        const w = Math.abs(element.x2 - element.x1);
-        const h = Math.abs(element.y2 - element.y1);
-        return { x, y, w, h };
+        const extraXs = [element.x1, element.x2];
+        const extraYs = [element.y1, element.y2];
+
+        if (element.lineStyle === "curved") {
+            extraXs.push(element.cx1 ?? element.x1, element.cx2 ?? element.x2);
+            extraYs.push(element.cy1 ?? element.y1, element.cy2 ?? element.y2);
+        }
+
+        const x = Math.min(...extraXs);
+        const y = Math.min(...extraYs);
+        const maxX = Math.max(...extraXs);
+        const maxY = Math.max(...extraYs);
+
+        return {x, y, w: maxX - x, h: maxY - y};
     }
 
     if (element.type === "pencil") {
@@ -44,7 +59,7 @@ export function getElementBounds(element) {
         const w = Math.max(...xs) - x;
         const h = Math.max(...ys) - y;
 
-        return { x, y, w, h };
+        return {x, y, w, h};
     }
 
     return null;
@@ -54,31 +69,33 @@ export function getResizeHandles(element) {
     const bounds = getElementBounds(element);
     if (!bounds) return null;
 
-    const { x, y, w, h } = bounds;
+    const {x, y, w, h} = bounds;
 
     return {
-        nw: { x, y },
-        n: { x: x + w / 2, y },
-        ne: { x: x + w, y },
+        nw: {x, y},
+        n: {x: x + w / 2, y},
+        ne: {x: x + w, y},
 
-        w: { x, y: y + h / 2 },
-        e: { x: x + w, y: y + h / 2 },
+        w: {x, y: y + h / 2},
+        e: {x: x + w, y: y + h / 2},
 
-        sw: { x, y: y + h },
-        s: { x: x + w / 2, y: y + h },
-        se: { x: x + w, y: y + h },
+        sw: {x, y: y + h},
+        s: {x: x + w / 2, y: y + h},
+        se: {x: x + w, y: y + h},
     };
 }
 
-export function getResizeHandleAtPoint(element, px, py) {
+export function getResizeHandleAtPoint(element, px, py, zoom = 1) {
     const bounds = getElementBounds(element);
     const handles = getResizeHandles(element);
 
     if (!bounds || !handles) return null;
+    if (element.type === "pencil") return null;
 
-    const size = 8;
+    const safeZoom = zoom || 1;
+    const size = 8 / safeZoom;
 
-    // 1. First check exact handle points
+    // 1. First check exact corner / side handle points.
     for (const [key, point] of Object.entries(handles)) {
         const withinX = px >= point.x - size && px <= point.x + size;
         const withinY = py >= point.y - size && py <= point.y + size;
@@ -86,8 +103,8 @@ export function getResizeHandleAtPoint(element, px, py) {
         if (withinX && withinY) return key;
     }
 
-    // 2. Then allow resize from edges also
-    const edgeThreshold = 8;
+    // 2. Then allow resize from rectangle/shape edges also.
+    const edgeThreshold = 8 / safeZoom;
 
     const left = bounds.x;
     const right = bounds.x + bounds.w;
@@ -101,6 +118,11 @@ export function getResizeHandleAtPoint(element, px, py) {
     const nearBottom = Math.abs(py - bottom) <= edgeThreshold && withinHorizontalRange;
     const nearLeft = Math.abs(px - left) <= edgeThreshold && withinVerticalRange;
     const nearRight = Math.abs(px - right) <= edgeThreshold && withinVerticalRange;
+
+    if (nearTop && nearLeft) return "nw";
+    if (nearTop && nearRight) return "ne";
+    if (nearBottom && nearLeft) return "sw";
+    if (nearBottom && nearRight) return "se";
 
     if (nearTop) return "n";
     if (nearBottom) return "s";
