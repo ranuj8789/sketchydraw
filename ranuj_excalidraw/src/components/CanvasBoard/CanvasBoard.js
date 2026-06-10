@@ -661,20 +661,6 @@ export default function CanvasBoard({
         editor?.mode === "edit" && editor?.id
             ? selectedIds.filter((id) => id !== editor.id)
             : selectedIds;
-    useEffect(() => {
-        const handleWindowPointerMove = (event) => {
-            lastMouseClientPointRef.current = {
-                clientX: event.clientX,
-                clientY: event.clientY,
-            };
-        };
-
-        window.addEventListener("pointermove", handleWindowPointerMove);
-
-        return () => {
-            window.removeEventListener("pointermove", handleWindowPointerMove);
-        };
-    }, []);
 
     useEffect(() => {
         const handleVideoExport = (event) => {
@@ -2433,8 +2419,13 @@ export default function CanvasBoard({
 
     const onMouseMove = (event) => {
         event.persist?.();
-        latestPointerMoveEventRef.current = event;
 
+        lastMouseClientPointRef.current = {
+            clientX: event.clientX,
+            clientY: event.clientY,
+        };
+
+        latestPointerMoveEventRef.current = event;
         if (pointerMoveFrameRef.current !== null) {
             return;
         }
