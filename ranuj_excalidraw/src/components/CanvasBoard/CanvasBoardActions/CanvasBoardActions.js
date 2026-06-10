@@ -1,14 +1,23 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import "./CanvasBoardActions.css";
 import { clampZoom } from "../../../canvas/canvasViewport";
 import { requireProAccess } from "../../../utils/proAccess";
+import CanvasWalkthroughMap from "./CanvasWalkthroughMap";
 
 export default function CanvasBoardActions({
                                                viewport,
                                                setViewport,
                                                saveCurrentDrawing,
                                                openMyDrawings,
+
+                                               elements = [],
+                                               selectedIds = [],
+                                               canvasSize,
+                                               showGrid,
+                                               canvasProps,
                                            }) {
+    const [canvasMapOpen, setCanvasMapOpen] = useState(false);
+
     useEffect(() => {
         const handleSaveDrawing = (event) => {
             saveCurrentDrawing?.({
@@ -38,58 +47,77 @@ export default function CanvasBoardActions({
             offsetX: 0,
             offsetY: 0,
         });
+
+        setCanvasMapOpen(true);
     };
 
     return (
-        <div className="canvas-zoom-floating">
-            <div className="zoom-control">
-                <button
-                    className="zoom-btn"
-                    type="button"
-                    onClick={() =>
-                        setViewport((v) => ({
-                            ...v,
-                            zoom: clampZoom(v.zoom * 0.9),
-                        }))
-                    }
-                >
-                    −
-                </button>
+        <>
+            <div className="canvas-zoom-floating">
+                <div className="zoom-control">
+                    <button
+                        className="zoom-btn"
+                        type="button"
+                        onClick={() =>
+                            setViewport((v) => ({
+                                ...v,
+                                zoom: clampZoom(v.zoom * 0.9),
+                            }))
+                        }
+                        title="Zoom out"
+                    >
+                        −
+                    </button>
 
-                <span
-                    className="zoom-value"
-                    onClick={() =>
-                        setViewport((v) => ({
-                            ...v,
-                            zoom: 1,
-                        }))
-                    }
-                    title="Click to reset zoom"
-                >
-                    {Math.round(viewport.zoom * 100)}%
-                </span>
+                    <span
+                        className="zoom-value"
+                        onClick={() =>
+                            setViewport((v) => ({
+                                ...v,
+                                zoom: 1,
+                            }))
+                        }
+                        title="Click to reset zoom"
+                    >
+                        {Math.round(viewport.zoom * 100)}%
+                    </span>
+
+                    <button
+                        className="zoom-btn"
+                        type="button"
+                        onClick={() =>
+                            setViewport((v) => ({
+                                ...v,
+                                zoom: clampZoom(v.zoom * 1.1),
+                            }))
+                        }
+                        title="Zoom in"
+                    >
+                        +
+                    </button>
+                </div>
 
                 <button
-                    className="zoom-btn"
+                    className="reset-btn"
                     type="button"
-                    onClick={() =>
-                        setViewport((v) => ({
-                            ...v,
-                            zoom: clampZoom(v.zoom * 1.1),
-                        }))
-                    }
+                    onClick={resetViewport}
+                    title="Reset canvas to 100% and open canvas map"
                 >
-                    +
+                    Reset
                 </button>
             </div>
 
-            <button
-                className="reset-btn"
-                type="button"
-                onClick={resetViewport}
-            >
-                Reset
-            </button>
-        </div>
+            <CanvasWalkthroughMap
+                open={canvasMapOpen}
+                onClose={() => setCanvasMapOpen(false)}
+                elements={elements}
+                selectedIds={selectedIds}
+                viewport={viewport}
+                setViewport={setViewport}
+                canvasSize={canvasSize}
+                showGrid={showGrid}
+                canvasProps={canvasProps}
+            />
+        </>
     );
 }

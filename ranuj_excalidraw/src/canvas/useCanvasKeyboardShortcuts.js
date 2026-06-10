@@ -1,5 +1,9 @@
 import { useEffect } from "react";
-import { cloneElementsForPaste } from "./canvasClipboard";
+import {
+    cloneElementsForPaste,
+    readElementsFromSystemClipboard,
+    writeElementsToSystemClipboard,
+} from "./canvasClipboard";
 
 export function useCanvasKeyboardShortcuts({
                                                editor,
@@ -10,9 +14,34 @@ export function useCanvasKeyboardShortcuts({
                                                setElements,
                                                setSelectedIds,
                                                commitHistory,
+                                               getPastePoint,
                                            }) {
     useEffect(() => {
-        const onKeyDown = (event) => {
+        const pasteElements = async () => {
+            const systemClipboardElements = await readElementsFromSystemClipboard();
+
+            const source =
+                systemClipboardElements && systemClipboardElements.length > 0
+                    ? systemClipboardElements
+                    : clipboard;
+
+            if (!source || source.length === 0) return;
+
+            const pastePoint = getPastePoint?.() || null;
+
+            const pasted = cloneElementsForPaste(source, {
+                offset: 24,
+                pastePoint,
+            });
+
+            const next = [...elements, ...pasted];
+
+            setElements(next);
+            setSelectedIds(pasted.map((el) => el.id));
+            commitHistory(next);
+        };
+
+        const onKeyDown = async (event) => {
             const tagName = event.target?.tagName?.toLowerCase();
             const isTypingTarget =
                 tagName === "textarea" ||
@@ -52,21 +81,17 @@ export function useCanvasKeyboardShortcuts({
                         (el.parentId && selectedSet.has(el.parentId))
                 );
 
-                setClipboard(JSON.parse(JSON.stringify(selected)));
+                const copied = JSON.parse(JSON.stringify(selected));
+
+                setClipboard(copied);
+                await writeElementsToSystemClipboard(copied);
+
                 return;
             }
 
             if (isPaste) {
-                if (!clipboard || clipboard.length === 0) return;
-
                 event.preventDefault();
-
-                const pasted = cloneElementsForPaste(clipboard, 24);
-                const next = [...elements, ...pasted];
-
-                setElements(next);
-                setSelectedIds(pasted.map((el) => el.id));
-                commitHistory(next);
+                await pasteElements();
                 return;
             }
 
@@ -110,5 +135,6 @@ export function useCanvasKeyboardShortcuts({
         setElements,
         setSelectedIds,
         commitHistory,
+        getPastePoint,
     ]);
 }

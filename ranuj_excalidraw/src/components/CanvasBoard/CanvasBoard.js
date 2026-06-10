@@ -58,6 +58,11 @@ import {useCanvasResize} from "../../canvas/useCanvasResize";
 import {useCanvasRender} from "../../canvas/useCanvasRender";
 import {renderCanvas} from "../../canvas/canvasRender";
 import {useCanvasKeyboardShortcuts} from "../../canvas/useCanvasKeyboardShortcuts";
+import {
+    cloneElementsForPaste,
+    readElementsFromSystemClipboard,
+    writeElementsToSystemClipboard,
+} from "../../canvas/canvasClipboard";
 import {screenToWorld} from "../../canvas/canvasViewport";
 import BoardContextMenu from "../BoardContextMenu";
 import {
@@ -513,6 +518,10 @@ export default function CanvasBoard({
     const pointerMoveFrameRef = useRef(null);
     const latestPointerMoveEventRef = useRef(null);
 
+    const lastMouseClientPointRef = useRef(null);
+    const lastPastePointRef = useRef(null);
+    const contextMenuPastePointRef = useRef(null);
+
     const elementsRef = useRef(elements);
     const selectedIdsRef = useRef(selectedIds);
     const viewportRef = useRef(viewport);
@@ -652,6 +661,20 @@ export default function CanvasBoard({
         editor?.mode === "edit" && editor?.id
             ? selectedIds.filter((id) => id !== editor.id)
             : selectedIds;
+    useEffect(() => {
+        const handleWindowPointerMove = (event) => {
+            lastMouseClientPointRef.current = {
+                clientX: event.clientX,
+                clientY: event.clientY,
+            };
+        };
+
+        window.addEventListener("pointermove", handleWindowPointerMove);
+
+        return () => {
+            window.removeEventListener("pointermove", handleWindowPointerMove);
+        };
+    }, []);
 
     useEffect(() => {
         const handleVideoExport = (event) => {
@@ -1177,6 +1200,17 @@ export default function CanvasBoard({
     const handleBoardRightClick = (e) => {
         e.preventDefault();
 
+        lastMouseClientPointRef.current = {
+            clientX: e.clientX,
+            clientY: e.clientY,
+        };
+
+        const screenPoint = getPointerPosition(e, canvasRef.current);
+        const worldPoint = screenToWorld(screenPoint, viewportRef.current);
+
+        lastPastePointRef.current = worldPoint;
+        contextMenuPastePointRef.current = worldPoint;
+
         setContextMenu({
             visible: true,
             x: e.clientX,
@@ -1444,6 +1478,27 @@ export default function CanvasBoard({
             textAlign: style.textAlign,
         });
     };
+    const getPastePointFromMouseCursor = () => {
+        const canvas = canvasRef.current;
+        const lastMouse = lastMouseClientPointRef.current;
+
+        if (!canvas || !lastMouse) {
+            return lastPastePointRef.current;
+        }
+
+        const rect = canvas.getBoundingClientRect();
+
+        const screenPoint = {
+            x: lastMouse.clientX - rect.left,
+            y: lastMouse.clientY - rect.top,
+        };
+
+        const worldPoint = screenToWorld(screenPoint, viewportRef.current);
+
+        lastPastePointRef.current = worldPoint;
+
+        return worldPoint;
+    };
 
     useCanvasKeyboardShortcuts({
         editor,
@@ -1454,6 +1509,7 @@ export default function CanvasBoard({
         setElements,
         setSelectedIds,
         commitHistory,
+        getPastePoint: getPastePointFromMouseCursor,
     });
 
     const startMarqueeSelection = (point) => {
@@ -2543,19 +2599,44 @@ export default function CanvasBoard({
     const onWheel = (event) => {
         event.preventDefault();
 
-        setViewport((prev) => {
-            if (event.shiftKey) {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const zoom = viewportRef.current?.zoom || 1;
+
+        // Trackpad pinch / Ctrl + wheel = zoom around mouse pointer
+        if (event.ctrlKey || event.metaKey) {
+            const rawPoint = getPointerPosition(event, canvas);
+            const beforeZoomPoint = screenToWorld(rawPoint, viewportRef.current);
+
+            const zoomFactor = event.deltaY < 0 ? 1.08 : 0.92;
+            const nextZoom = Math.max(
+                0.2,
+                Math.min(4, zoom * zoomFactor)
+            );
+
+            setViewport((prev) => {
+                const nextOffsetX = rawPoint.x - beforeZoomPoint.x * nextZoom;
+                const nextOffsetY = rawPoint.y - beforeZoomPoint.y * nextZoom;
+
                 return {
                     ...prev,
-                    offsetX: prev.offsetX - event.deltaY,
+                    zoom: nextZoom,
+                    offsetX: nextOffsetX,
+                    offsetY: nextOffsetY,
                 };
-            }
+            });
 
-            return {
-                ...prev,
-                offsetY: prev.offsetY - event.deltaY,
-            };
-        });
+            return;
+        }
+
+        // Normal wheel = pan canvas
+        // Notebook should behave like scrolling a page.
+        setViewport((prev) => ({
+            ...prev,
+            offsetX: prev.offsetX - event.deltaX,
+            offsetY: prev.offsetY - event.deltaY,
+        }));
     };
 
     const getLocalSavedDrawingById = (id) => {
@@ -2713,6 +2794,11 @@ export default function CanvasBoard({
                 openMyDrawings={() => setMyDrawingsOpen(true)}
                 isVideoExporting={isVideoExporting}
                 videoExportProgress={videoExportProgress}
+                elements={elements}
+                selectedIds={selectedIds}
+                canvasSize={canvasSize}
+                showGrid={showGrid}
+                canvasProps={canvasProps}
             />
 
             <SaveDrawingPopup
