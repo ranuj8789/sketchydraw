@@ -19,6 +19,7 @@ export function createTextElementHelper({
                                             italic,
                                             underline,
                                             textAlign,
+                                            pageIndex,
                                         }) {
     const finalText = text ?? "";
     if (!finalText.trim()) return;
@@ -47,6 +48,7 @@ export function createTextElementHelper({
         italic: style.italic,
         underline: style.underline,
         textAlign: style.textAlign,
+        pageIndex,
     });
 
     const next = [...elements, newText];
@@ -71,6 +73,7 @@ export function updateTextElementHelper({
                                             italic,
                                             underline,
                                             textAlign,
+                                            pageIndex,
                                         }) {
     // IMPORTANT:
     // Do not trim edited text.

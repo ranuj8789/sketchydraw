@@ -1,5 +1,7 @@
 import { jsPDF } from "jspdf";
 import { isPaidUser } from "./auth";
+import { renderCanvas } from "../canvas/canvasRender";
+import { getNotebookPageCount, getNotebookPageSize, getNotebookPageTop } from "../canvas/notebook/notebookPages";
 
 const WATERMARK_TEXT = "SketchyDraw";
 
@@ -99,6 +101,97 @@ export function exportCanvasToJPEG(
     link.download = fileName;
     link.href = jpegCanvas.toDataURL("image/jpeg", 0.95);
     link.click();
+}
+
+
+function getPageFilteredElements(elements = [], pageIndex = 0) {
+    return (elements || []).filter(
+        (element) => Number(element?.pageIndex ?? 0) === Number(pageIndex)
+    );
+}
+
+function createNotebookPageCanvas({
+    elements = [],
+    canvasProps = {},
+    pageIndex = 0,
+    options = {},
+}) {
+    const pageSize = getNotebookPageSize(canvasProps);
+    const pageTop = getNotebookPageTop(pageIndex, canvasProps);
+
+    const pageCanvas = document.createElement("canvas");
+    const pageCanvasSize = {
+        width: pageSize.width,
+        height: pageSize.height,
+    };
+
+    renderCanvas({
+        canvas: pageCanvas,
+        canvasSize: pageCanvasSize,
+        elements: getPageFilteredElements(elements, pageIndex),
+        selectedIds: [],
+        connectionHint: null,
+        alignmentGuides: [],
+        viewport: {
+            zoom: 1,
+            offsetX: 0,
+            offsetY: -pageTop,
+        },
+        showGrid: false,
+        canvasProps: {
+            ...canvasProps,
+            pattern: "notebook",
+            pageMode: true,
+            pageViewMode: "single",
+            currentPageIndex: pageIndex,
+        },
+    });
+
+    return createCanvasForExport(pageCanvas, options);
+}
+
+export function exportNotebookToPDF({
+    elements = [],
+    canvasProps = {},
+    fileName = "sketchy-notebook.pdf",
+    options = {},
+} = {}) {
+    const pageCount = getNotebookPageCount(canvasProps);
+    const pageSize = getNotebookPageSize(canvasProps);
+
+    const pdf = new jsPDF({
+        orientation: pageSize.width > pageSize.height ? "landscape" : "portrait",
+        unit: "px",
+        format: [pageSize.width, pageSize.height],
+    });
+
+    for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
+        if (pageIndex > 0) {
+            pdf.addPage([pageSize.width, pageSize.height], pageSize.width > pageSize.height ? "landscape" : "portrait");
+        }
+
+        const pageCanvas = createNotebookPageCanvas({
+            elements,
+            canvasProps,
+            pageIndex,
+            options,
+        });
+
+        if (!pageCanvas) continue;
+
+        const imgData = pageCanvas.toDataURL("image/png", 1.0);
+
+        pdf.addImage(
+            imgData,
+            "PNG",
+            0,
+            0,
+            pageSize.width,
+            pageSize.height
+        );
+    }
+
+    pdf.save(fileName);
 }
 
 export function exportCanvasToPDF(

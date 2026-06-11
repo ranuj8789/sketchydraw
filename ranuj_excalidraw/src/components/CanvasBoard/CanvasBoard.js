@@ -64,9 +64,25 @@ import {
     writeElementsToSystemClipboard,
 } from "../../canvas/canvasClipboard";
 import {screenToWorld} from "../../canvas/canvasViewport";
+import {
+    NOTEBOOK_LINE_GAP,
+    NOTEBOOK_PAGE_GAP,
+} from "../../canvas/notebook/notebookPageConstants";
+import {
+    getNotebookPageCount,
+    getNotebookPageSize,
+    getNotebookPageTop,
+} from "../../canvas/notebook/notebookPages";
+import {
+    getNotebookTextAlignedTopY,
+    getNotebookTextStyle,
+    isNotebookPattern,
+    snapTextPointToNotebookLine,
+} from "../../canvas/notebook/notebookTextSnap";
 import BoardContextMenu from "../BoardContextMenu";
 import {
     exportCanvasToPDF,
+    exportNotebookToPDF,
     exportCanvasToSVG,
     exportCanvasToPNG,
     copyCanvasToClipboard,
@@ -99,50 +115,34 @@ const ERASER_CURSOR = `url("data:image/svg+xml;charset=utf-8,${encodeURIComponen
     ERASER_CURSOR_SVG
 )}") 8 22, pointer`;
 
+const NOTEBOOK_TOP_SCREEN_PADDING = 82;
+
+function getCenteredNotebookViewport(canvasSize = {}, canvasProps = {}, pageIndex = 0, zoom = 1) {
+    const { width: pageWidth, height: pageHeight } = getNotebookPageSize(canvasProps);
+    const safeZoom = Number.isFinite(Number(zoom)) ? Number(zoom) : 1;
+    const canvasWidth = canvasSize?.width || 1200;
+    const canvasHeight = canvasSize?.height || 700;
+    const pageTop = getNotebookPageTop(pageIndex, canvasProps);
+
+    const screenLeft = Math.max(24, (canvasWidth - pageWidth * safeZoom) / 2);
+    const screenTop = Math.max(
+        NOTEBOOK_TOP_SCREEN_PADDING,
+        (canvasHeight - pageHeight * safeZoom) / 2
+    );
+
+    return {
+        zoom: safeZoom,
+        offsetX: screenLeft,
+        offsetY: screenTop - pageTop * safeZoom,
+    };
+}
+
 const ALIGNMENT_SNAP_THRESHOLD = 18;
 const GRID_SIZE = 24;
-const NOTEBOOK_LINE_GAP = 28;
-const NOTEBOOK_TEXT_BASELINE_RATIO = 0.8;
-
 function snapValueToGrid(value, gridSize = GRID_SIZE) {
     return Math.round(value / gridSize) * gridSize;
 }
 
-function isNotebookPattern(canvasProps) {
-    return canvasProps?.pattern === "notebook";
-}
-
-function snapValueToNotebookLine(value) {
-    return Math.round(value / NOTEBOOK_LINE_GAP) * NOTEBOOK_LINE_GAP;
-}
-
-function getNotebookTextBaselineOffset(styleOrElement = {}) {
-    const fontSize =
-        typeof styleOrElement === "number"
-            ? DEFAULT_TEXT_STYLE.fontSize || 20
-            : styleOrElement?.fontSize || DEFAULT_TEXT_STYLE.fontSize || 20;
-
-    return Math.round(fontSize * NOTEBOOK_TEXT_BASELINE_RATIO);
-}
-
-function getNotebookTextAlignedTopY(y, styleOrElement = {}) {
-    const baselineOffset = getNotebookTextBaselineOffset(styleOrElement);
-
-    // Store text y as top-left, but align its visual baseline to the notebook line.
-    // This keeps notebook text on the ruled line without changing text during edit.
-    return snapValueToNotebookLine(y + baselineOffset) - baselineOffset;
-}
-
-function snapTextPointToNotebookLine(point, style, canvasProps) {
-    if (!isNotebookPattern(canvasProps)) {
-        return point;
-    }
-
-    return {
-        x: point.x,
-        y: getNotebookTextAlignedTopY(point.y, style),
-    };
-}
 function snapPointToGrid(point, gridSize = GRID_SIZE) {
     return {
         x: snapValueToGrid(point.x, gridSize),
@@ -153,6 +153,28 @@ function snapPointToGrid(point, gridSize = GRID_SIZE) {
 function isGridSnapActive(showGrid, canvasProps) {
     const pattern = canvasProps?.pattern;
     return !!showGrid || pattern === "grid" || pattern === "notebook";
+}
+
+function getActiveNotebookPageIndex(canvasProps = {}) {
+    if (!isNotebookPattern(canvasProps)) return undefined;
+
+    const pageCount = getNotebookPageCount(canvasProps);
+    const pageIndex = Number(canvasProps?.currentPageIndex || 0);
+
+    return Math.max(0, Math.min(pageCount - 1, Number.isFinite(pageIndex) ? pageIndex : 0));
+}
+
+function withNotebookPageIndex(element, canvasProps = {}) {
+    const pageIndex = getActiveNotebookPageIndex(canvasProps);
+
+    if (pageIndex === undefined || !element) {
+        return element;
+    }
+
+    return {
+        ...element,
+        pageIndex,
+    };
 }
 
 function getGroupBounds(items) {
@@ -397,17 +419,6 @@ function getSmartAlignment({elements, movingIds, movedElements}) {
     };
 }
 
-function getNotebookTextStyle(style, canvasProps) {
-    if (!isNotebookPattern(canvasProps)) {
-        return style;
-    }
-
-    return {
-        ...style,
-        lineHeight: NOTEBOOK_LINE_GAP,
-    };
-}
-
 function getResizeSmartAlignment({elements, resizingId, resizedElement, handle}) {
     const resizedBounds = getElementBounds(resizedElement);
     if (!resizedBounds) {
@@ -548,6 +559,7 @@ export default function CanvasBoard({
     const [connectionHint, setConnectionHint] = useState(null);
     const [isSpacePressed, setIsSpacePressed] = useState(false);
     const [myDrawingsOpen, setMyDrawingsOpen] = useState(false);
+    const [notebookPageAnimation, setNotebookPageAnimation] = useState("");
 
     const {
         isSavingDrawing,
@@ -657,10 +669,81 @@ export default function CanvasBoard({
         return [...elements, previewElement];
     })();
 
+    const currentNotebookPageIndex = Math.max(
+        0,
+        Number(canvasProps?.currentPageIndex || 0)
+    );
+
+    const visibleRenderElements =
+        isNotebookPattern(canvasProps) && canvasProps?.pageViewMode !== "all"
+            ? renderElements.filter(
+                (el) => Number(el.pageIndex ?? 0) === currentNotebookPageIndex
+            )
+            : renderElements;
+
     const renderSelectedIds =
         editor?.mode === "edit" && editor?.id
             ? selectedIds.filter((id) => id !== editor.id)
             : selectedIds;
+
+    useEffect(() => {
+        const animateNotebook = (direction = "next") => {
+            setNotebookPageAnimation(direction === "prev" ? "notebook-slide-prev" : "notebook-slide-next");
+            window.setTimeout(() => setNotebookPageAnimation(""), 260);
+        };
+
+        const focusNotebookPage = (event) => {
+            const props = canvasPropsRef.current || {};
+            const pageCount = getNotebookPageCount(props);
+            const pageIndex = Math.max(
+                0,
+                Math.min(pageCount - 1, Number(event.detail?.pageIndex || 0))
+            );
+            const direction = event.detail?.direction || "next";
+            const zoom = Number(event.detail?.zoom || viewportRef.current?.zoom || 1);
+
+            animateNotebook(direction);
+
+            setViewport(
+                getCenteredNotebookViewport(
+                    canvasSizeRef.current,
+                    props,
+                    pageIndex,
+                    zoom
+                )
+            );
+        };
+
+        const centerNotebook = () => {
+            const props = canvasPropsRef.current || {};
+            if (!isNotebookPattern(props)) return;
+
+            const pageCount = getNotebookPageCount(props);
+            const pageIndex = Math.max(
+                0,
+                Math.min(pageCount - 1, Number(props.currentPageIndex || 0))
+            );
+
+            setViewport(
+                getCenteredNotebookViewport(
+                    canvasSizeRef.current,
+                    props,
+                    pageIndex,
+                    viewportRef.current?.zoom || 1
+                )
+            );
+        };
+
+        window.addEventListener("sketchydraw:notebook-page-focus", focusNotebookPage);
+        window.addEventListener("sketchydraw:notebook-page-added", focusNotebookPage);
+        window.addEventListener("sketchydraw:notebook-center", centerNotebook);
+
+        return () => {
+            window.removeEventListener("sketchydraw:notebook-page-focus", focusNotebookPage);
+            window.removeEventListener("sketchydraw:notebook-page-added", focusNotebookPage);
+            window.removeEventListener("sketchydraw:notebook-center", centerNotebook);
+        };
+    }, [setViewport]);
 
     useEffect(() => {
         const handleVideoExport = (event) => {
@@ -713,7 +796,7 @@ export default function CanvasBoard({
     useCanvasRender({
         canvasRef,
         canvasSize,
-        elements: renderElements,
+        elements: visibleRenderElements,
         selectedIds: renderSelectedIds,
         connectionHint,
         alignmentGuides,
@@ -780,6 +863,36 @@ export default function CanvasBoard({
     useEffect(() => {
         showGridRef.current = showGrid;
     }, [showGrid]);
+
+    useEffect(() => {
+        if (!isNotebookPattern(canvasProps)) return;
+
+        const pageCount = getNotebookPageCount(canvasProps);
+        const currentPageIndex = Math.max(
+            0,
+            Math.min(pageCount - 1, Number(canvasProps.currentPageIndex || 0))
+        );
+
+        setViewport((prev) =>
+            getCenteredNotebookViewport(
+                canvasSize,
+                canvasProps,
+                currentPageIndex,
+                prev?.zoom || 1
+            )
+        );
+    }, [
+        canvasProps?.pattern,
+        canvasProps?.pageViewMode,
+        canvasProps?.currentPageIndex,
+        canvasProps?.pageWidth,
+        canvasProps?.pageHeight,
+        canvasSize?.width,
+        canvasSize?.height,
+        setViewport,
+    ]);
+
+
 
     const clearDragPreviewRefs = () => {
         dragBaseElementsRef.current = null;
@@ -1341,6 +1454,7 @@ export default function CanvasBoard({
             italic,
             underline,
             textAlign,
+            pageIndex: getActiveNotebookPageIndex(canvasPropsRef.current),
         });
 
         dragBaseElementsRef.current = null;
@@ -1732,13 +1846,16 @@ export default function CanvasBoard({
 
         if (!draft) return;
 
-        const finalDraft = applyArrowStartBinding({
-            draft,
-            tool,
-            elements,
-            point: drawStartPoint,
-            preferInputPoint: gridActive,
-        });
+        const finalDraft = withNotebookPageIndex(
+            applyArrowStartBinding({
+                draft,
+                tool,
+                elements,
+                point: drawStartPoint,
+                preferInputPoint: gridActive,
+            }),
+            canvasPropsRef.current
+        );
 
         const next = [...elementsRef.current, finalDraft];
 
@@ -1791,6 +1908,7 @@ export default function CanvasBoard({
                 fileName: file.name,
                 naturalWidth: size.naturalWidth,
                 naturalHeight: size.naturalHeight,
+                pageIndex: getActiveNotebookPageIndex(canvasPropsRef.current),
             });
 
             const next = [...elements, imageElement];
@@ -2630,6 +2748,22 @@ export default function CanvasBoard({
         }));
     };
 
+    const handleExportPDF = () => {
+        if (canvasPropsRef.current?.pattern === "notebook") {
+            exportNotebookToPDF({
+                elements: elementsRef.current || [],
+                canvasProps: canvasPropsRef.current || {},
+                fileName: `${currentDrawingMeta.title || DEFAULT_TITLE}.pdf`,
+            });
+            return;
+        }
+
+        exportCanvasToPDF(
+            canvasRef.current,
+            `${currentDrawingMeta.title || DEFAULT_TITLE}.pdf`
+        );
+    };
+
     const getLocalSavedDrawingById = (id) => {
         return getLocalDrawingById(id);
     };
@@ -2701,7 +2835,7 @@ export default function CanvasBoard({
 
     return (
         <div className="canvas-wrap" ref={wrapRef}>
-            <div className="canvas-stage">
+            <div className={`canvas-stage ${notebookPageAnimation}`}>
                 <input
                     ref={imageInputRef}
                     type="file"
@@ -2750,7 +2884,7 @@ export default function CanvasBoard({
                     x={contextMenu.x}
                     y={contextMenu.y}
                     onClose={closeContextMenu}
-                    onExportPDF={() => exportCanvasToPDF(canvasRef.current)}
+                    onExportPDF={handleExportPDF}
                     onExportSVG={() =>
                         exportCanvasToSVG(
                             elements,
@@ -2790,6 +2924,7 @@ export default function CanvasBoard({
                 canvasSize={canvasSize}
                 showGrid={showGrid}
                 canvasProps={canvasProps}
+                setCanvasProps={setCanvasProps}
             />
 
             <SaveDrawingPopup

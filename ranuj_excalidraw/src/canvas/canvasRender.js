@@ -1,9 +1,15 @@
 import { drawElement } from "../utils/drawing";
 import { drawCanvasGrid, drawCurveControls } from "./canvasHelpers";
 import { getElementBounds } from "../utils/elementBounds";
+import { drawNotebookPages } from "./notebook/notebookRenderer";
 
 function normalizeCanvasProps(canvasProps = {}) {
+    // Keep notebook props such as pageCount, currentPageIndex,
+    // pageViewMode, pageWidth and pageHeight. Earlier this function
+    // returned only 3 fields, so notebook navigation UI changed but
+    // the renderer still painted page 1/default size.
     return {
+        ...canvasProps,
         backgroundColor: canvasProps.backgroundColor || "#ffffff",
         pattern: canvasProps.pattern || "blank",
         cornerRadius: canvasProps.cornerRadius ?? 16,
@@ -248,7 +254,7 @@ export function renderCanvas({
     ctx.scale(viewport.zoom, viewport.zoom);
 
     if (finalCanvasProps.pattern === "notebook") {
-        drawNotebookPattern(ctx, canvasSize, viewport);
+        drawNotebookPages(ctx, canvasSize, viewport, finalCanvasProps);
     } else {
         const shouldShowGrid = showGrid || finalCanvasProps.pattern === "grid";
 

@@ -30,10 +30,14 @@ function normalizeGroupName(groupName) {
     return value || DEFAULT_GROUP;
 }
 
-function normalizeCanvasProps(canvasProps) {
+function normalizeCanvasProps(canvasProps = {}) {
     return {
-        ...DEFAULT_CANVAS_PROPS,
-        ...(canvasProps || {}),
+        backgroundColor: canvasProps.backgroundColor || "#ffffff",
+        pattern: canvasProps.pattern || "blank",
+        cornerRadius: canvasProps.cornerRadius ?? 16,
+
+        pageMode: canvasProps.pageMode !== false,
+        pageCount: canvasProps.pageCount || 1,
     };
 }
 

@@ -68,6 +68,7 @@ export function buildTextElement({
                                      italic = false,
                                      underline = false,
                                      textAlign = "left",
+                                     pageIndex,
                                  }) {
     const finalText = text ?? "";
 
@@ -102,6 +103,7 @@ export function buildTextElement({
         italic,
         underline,
         textAlign,
+        pageIndex,
         w: box.w,
         h: box.h,
     };
@@ -113,6 +115,7 @@ export function buildImageElement({
                                       fileName = "image",
                                       naturalWidth = 640,
                                       naturalHeight = 360,
+                                      pageIndex,
                                   }) {
     const maxW = 420;
     const maxH = 300;
@@ -137,5 +140,6 @@ export function buildImageElement({
         naturalWidth: safeNaturalW,
         naturalHeight: safeNaturalH,
         opacity: 1,
+        pageIndex,
     };
 }

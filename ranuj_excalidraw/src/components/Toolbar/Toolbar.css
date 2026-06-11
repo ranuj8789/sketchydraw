@@ -977,3 +977,22 @@
 .grid-dropdown button:hover {
     background: #f1f5f9;
 }
+.grid-dropdown-divider {
+    height: 1px;
+    margin: 7px 8px;
+    background: rgba(148, 163, 184, 0.35);
+}
+
+.grid-dropdown-label {
+    padding: 8px 12px 4px;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.grid-dropdown button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}

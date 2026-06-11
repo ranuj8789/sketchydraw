@@ -16,6 +16,12 @@ import SubscriptionPopup from "../SubscriptionPopup/SubscriptionPopup";
 import { getActiveAnnouncement } from "../../api/announcementApi";
 import { getSubscriptionStatus, getPaymentHistory } from "../../api/paymentApi";
 import { getMyProfile, updateMyProfile } from "../../api/authApi";
+import {
+    DEFAULT_NOTEBOOK_PAGE_COUNT,
+    DEFAULT_NOTEBOOK_PAGE_HEIGHT,
+    DEFAULT_NOTEBOOK_PAGE_WIDTH,
+    MAX_NOTEBOOK_PAGE_COUNT,
+} from "../../canvas/notebook/notebookPageConstants";
 
 export default function Toolbar({
                                     undo,
@@ -34,6 +40,7 @@ export default function Toolbar({
                                     printCanvas,
                                     exportJSON,
                                     openJsonPicker,
+                                    createNewDrawing,
                                     drawingTitle,
                                     onDrawingTitleChange,
                                 }) {
@@ -334,13 +341,82 @@ export default function Toolbar({
     };
 
     const applyCanvasPattern = (pattern) => {
+        if (pattern === "notebook") {
+            updateCanvasProps?.({
+                pattern: "notebook",
+                pageMode: true,
+                pageCount: canvasProps?.pageCount || DEFAULT_NOTEBOOK_PAGE_COUNT,
+                pageViewMode: canvasProps?.pageViewMode || "single",
+                currentPageIndex: canvasProps?.currentPageIndex || 0,
+                pageWidth: canvasProps?.pageWidth || DEFAULT_NOTEBOOK_PAGE_WIDTH,
+                pageHeight: canvasProps?.pageHeight || DEFAULT_NOTEBOOK_PAGE_HEIGHT,
+            });
+
+            setShowGrid?.(false);
+            setGridOpen(false);
+            return;
+        }
+
         updateCanvasProps?.({
             pattern,
+            pageMode: false,
         });
 
-        // Keep old showGrid state in sync, but canvasProps.pattern is the source of truth.
-        setShowGrid?.(pattern === "grid" || pattern === "notebook");
+        setShowGrid?.(pattern === "grid");
         setGridOpen(false);
+    };
+    const addNotebookPage = () => {
+        const currentPageCount = Number(
+            canvasProps?.pageCount || DEFAULT_NOTEBOOK_PAGE_COUNT
+        );
+
+        const nextPageCount = Math.min(
+            MAX_NOTEBOOK_PAGE_COUNT,
+            Math.max(DEFAULT_NOTEBOOK_PAGE_COUNT, currentPageCount + 1)
+        );
+
+        updateCanvasProps?.({
+            pattern: "notebook",
+            pageMode: true,
+            pageCount: nextPageCount,
+            pageViewMode: "single",
+            currentPageIndex: nextPageCount - 1,
+            pageWidth: canvasProps?.pageWidth || DEFAULT_NOTEBOOK_PAGE_WIDTH,
+            pageHeight: canvasProps?.pageHeight || DEFAULT_NOTEBOOK_PAGE_HEIGHT,
+        });
+
+        setShowGrid?.(false);
+
+        window.dispatchEvent(
+            new CustomEvent("sketchydraw:notebook-page-added", {
+                detail: {
+                    pageIndex: nextPageCount - 1,
+                },
+            })
+        );
+    };
+
+    const removeNotebookPage = () => {
+        updateCanvasProps?.({
+            pattern: "notebook",
+            pageMode: true,
+            pageCount: Math.max(
+                DEFAULT_NOTEBOOK_PAGE_COUNT,
+                Number(canvasProps?.pageCount || DEFAULT_NOTEBOOK_PAGE_COUNT) - 1
+            ),
+            currentPageIndex: Math.max(
+                0,
+                Math.min(
+                    Number(canvasProps?.currentPageIndex || 0),
+                    Math.max(
+                        DEFAULT_NOTEBOOK_PAGE_COUNT,
+                        Number(canvasProps?.pageCount || DEFAULT_NOTEBOOK_PAGE_COUNT) - 1
+                    ) - 1
+                )
+            ),
+        });
+
+        setShowGrid?.(false);
     };
 
     const activePattern = canvasProps?.pattern || (showGrid ? "grid" : "blank");
@@ -442,12 +518,34 @@ export default function Toolbar({
 
                         {saveOpen && (
                             <div className="save-dropdown">
-                                <button type="button" onClick={triggerSaveExisting}>
-                                    💾 Save Current
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        createNewDrawing?.();
+                                        setSaveOpen(false);
+                                    }}
+                                >
+                                    ✨ New Drawing
                                 </button>
 
-                                <button type="button" onClick={triggerSaveAsNew}>
-                                    🆕 Save as New
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        triggerSaveExisting?.();
+                                        setSaveOpen(false);
+                                    }}
+                                >
+                                    💾 Save
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        triggerSaveAsNew?.();
+                                        setSaveOpen(false);
+                                    }}
+                                >
+                                    🆕 Save As
                                 </button>
 
                                 <button
@@ -590,8 +688,30 @@ export default function Toolbar({
                                 </button>
 
                                 <button type="button" onClick={() => applyCanvasPattern("notebook")}>
-                                    📓 Notebook Lines
+                                    📓 Notebook Pages
                                 </button>
+
+                                {activePattern === "notebook" && (
+                                    <>
+                                        <div className="grid-dropdown-divider" />
+
+                                        <div className="grid-dropdown-label">
+                                            Notebook Pages: {canvasProps?.pageCount || DEFAULT_NOTEBOOK_PAGE_COUNT}
+                                        </div>
+
+                                        <button type="button" onClick={addNotebookPage}>
+                                            ➕ Add Page
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={removeNotebookPage}
+                                            disabled={(canvasProps?.pageCount || DEFAULT_NOTEBOOK_PAGE_COUNT) <= 1}
+                                        >
+                                            ➖ Remove Last Page
+                                        </button>
+                                    </>
+                                )}
 
                                 <button type="button" onClick={() => applyCanvasPattern("dots")}>
                                     ⠿ Dot Grid

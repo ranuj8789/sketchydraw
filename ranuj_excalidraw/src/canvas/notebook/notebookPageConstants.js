@@ -1,0 +1,23 @@
+export const DEFAULT_NOTEBOOK_PAGE_WIDTH = 794;
+export const DEFAULT_NOTEBOOK_PAGE_HEIGHT = 1123;
+
+// Backward-compatible names used by older code.
+export const NOTEBOOK_PAGE_WIDTH = DEFAULT_NOTEBOOK_PAGE_WIDTH;
+export const NOTEBOOK_PAGE_HEIGHT = DEFAULT_NOTEBOOK_PAGE_HEIGHT;
+
+export const MIN_NOTEBOOK_PAGE_WIDTH = 520;
+export const MAX_NOTEBOOK_PAGE_WIDTH = 1600;
+export const MIN_NOTEBOOK_PAGE_HEIGHT = 700;
+export const MAX_NOTEBOOK_PAGE_HEIGHT = 2400;
+
+export const NOTEBOOK_PAGE_GAP = 42;
+export const NOTEBOOK_LINE_GAP = 28;
+export const NOTEBOOK_LEFT_MARGIN = 72;
+export const NOTEBOOK_TOP_PADDING = 54;
+export const NOTEBOOK_BOTTOM_PADDING = 44;
+
+export const NOTEBOOK_PAGE_SHADOW_BLUR = 22;
+export const NOTEBOOK_PAGE_RADIUS = 18;
+
+export const DEFAULT_NOTEBOOK_PAGE_COUNT = 1;
+export const MAX_NOTEBOOK_PAGE_COUNT = 50;

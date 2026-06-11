@@ -38,8 +38,16 @@ const COLORS = [
 
 const DEFAULT_CANVAS_PROPS = {
   backgroundColor: "#ffffff",
-  pattern: "blank",
+  pattern: "notebook",
   cornerRadius: 16,
+
+  // Notebook module props
+  pageMode: true,
+  pageCount: 1,
+  pageViewMode: "single",
+  currentPageIndex: 0,
+  pageWidth: 794,
+  pageHeight: 1123,
 };
 
 const DEFAULT_MAX_HISTORY_LENGTH = 80;
@@ -392,6 +400,41 @@ function SketchyDrawPage() {
     // });
   };
 
+  const createNewDrawing = () => {
+    showSketchyAlert({
+      type: "confirm",
+      icon: "✨",
+      title: "Create new drawing?",
+      message: "Your current canvas will be cleared. Save it first if you want to keep the changes.",
+      confirmText: "Create new",
+      onConfirm: () => {
+        const nextElements = [];
+
+        setElements(nextElements);
+        setSelectedIds([]);
+        setHistory([[]]);
+        setHistoryIndex(0);
+
+        setViewport({
+          zoom: 1,
+          offsetX: 0,
+          offsetY: 0,
+        });
+
+        setCurrentDrawingMeta({
+          id: null,
+          title: DEFAULT_TITLE,
+          groupName: DEFAULT_GROUP,
+          description: "",
+        });
+
+        setCanvasProps(DEFAULT_CANVAS_PROPS);
+
+        setSketchyAlert(null);
+      },
+    });
+  };
+
   const clearCanvas = () => {
     showSketchyAlert({
       type: "confirm",
@@ -543,6 +586,7 @@ function SketchyDrawPage() {
                       title: title || "Untitled",
                     }))
                 }
+                createNewDrawing={createNewDrawing}
             />
 
             <CanvasBoard

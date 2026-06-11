@@ -11,6 +11,7 @@ import {
     exportCanvasToJPEG,
     exportCanvasToSVG,
     exportCanvasToPDF,
+    exportNotebookToPDF,
     printCanvas as printCanvasImage,
 } from "../utils/exportBoard";
 
@@ -65,6 +66,16 @@ export function useSketchyBoardActions({
 
     const exportPDF = () => {
         const canvas = canvasRef.current;
+
+        if (canvasProps?.pattern === "notebook") {
+            exportNotebookToPDF({
+                elements,
+                canvasProps,
+                fileName: `${safeTitle}.pdf`,
+            });
+            return;
+        }
+
         if (!canvas) return;
 
         exportCanvasToPDF(canvas, `${safeTitle}.pdf`);
