@@ -150,6 +150,65 @@ function createNotebookPageCanvas({
     return createCanvasForExport(pageCanvas, options);
 }
 
+function getPdfPageLayout(canvas, options = {}) {
+    const margin = Number(options.pdfMargin ?? 32);
+    const format = options.pdfFormat || "a4";
+    const orientation = canvas.width > canvas.height ? "landscape" : "portrait";
+
+    const pdf = new jsPDF({
+        orientation,
+        unit: "pt",
+        format,
+        compress: true,
+    });
+
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const availableWidth = Math.max(1, pdfWidth - margin * 2);
+    const availableHeight = Math.max(1, pdfHeight - margin * 2);
+
+    const scale = Math.min(
+        availableWidth / canvas.width,
+        availableHeight / canvas.height
+    );
+
+    const imageWidth = canvas.width * scale;
+    const imageHeight = canvas.height * scale;
+
+    return {
+        pdf,
+        orientation,
+        format,
+        x: (pdfWidth - imageWidth) / 2,
+        y: (pdfHeight - imageHeight) / 2,
+        width: imageWidth,
+        height: imageHeight,
+    };
+}
+
+function canvasToExportImage(canvas, options = {}) {
+    const type = options.pdfImageType || "JPEG";
+    const quality = Number(options.pdfImageQuality ?? 0.78);
+
+    if (type === "PNG") {
+        return { data: canvas.toDataURL("image/png", 1.0), type: "PNG" };
+    }
+
+    const jpegCanvas = document.createElement("canvas");
+    jpegCanvas.width = canvas.width;
+    jpegCanvas.height = canvas.height;
+
+    const ctx = jpegCanvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, jpegCanvas.width, jpegCanvas.height);
+    ctx.drawImage(canvas, 0, 0);
+
+    return {
+        data: jpegCanvas.toDataURL("image/jpeg", quality),
+        type: "JPEG",
+    };
+}
+
 export function exportNotebookToPDF({
     elements = [],
     canvasProps = {},
@@ -157,19 +216,10 @@ export function exportNotebookToPDF({
     options = {},
 } = {}) {
     const pageCount = getNotebookPageCount(canvasProps);
-    const pageSize = getNotebookPageSize(canvasProps);
-
-    const pdf = new jsPDF({
-        orientation: pageSize.width > pageSize.height ? "landscape" : "portrait",
-        unit: "px",
-        format: [pageSize.width, pageSize.height],
-    });
+    let pdf = null;
+    let firstLayout = null;
 
     for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
-        if (pageIndex > 0) {
-            pdf.addPage([pageSize.width, pageSize.height], pageSize.width > pageSize.height ? "landscape" : "portrait");
-        }
-
         const pageCanvas = createNotebookPageCanvas({
             elements,
             canvasProps,
@@ -179,19 +229,30 @@ export function exportNotebookToPDF({
 
         if (!pageCanvas) continue;
 
-        const imgData = pageCanvas.toDataURL("image/png", 1.0);
+        const layout = getPdfPageLayout(pageCanvas, options);
+
+        if (!pdf) {
+            pdf = layout.pdf;
+            firstLayout = layout;
+        } else {
+            pdf.addPage(firstLayout.format, firstLayout.orientation);
+        }
+
+        const img = canvasToExportImage(pageCanvas, options);
 
         pdf.addImage(
-            imgData,
-            "PNG",
-            0,
-            0,
-            pageSize.width,
-            pageSize.height
+            img.data,
+            img.type,
+            layout.x,
+            layout.y,
+            layout.width,
+            layout.height,
+            undefined,
+            "FAST"
         );
     }
 
-    pdf.save(fileName);
+    pdf?.save(fileName);
 }
 
 export function exportCanvasToPDF(
@@ -204,24 +265,21 @@ export function exportCanvasToPDF(
     const exportCanvas = createCanvasForExport(canvas, options);
     if (!exportCanvas) return;
 
-    const imgData = exportCanvas.toDataURL("image/png", 1.0);
+    const layout = getPdfPageLayout(exportCanvas, options);
+    const img = canvasToExportImage(exportCanvas, options);
 
-    const pdf = new jsPDF({
-        orientation: exportCanvas.width > exportCanvas.height ? "landscape" : "portrait",
-        unit: "px",
-        format: [exportCanvas.width, exportCanvas.height],
-    });
-
-    pdf.addImage(
-        imgData,
-        "PNG",
-        0,
-        0,
-        exportCanvas.width,
-        exportCanvas.height
+    layout.pdf.addImage(
+        img.data,
+        img.type,
+        layout.x,
+        layout.y,
+        layout.width,
+        layout.height,
+        undefined,
+        "FAST"
     );
 
-    pdf.save(fileName);
+    layout.pdf.save(fileName);
 }
 
 function escapeHtml(value) {
