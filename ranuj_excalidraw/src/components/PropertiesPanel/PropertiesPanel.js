@@ -33,6 +33,64 @@ const ARROW_OPTIONS = [
     { label: "Both", value: "both" },
 ];
 
+const BASE_ANIMATION_OPTIONS = [
+    { label: "None", value: "none" },
+    { label: "Fade in", value: "fadeIn" },
+    { label: "Slide up", value: "slideUp" },
+    { label: "Scale in", value: "scaleIn" },
+];
+
+const TEXT_ONLY_ANIMATION_OPTIONS = [
+    { label: "Typewriter", value: "typewriter" },
+];
+
+const DRAW_ANIMATION_OPTIONS = [
+    { label: "Draw", value: "draw" },
+];
+
+const ANIMATION_SPEED_OPTIONS = [
+    { label: "Fast", durationMs: 600 },
+    { label: "Normal", durationMs: 1000 },
+    { label: "Slow", durationMs: 1600 },
+    { label: "Very slow", durationMs: 2400 },
+];
+
+const ANIMATION_DELAY_OPTIONS = [
+    { label: "No delay", delayMs: 0 },
+    { label: "0.3s", delayMs: 300 },
+    { label: "0.5s", delayMs: 500 },
+    { label: "1s", delayMs: 1000 },
+    { label: "1.5s", delayMs: 1500 },
+];
+
+function getSupportedAnimationOptions(element) {
+    if (!element) return BASE_ANIMATION_OPTIONS;
+
+    const options = [...BASE_ANIMATION_OPTIONS];
+
+    if (element.type === "text") {
+        options.push(...TEXT_ONLY_ANIMATION_OPTIONS);
+    }
+
+    if (
+        element.type === "line" ||
+        element.type === "arrow" ||
+        element.type === "pencil"
+    ) {
+        options.push(...DRAW_ANIMATION_OPTIONS);
+    }
+
+    return options;
+}
+
+function getAnimation(element) {
+    return {
+        type: element?.animation?.type || "none",
+        durationMs: Number(element?.animation?.durationMs) || 1000,
+        delayMs: Number(element?.animation?.delayMs) || 0,
+    };
+}
+
 function getArrowValue(element) {
     const start = !!element?.arrowStart;
     const end =
@@ -161,6 +219,9 @@ export default function PropertiesPanel({
         selectedElement?.type === "rectangle";
 
     const isCurved = selectedElement?.lineStyle === "curved";
+
+    const animation = getAnimation(selectedElement);
+    const supportedAnimationOptions = getSupportedAnimationOptions(selectedElement);
 
     const canvasBackgroundColor = canvasProps.backgroundColor || "#ffffff";
     const canvasPattern = canvasProps.pattern || "blank";
@@ -682,6 +743,76 @@ export default function PropertiesPanel({
                             </div>
                         </>
                     )}
+
+                    <div className="property-section animation-property-section">
+                        <label>Object animation</label>
+
+                        <select
+                            value={animation.type}
+                            onChange={(event) => {
+                                updateSelectedElementStyle?.({
+                                    animation: {
+                                        ...animation,
+                                        type: event.target.value,
+                                    },
+                                });
+                            }}
+                        >
+                            {supportedAnimationOptions.map((item) => (
+                                <option key={item.value} value={item.value}>
+                                    {item.label}
+                                </option>
+                            ))}
+                        </select>
+
+                        <div className="animation-settings-grid">
+                            <label>
+                                <span>Speed</span>
+                                <select
+                                    value={animation.durationMs}
+                                    onChange={(event) => {
+                                        updateSelectedElementStyle?.({
+                                            animation: {
+                                                ...animation,
+                                                durationMs: Number(event.target.value),
+                                            },
+                                        });
+                                    }}
+                                >
+                                    {ANIMATION_SPEED_OPTIONS.map((item) => (
+                                        <option key={item.durationMs} value={item.durationMs}>
+                                            {item.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+
+                            <label>
+                                <span>Delay</span>
+                                <select
+                                    value={animation.delayMs}
+                                    onChange={(event) => {
+                                        updateSelectedElementStyle?.({
+                                            animation: {
+                                                ...animation,
+                                                delayMs: Number(event.target.value),
+                                            },
+                                        });
+                                    }}
+                                >
+                                    {ANIMATION_DELAY_OPTIONS.map((item) => (
+                                        <option key={item.delayMs} value={item.delayMs}>
+                                            {item.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+                        </div>
+
+                        <p className="animation-helper-text">
+                            Play from Frames. This updates the selected frame, not undo history frames.
+                        </p>
+                    </div>
 
                     <button
                         type="button"

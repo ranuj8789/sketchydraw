@@ -4,12 +4,7 @@ import { getElementBounds } from "../utils/elementBounds";
 import { drawNotebookPages } from "./notebook/notebookRenderer";
 
 function normalizeCanvasProps(canvasProps = {}) {
-    // Keep notebook props such as pageCount, currentPageIndex,
-    // pageViewMode, pageWidth and pageHeight. Earlier this function
-    // returned only 3 fields, so notebook navigation UI changed but
-    // the renderer still painted page 1/default size.
     return {
-        ...canvasProps,
         backgroundColor: canvasProps.backgroundColor || "#ffffff",
         pattern: canvasProps.pattern || "blank",
         cornerRadius: canvasProps.cornerRadius ?? 16,
@@ -225,6 +220,7 @@ export function renderCanvas({
                                  viewport,
                                  showGrid = true,
                                  canvasProps = {},
+                                 renderOptions = {},
                              }) {
     if (!canvas || !canvasSize || !viewport) return;
 
@@ -272,9 +268,13 @@ export function renderCanvas({
     }
 
     const selectedSet = new Set(selectedIds || []);
+    const hiddenSet = renderOptions?.hiddenElementIds || new Set();
     const visibleWorldRect = getVisibleWorldRect(canvasSize, viewport);
 
     (elements || []).forEach((element) => {
+        if (hiddenSet?.has?.(element.id)) {
+            return;
+        }
         if (!shouldDrawElement(element, visibleWorldRect, selectedSet, connectionHint)) {
             return;
         }
@@ -285,7 +285,7 @@ export function renderCanvas({
             (guide) => guide.targetId === element.id
         );
 
-        drawElement(ctx, element, isSelected);
+        drawElement(ctx, element, isSelected, renderOptions);
 
         if (isHighlighted || isSnapTarget) {
             const bounds = getElementBounds(element);

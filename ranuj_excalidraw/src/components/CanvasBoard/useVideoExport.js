@@ -3,7 +3,7 @@ import { exportUndoRedoAnimationVideo } from "../../canvas/exportAnimationVideo"
 
 const DEFAULT_GAP_SECONDS = 0.5;
 
-export function useVideoExport({ history, elements, canvasSize, canvasProps }) {
+export function useVideoExport({ history, elements, timelineFrames, canvasSize, canvasProps }) {
     const [isVideoExporting, setIsVideoExporting] = useState(false);
     const [videoExportProgress, setVideoExportProgress] = useState(0);
 
@@ -24,6 +24,7 @@ export function useVideoExport({ history, elements, canvasSize, canvasProps }) {
             await exportUndoRedoAnimationVideo({
                 historyStates: history || [],
                 currentElements: elements || [],
+                timelineFrames: timelineFrames || [],
                 canvasSize,
                 canvasProps,
                 gapSeconds,
@@ -37,7 +38,7 @@ export function useVideoExport({ history, elements, canvasSize, canvasProps }) {
             setIsVideoExporting(false);
             setTimeout(() => setVideoExportProgress(0), 600);
         }
-    }, [history, elements, canvasSize, canvasProps]);
+    }, [history, elements, timelineFrames, canvasSize, canvasProps]);
 
     return {
         isVideoExporting,

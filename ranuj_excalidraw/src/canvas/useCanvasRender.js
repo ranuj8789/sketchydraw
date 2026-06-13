@@ -15,6 +15,7 @@ export function useCanvasRender({
                                     viewport,
                                     showGrid = true,
                                     canvasProps = {},
+                                    renderOptions = {},
                                 }) {
     const frameRef = useRef(null);
     const latestPayloadRef = useRef(null);
@@ -30,6 +31,7 @@ export function useCanvasRender({
             viewport,
             showGrid,
             canvasProps,
+            renderOptions,
         };
 
         if (frameRef.current !== null) {
@@ -60,5 +62,6 @@ export function useCanvasRender({
         viewport,
         showGrid,
         canvasProps,
+        renderOptions,
     ]);
 }

@@ -26,30 +26,47 @@ function getFileExtension(mimeType) {
     return mimeType.includes("mp4") ? "mp4" : "webm";
 }
 
-function cloneElements(elements = []) {
-    return JSON.parse(JSON.stringify(elements || []));
+function clone(value) {
+    return JSON.parse(JSON.stringify(value || []));
 }
 
-function getFrames(historyStates = [], currentElements = []) {
-    const usableHistory = (historyStates || [])
-        .filter((state) => Array.isArray(state))
-        .map(cloneElements)
-        .filter((state, index, arr) => {
-            if (index === 0) return true;
-            return JSON.stringify(state) !== JSON.stringify(arr[index - 1]);
-        });
+function normalizeTimelineFrames({ timelineFrames = [], historyStates = [], currentElements = [] }) {
+    const fromTimeline = (timelineFrames || [])
+        .filter((frame) => frame && Array.isArray(frame.elements))
+        .map((frame, index) => ({
+            id: frame.id || `frame-${index}`,
+            name: frame.name || `Frame ${index + 1}`,
+            elements: clone(frame.elements),
+            hiddenElementIds: Array.isArray(frame.hiddenElementIds)
+                ? [...frame.hiddenElementIds]
+                : [],
+        }));
 
-    const currentFrame = cloneElements(currentElements || []);
-    const frames = usableHistory.length > 0 ? usableHistory : [currentFrame];
-
-    // Make sure the latest canvas state is always included.
-    const lastFrame = frames[frames.length - 1] || [];
-    if (JSON.stringify(lastFrame) !== JSON.stringify(currentFrame)) {
-        frames.push(currentFrame);
+    if (fromTimeline.length) {
+        return fromTimeline;
     }
 
-    const MAX_VIDEO_STEPS = 150;
-    return frames.slice(Math.max(0, frames.length - MAX_VIDEO_STEPS));
+    const legacyFrames = (historyStates || [])
+        .filter((state) => Array.isArray(state))
+        .map((state, index) => ({
+            id: `history-${index}`,
+            name: `Frame ${index + 1}`,
+            elements: clone(state),
+            hiddenElementIds: [],
+        }));
+
+    if (legacyFrames.length) {
+        return legacyFrames;
+    }
+
+    return [
+        {
+            id: "current-frame",
+            name: "Frame 1",
+            elements: clone(currentElements),
+            hiddenElementIds: [],
+        },
+    ];
 }
 
 function getFramesContentBounds(frames = []) {
@@ -58,8 +75,12 @@ function getFramesContentBounds(frames = []) {
     let maxX = -Infinity;
     let maxY = -Infinity;
 
-    frames.forEach((elements) => {
-        (elements || []).forEach((element) => {
+    frames.forEach((frame) => {
+        const hiddenSet = new Set(frame.hiddenElementIds || []);
+
+        (frame.elements || []).forEach((element) => {
+            if (hiddenSet.has(element.id)) return;
+
             const bounds = getElementBounds(element);
             if (!bounds) return;
 
@@ -107,7 +128,31 @@ function getVideoTransform(bounds, canvasSize) {
     };
 }
 
-function drawFrame(canvas, elements, canvasSize, transform, canvasProps = {}) {
+function getAnimatedElementIds(elements = []) {
+    return new Set(
+        (elements || [])
+            .filter((el) => el?.animation?.type && el.animation.type !== "none")
+            .map((el) => el.id)
+    );
+}
+
+function getFrameAnimationDurationMs(frame, fallbackMs) {
+    const maxAnimationMs = (frame?.elements || []).reduce((max, element) => {
+        const animation = element?.animation || {};
+
+        if (!animation.type || animation.type === "none") {
+            return max;
+        }
+
+        const durationMs = Math.max(1, Number(animation.durationMs) || 1000);
+        const delayMs = Math.max(0, Number(animation.delayMs) || 0);
+        return Math.max(max, durationMs + delayMs);
+    }, 0);
+
+    return Math.max(fallbackMs, maxAnimationMs || fallbackMs);
+}
+
+function drawFrame(canvas, frame, canvasSize, transform, canvasProps = {}, animationTimeMs = 0) {
     const ctx = canvas.getContext("2d", { alpha: false });
     if (!ctx) return;
 
@@ -120,12 +165,24 @@ function drawFrame(canvas, elements, canvasSize, transform, canvasProps = {}) {
     ctx.fillStyle = canvasProps.backgroundColor || "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    const hiddenSet = new Set(frame?.hiddenElementIds || []);
+    const visibleElements = (frame?.elements || []).filter(
+        (element) => !hiddenSet.has(element.id)
+    );
+
+    const renderOptions = {
+        animationMode: true,
+        animationTimeMs,
+        activeAnimatedElementIds: getAnimatedElementIds(visibleElements),
+        hiddenElementIds: hiddenSet,
+    };
+
     ctx.save();
     ctx.translate(transform.offsetX, transform.offsetY);
     ctx.scale(transform.scale, transform.scale);
 
-    (elements || []).forEach((element) => {
-        drawElement(ctx, element, false);
+    visibleElements.forEach((element) => {
+        drawElement(ctx, element, false, renderOptions);
     });
 
     ctx.restore();
@@ -134,8 +191,8 @@ function drawFrame(canvas, elements, canvasSize, transform, canvasProps = {}) {
 function collectImageSources(frames = []) {
     const sources = new Set();
 
-    frames.forEach((elements) => {
-        (elements || []).forEach((element) => {
+    frames.forEach((frame) => {
+        (frame.elements || []).forEach((element) => {
             if (element?.type === "image" && element.src) {
                 sources.add(element.src);
             }
@@ -200,6 +257,7 @@ function requestCanvasFrame(videoTrack) {
 export async function exportUndoRedoAnimationVideo({
                                                        historyStates = [],
                                                        currentElements = [],
+                                                       timelineFrames = [],
                                                        canvasSize = { width: 1200, height: 700 },
                                                        canvasProps = {},
                                                        fileName,
@@ -219,9 +277,13 @@ export async function exportUndoRedoAnimationVideo({
         return;
     }
 
-    const frames = getFrames(historyStates, currentElements);
+    const frames = normalizeTimelineFrames({
+        timelineFrames,
+        historyStates,
+        currentElements,
+    }).filter((frame) => frame.elements.length > 0);
 
-    if (!frames.length || !frames.some((frame) => frame.length > 0)) {
+    if (!frames.length) {
         alert("Nothing to export yet. Draw something first, then export video.");
         return;
     }
@@ -246,9 +308,8 @@ export async function exportUndoRedoAnimationVideo({
 
     await resetVideoFramesAsync();
 
-    drawFrame(exportCanvas, frames[0] || [], safeCanvasSize, transform, canvasProps);
+    drawFrame(exportCanvas, frames[0], safeCanvasSize, transform, canvasProps, 0);
 
-    // requestFrame is not reliable everywhere. Use 30 fps stream as fallback so chunks are produced.
     const initialStream = exportCanvas.captureStream(30);
     const videoTrack = initialStream.getVideoTracks()[0];
     const recorder = makeRecorder(initialStream, mimeType);
@@ -272,36 +333,54 @@ export async function exportUndoRedoAnimationVideo({
     recorder.start(250);
     await started;
 
+    const fps = 30;
+    let exportedStillIndex = 0;
+    const totalDuration = frames.reduce(
+        (sum, frame) => sum + getFrameAnimationDurationMs(frame, finalFrameDelayMs),
+        0
+    );
+    let completedDuration = 0;
+
     for (let i = 0; i < frames.length; i++) {
-        const elements = frames[i];
+        const frame = frames[i];
+        const durationMs = getFrameAnimationDurationMs(frame, finalFrameDelayMs);
+        const stepMs = Math.max(33, Math.round(1000 / fps));
 
-        drawFrame(exportCanvas, elements, safeCanvasSize, transform, canvasProps);
-        requestCanvasFrame(videoTrack);
+        for (let animationTimeMs = 0; animationTimeMs <= durationMs; animationTimeMs += stepMs) {
+            drawFrame(exportCanvas, frame, safeCanvasSize, transform, canvasProps, animationTimeMs);
+            requestCanvasFrame(videoTrack);
 
-        let imageDataUrl = null;
-        try {
-            imageDataUrl = exportCanvas.toDataURL("image/webp", 0.86);
-        } catch {
-            imageDataUrl = null;
+            if (animationTimeMs === 0 || animationTimeMs + stepMs > durationMs) {
+                let imageDataUrl = null;
+                try {
+                    imageDataUrl = exportCanvas.toDataURL("image/webp", 0.86);
+                } catch {
+                    imageDataUrl = null;
+                }
+
+                saveVideoFrameAsync({
+                    index: exportedStillIndex,
+                    elements: frame.elements,
+                    imageDataUrl,
+                });
+                exportedStillIndex += 1;
+            }
+
+            const progress = Math.min(
+                100,
+                Math.round(((completedDuration + animationTimeMs) / Math.max(1, totalDuration)) * 100)
+            );
+            onProgress?.(progress);
+
+            await wait(stepMs);
         }
 
-        saveVideoFrameAsync({
-            index: i,
-            elements,
-            imageDataUrl,
-        });
-
-        const progress = Math.round(((i + 1) / frames.length) * 100);
-        onProgress?.(progress);
-
-        // Give the browser encoder a small chance to ingest the freshly drawn frame.
-        await wait(80);
-        await wait(finalFrameDelayMs);
+        completedDuration += durationMs;
     }
 
-    // Hold final frame, request data, then stop.
+    onProgress?.(100);
     requestCanvasFrame(videoTrack);
-    await wait(Math.max(600, finalFrameDelayMs));
+    await wait(500);
 
     if (recorder.state === "recording") {
         recorder.requestData?.();

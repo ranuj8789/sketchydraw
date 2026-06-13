@@ -996,3 +996,43 @@
     opacity: 0.45;
     cursor: not-allowed;
 }
+.history-stack-counter {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #475569;
+    font-size: 11px;
+    font-weight: 850;
+    white-space: nowrap;
+}
+
+.history-stack-counter span {
+    display: inline-flex;
+    align-items: center;
+}
+
+.history-stack-counter span + span::before {
+    content: "•";
+    margin-right: 6px;
+    color: #cbd5e1;
+}
+
+.frames-toolbar-btn {
+    height: 30px !important;
+    padding: 0 12px !important;
+    border: 1px solid #dbe3ef;
+    border-radius: 999px !important;
+    background: #ffffff;
+    color: #334155;
+    font-size: 11px;
+    font-weight: 850;
+    white-space: nowrap;
+}
+
+.frames-toolbar-btn:hover {
+    background: #f8fafc;
+}

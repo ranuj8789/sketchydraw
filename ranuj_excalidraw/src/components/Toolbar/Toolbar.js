@@ -18,8 +18,6 @@ import { getSubscriptionStatus, getPaymentHistory } from "../../api/paymentApi";
 import { getMyProfile, updateMyProfile } from "../../api/authApi";
 import {
     DEFAULT_NOTEBOOK_PAGE_COUNT,
-    DEFAULT_NOTEBOOK_PAGE_HEIGHT,
-    DEFAULT_NOTEBOOK_PAGE_WIDTH,
     MAX_NOTEBOOK_PAGE_COUNT,
 } from "../../canvas/notebook/notebookPageConstants";
 
@@ -43,6 +41,9 @@ export default function Toolbar({
                                     createNewDrawing,
                                     drawingTitle,
                                     onDrawingTitleChange,
+                                    timelineFrames = [],
+                                    currentFrameIndex = 0,
+                                    openFramesPanel,
                                 }) {
     const [loginOpen, setLoginOpen] = useState(false);
     const [subscriptionOpen, setSubscriptionOpen] = useState(false);
@@ -346,10 +347,6 @@ export default function Toolbar({
                 pattern: "notebook",
                 pageMode: true,
                 pageCount: canvasProps?.pageCount || DEFAULT_NOTEBOOK_PAGE_COUNT,
-                pageViewMode: canvasProps?.pageViewMode || "single",
-                currentPageIndex: canvasProps?.currentPageIndex || 0,
-                pageWidth: canvasProps?.pageWidth || DEFAULT_NOTEBOOK_PAGE_WIDTH,
-                pageHeight: canvasProps?.pageHeight || DEFAULT_NOTEBOOK_PAGE_HEIGHT,
             });
 
             setShowGrid?.(false);
@@ -379,10 +376,6 @@ export default function Toolbar({
             pattern: "notebook",
             pageMode: true,
             pageCount: nextPageCount,
-            pageViewMode: "single",
-            currentPageIndex: nextPageCount - 1,
-            pageWidth: canvasProps?.pageWidth || DEFAULT_NOTEBOOK_PAGE_WIDTH,
-            pageHeight: canvasProps?.pageHeight || DEFAULT_NOTEBOOK_PAGE_HEIGHT,
         });
 
         setShowGrid?.(false);
@@ -403,16 +396,6 @@ export default function Toolbar({
             pageCount: Math.max(
                 DEFAULT_NOTEBOOK_PAGE_COUNT,
                 Number(canvasProps?.pageCount || DEFAULT_NOTEBOOK_PAGE_COUNT) - 1
-            ),
-            currentPageIndex: Math.max(
-                0,
-                Math.min(
-                    Number(canvasProps?.currentPageIndex || 0),
-                    Math.max(
-                        DEFAULT_NOTEBOOK_PAGE_COUNT,
-                        Number(canvasProps?.pageCount || DEFAULT_NOTEBOOK_PAGE_COUNT) - 1
-                    ) - 1
-                )
             ),
         });
 
@@ -498,6 +481,20 @@ export default function Toolbar({
 
                     <button type="button" onClick={redo} disabled={!canRedo} title="Redo last action">
                         Redo
+                    </button>
+
+                    <span className="history-stack-counter">
+                        <span>Frame {Math.min(currentFrameIndex + 1, timelineFrames.length || 1)}/{timelineFrames.length || 1}</span>
+                        <span>Undo {canUndo ? "on" : "off"}</span>
+                    </span>
+
+                    <button
+                        type="button"
+                        className="frames-toolbar-btn"
+                        onClick={openFramesPanel}
+                        title="Open frames timeline"
+                    >
+                        Frames
                     </button>
 
                     <button type="button" onClick={clearCanvas} className="danger" title="Clear current canvas">

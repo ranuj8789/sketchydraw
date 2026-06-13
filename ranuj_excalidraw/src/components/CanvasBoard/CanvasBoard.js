@@ -67,12 +67,9 @@ import {screenToWorld} from "../../canvas/canvasViewport";
 import {
     NOTEBOOK_LINE_GAP,
     NOTEBOOK_PAGE_GAP,
+    NOTEBOOK_PAGE_HEIGHT,
+    NOTEBOOK_PAGE_WIDTH,
 } from "../../canvas/notebook/notebookPageConstants";
-import {
-    getNotebookPageCount,
-    getNotebookPageSize,
-    getNotebookPageTop,
-} from "../../canvas/notebook/notebookPages";
 import {
     getNotebookTextAlignedTopY,
     getNotebookTextStyle,
@@ -82,7 +79,6 @@ import {
 import BoardContextMenu from "../BoardContextMenu";
 import {
     exportCanvasToPDF,
-    exportNotebookToPDF,
     exportCanvasToSVG,
     exportCanvasToPNG,
     copyCanvasToClipboard,
@@ -115,28 +111,6 @@ const ERASER_CURSOR = `url("data:image/svg+xml;charset=utf-8,${encodeURIComponen
     ERASER_CURSOR_SVG
 )}") 8 22, pointer`;
 
-const NOTEBOOK_TOP_SCREEN_PADDING = 82;
-
-function getCenteredNotebookViewport(canvasSize = {}, canvasProps = {}, pageIndex = 0, zoom = 1) {
-    const { width: pageWidth, height: pageHeight } = getNotebookPageSize(canvasProps);
-    const safeZoom = Number.isFinite(Number(zoom)) ? Number(zoom) : 1;
-    const canvasWidth = canvasSize?.width || 1200;
-    const canvasHeight = canvasSize?.height || 700;
-    const pageTop = getNotebookPageTop(pageIndex, canvasProps);
-
-    const screenLeft = Math.max(24, (canvasWidth - pageWidth * safeZoom) / 2);
-    const screenTop = Math.max(
-        NOTEBOOK_TOP_SCREEN_PADDING,
-        (canvasHeight - pageHeight * safeZoom) / 2
-    );
-
-    return {
-        zoom: safeZoom,
-        offsetX: screenLeft,
-        offsetY: screenTop - pageTop * safeZoom,
-    };
-}
-
 const ALIGNMENT_SNAP_THRESHOLD = 18;
 const GRID_SIZE = 24;
 function snapValueToGrid(value, gridSize = GRID_SIZE) {
@@ -153,28 +127,6 @@ function snapPointToGrid(point, gridSize = GRID_SIZE) {
 function isGridSnapActive(showGrid, canvasProps) {
     const pattern = canvasProps?.pattern;
     return !!showGrid || pattern === "grid" || pattern === "notebook";
-}
-
-function getActiveNotebookPageIndex(canvasProps = {}) {
-    if (!isNotebookPattern(canvasProps)) return undefined;
-
-    const pageCount = getNotebookPageCount(canvasProps);
-    const pageIndex = Number(canvasProps?.currentPageIndex || 0);
-
-    return Math.max(0, Math.min(pageCount - 1, Number.isFinite(pageIndex) ? pageIndex : 0));
-}
-
-function withNotebookPageIndex(element, canvasProps = {}) {
-    const pageIndex = getActiveNotebookPageIndex(canvasProps);
-
-    if (pageIndex === undefined || !element) {
-        return element;
-    }
-
-    return {
-        ...element,
-        pageIndex,
-    };
 }
 
 function getGroupBounds(items) {
@@ -520,6 +472,12 @@ export default function CanvasBoard({
                                         canvasProps = {},
                                         setCanvasProps,
                                         currentTextStyle = DEFAULT_TEXT_STYLE,
+                                        timelineFrames = [],
+                                        currentFrameIndex = 0,
+                                        renderOptions = {},
+                                        onCreateTimelineFrame,
+                                        onUpdateTimelineFrame,
+                                        onReplaceTimeline,
                                     }) {
     const wrapRef = useRef(null);
     const localDraftIdRef = useRef(null);
@@ -559,7 +517,6 @@ export default function CanvasBoard({
     const [connectionHint, setConnectionHint] = useState(null);
     const [isSpacePressed, setIsSpacePressed] = useState(false);
     const [myDrawingsOpen, setMyDrawingsOpen] = useState(false);
-    const [notebookPageAnimation, setNotebookPageAnimation] = useState("");
 
     const {
         isSavingDrawing,
@@ -584,6 +541,7 @@ export default function CanvasBoard({
     } = useVideoExport({
         history,
         elements,
+        timelineFrames,
         canvasSize,
         canvasProps,
     });
@@ -669,79 +627,34 @@ export default function CanvasBoard({
         return [...elements, previewElement];
     })();
 
-    const currentNotebookPageIndex = Math.max(
-        0,
-        Number(canvasProps?.currentPageIndex || 0)
-    );
-
-    const visibleRenderElements =
-        isNotebookPattern(canvasProps) && canvasProps?.pageViewMode !== "all"
-            ? renderElements.filter(
-                (el) => Number(el.pageIndex ?? 0) === currentNotebookPageIndex
-            )
-            : renderElements;
-
     const renderSelectedIds =
         editor?.mode === "edit" && editor?.id
             ? selectedIds.filter((id) => id !== editor.id)
             : selectedIds;
 
     useEffect(() => {
-        const animateNotebook = (direction = "next") => {
-            setNotebookPageAnimation(direction === "prev" ? "notebook-slide-prev" : "notebook-slide-next");
-            window.setTimeout(() => setNotebookPageAnimation(""), 260);
+        const handleNotebookPageAdded = (event) => {
+            const pageIndex = Math.max(0, Number(event.detail?.pageIndex || 0));
+            const pageTop = pageIndex * (NOTEBOOK_PAGE_HEIGHT + NOTEBOOK_PAGE_GAP);
+            const canvasWidth = canvasSizeRef.current?.width || 1200;
+
+            setViewport({
+                zoom: 1,
+                offsetX: Math.max(30, (canvasWidth - NOTEBOOK_PAGE_WIDTH) / 2),
+                offsetY: 40 - pageTop,
+            });
         };
 
-        const focusNotebookPage = (event) => {
-            const props = canvasPropsRef.current || {};
-            const pageCount = getNotebookPageCount(props);
-            const pageIndex = Math.max(
-                0,
-                Math.min(pageCount - 1, Number(event.detail?.pageIndex || 0))
-            );
-            const direction = event.detail?.direction || "next";
-            const zoom = Number(event.detail?.zoom || viewportRef.current?.zoom || 1);
-
-            animateNotebook(direction);
-
-            setViewport(
-                getCenteredNotebookViewport(
-                    canvasSizeRef.current,
-                    props,
-                    pageIndex,
-                    zoom
-                )
-            );
-        };
-
-        const centerNotebook = () => {
-            const props = canvasPropsRef.current || {};
-            if (!isNotebookPattern(props)) return;
-
-            const pageCount = getNotebookPageCount(props);
-            const pageIndex = Math.max(
-                0,
-                Math.min(pageCount - 1, Number(props.currentPageIndex || 0))
-            );
-
-            setViewport(
-                getCenteredNotebookViewport(
-                    canvasSizeRef.current,
-                    props,
-                    pageIndex,
-                    viewportRef.current?.zoom || 1
-                )
-            );
-        };
-
-        window.addEventListener("sketchydraw:notebook-page-focus", focusNotebookPage);
-        window.addEventListener("sketchydraw:notebook-page-added", focusNotebookPage);
-        window.addEventListener("sketchydraw:notebook-center", centerNotebook);
+        window.addEventListener(
+            "sketchydraw:notebook-page-added",
+            handleNotebookPageAdded
+        );
 
         return () => {
-            window.removeEventListener("sketchydraw:notebook-page-focus", focusNotebookPage);
-            window.removeEventListener("sketchydraw:notebook-page-added", focusNotebookPage);
-            window.removeEventListener("sketchydraw:notebook-center", centerNotebook);
+            window.removeEventListener(
+                "sketchydraw:notebook-page-added",
+                handleNotebookPageAdded
+            );
         };
     }, [setViewport]);
 
@@ -796,7 +709,7 @@ export default function CanvasBoard({
     useCanvasRender({
         canvasRef,
         canvasSize,
-        elements: visibleRenderElements,
+        elements: renderElements,
         selectedIds: renderSelectedIds,
         connectionHint,
         alignmentGuides,
@@ -806,6 +719,7 @@ export default function CanvasBoard({
             ...canvasProps,
             __imageRenderTick: imageRenderTick,
         },
+        renderOptions,
     });
 
     useEffect(() => {
@@ -863,36 +777,6 @@ export default function CanvasBoard({
     useEffect(() => {
         showGridRef.current = showGrid;
     }, [showGrid]);
-
-    useEffect(() => {
-        if (!isNotebookPattern(canvasProps)) return;
-
-        const pageCount = getNotebookPageCount(canvasProps);
-        const currentPageIndex = Math.max(
-            0,
-            Math.min(pageCount - 1, Number(canvasProps.currentPageIndex || 0))
-        );
-
-        setViewport((prev) =>
-            getCenteredNotebookViewport(
-                canvasSize,
-                canvasProps,
-                currentPageIndex,
-                prev?.zoom || 1
-            )
-        );
-    }, [
-        canvasProps?.pattern,
-        canvasProps?.pageViewMode,
-        canvasProps?.currentPageIndex,
-        canvasProps?.pageWidth,
-        canvasProps?.pageHeight,
-        canvasSize?.width,
-        canvasSize?.height,
-        setViewport,
-    ]);
-
-
 
     const clearDragPreviewRefs = () => {
         dragBaseElementsRef.current = null;
@@ -1013,6 +897,7 @@ export default function CanvasBoard({
             }
 
             commitHistory(nextElements);
+            onReplaceTimeline?.(nextElements);
         } catch (error) {
             console.error("Local drawing restore failed", error);
         }
@@ -1284,6 +1169,7 @@ export default function CanvasBoard({
 
             setElements(next);
             commitHistory(next);
+            onUpdateTimelineFrame?.(next);
         };
 
         window.addEventListener("sketchydraw:align-selected", handleAlignSelected);
@@ -1441,7 +1327,10 @@ export default function CanvasBoard({
                 setElements(next);
             },
             setSelectedIds,
-            commitHistory,
+            commitHistory: (next) => {
+                commitHistory(next);
+                onCreateTimelineFrame?.(next);
+            },
             x,
             y,
             text,
@@ -1454,7 +1343,6 @@ export default function CanvasBoard({
             italic,
             underline,
             textAlign,
-            pageIndex: getActiveNotebookPageIndex(canvasPropsRef.current),
         });
 
         dragBaseElementsRef.current = null;
@@ -1475,7 +1363,10 @@ export default function CanvasBoard({
                 setElements(next);
             },
             setSelectedIds,
-            commitHistory,
+            commitHistory: (next) => {
+                commitHistory(next);
+                onUpdateTimelineFrame?.(next);
+            },
             id,
             value,
             ...stylePatch,
@@ -1608,7 +1499,10 @@ export default function CanvasBoard({
         setClipboard,
         setElements,
         setSelectedIds,
-        commitHistory,
+        commitHistory: (next) => {
+            commitHistory(next);
+            onUpdateTimelineFrame?.(next);
+        },
         getPastePoint: getPastePointFromMouseCursor,
     });
 
@@ -1846,16 +1740,13 @@ export default function CanvasBoard({
 
         if (!draft) return;
 
-        const finalDraft = withNotebookPageIndex(
-            applyArrowStartBinding({
-                draft,
-                tool,
-                elements,
-                point: drawStartPoint,
-                preferInputPoint: gridActive,
-            }),
-            canvasPropsRef.current
-        );
+        const finalDraft = applyArrowStartBinding({
+            draft,
+            tool,
+            elements,
+            point: drawStartPoint,
+            preferInputPoint: gridActive,
+        });
 
         const next = [...elementsRef.current, finalDraft];
 
@@ -1908,7 +1799,6 @@ export default function CanvasBoard({
                 fileName: file.name,
                 naturalWidth: size.naturalWidth,
                 naturalHeight: size.naturalHeight,
-                pageIndex: getActiveNotebookPageIndex(canvasPropsRef.current),
             });
 
             const next = [...elements, imageElement];
@@ -1917,6 +1807,7 @@ export default function CanvasBoard({
             setSelectedIds([imageElement.id]);
             setTool("select");
             commitHistory(next);
+            onCreateTimelineFrame?.(next);
 
             imageInsertPointRef.current = null;
         } catch (error) {
@@ -1988,6 +1879,7 @@ export default function CanvasBoard({
             setElements(next);
             setSelectedIds([]);
             commitHistory(next);
+            onUpdateTimelineFrame?.(next);
             return;
         }
 
@@ -2638,6 +2530,12 @@ export default function CanvasBoard({
         clearDragPreviewRefs();
         commitHistory(finalElements);
 
+        if (finishedMode === "draw") {
+            onCreateTimelineFrame?.(finalElements);
+        } else {
+            onUpdateTimelineFrame?.(finalElements);
+        }
+
         if (
             finishedMode === "draw" &&
             finishedElement &&
@@ -2748,22 +2646,6 @@ export default function CanvasBoard({
         }));
     };
 
-    const handleExportPDF = () => {
-        if (canvasPropsRef.current?.pattern === "notebook") {
-            exportNotebookToPDF({
-                elements: elementsRef.current || [],
-                canvasProps: canvasPropsRef.current || {},
-                fileName: `${currentDrawingMeta.title || DEFAULT_TITLE}.pdf`,
-            });
-            return;
-        }
-
-        exportCanvasToPDF(
-            canvasRef.current,
-            `${currentDrawingMeta.title || DEFAULT_TITLE}.pdf`
-        );
-    };
-
     const getLocalSavedDrawingById = (id) => {
         return getLocalDrawingById(id);
     };
@@ -2826,6 +2708,7 @@ export default function CanvasBoard({
             }
 
             commitHistory(nextElements);
+            onReplaceTimeline?.(nextElements);
             setMyDrawingsOpen(false);
         } catch (error) {
             console.error("Open drawing failed", error);
@@ -2835,7 +2718,7 @@ export default function CanvasBoard({
 
     return (
         <div className="canvas-wrap" ref={wrapRef}>
-            <div className={`canvas-stage ${notebookPageAnimation}`}>
+            <div className="canvas-stage">
                 <input
                     ref={imageInputRef}
                     type="file"
@@ -2884,7 +2767,7 @@ export default function CanvasBoard({
                     x={contextMenu.x}
                     y={contextMenu.y}
                     onClose={closeContextMenu}
-                    onExportPDF={handleExportPDF}
+                    onExportPDF={() => exportCanvasToPDF(canvasRef.current)}
                     onExportSVG={() =>
                         exportCanvasToSVG(
                             elements,
@@ -2924,7 +2807,6 @@ export default function CanvasBoard({
                 canvasSize={canvasSize}
                 showGrid={showGrid}
                 canvasProps={canvasProps}
-                setCanvasProps={setCanvasProps}
             />
 
             <SaveDrawingPopup

@@ -1,9 +1,12 @@
-import React, { useCallback, useMemo, useState, useEffect } from "react";
+import React, { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import "./App.css";
 
 import Toolbar from "./components/Toolbar/Toolbar";
 import Sidebar from "./components/Sidebar/Sidebar";
 import CanvasBoard from "./components/CanvasBoard/CanvasBoard";
+import FramesPanel from "./components/FramesPanel/FramesPanel";
+import RightToolTabs from "./components/RightToolTabs/RightToolTabs";
+import FramePlayerScreen from "./components/FramePlayerScreen/FramePlayerScreen";
 import SketchyAlert from "./components/SketchyAlert";
 import { verifyEmail, resetPassword } from "./api/authApi";
 import { measureTextBox } from "./canvas/textMetrics";
@@ -38,17 +41,15 @@ const COLORS = [
 
 const DEFAULT_CANVAS_PROPS = {
   backgroundColor: "#ffffff",
-  pattern: "notebook",
+  pattern: "blank",
   cornerRadius: 16,
 
   // Notebook module props
   pageMode: true,
   pageCount: 1,
-  pageViewMode: "single",
-  currentPageIndex: 0,
-  pageWidth: 794,
-  pageHeight: 1123,
 };
+
+const OBJECT_ORDER_DELAY_STEP_MS = 500;
 
 const DEFAULT_MAX_HISTORY_LENGTH = 80;
 const MIN_HISTORY_LENGTH = 10;
@@ -82,6 +83,103 @@ function cloneElements(elements) {
   return JSON.parse(JSON.stringify(elements || []));
 }
 
+function makeFrameId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `frame_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+function makeObjectId(prefix = "object") {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `${prefix}_${crypto.randomUUID()}`;
+  }
+
+  return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+function getViewportCenterPoint(canvasSize, viewport) {
+  const zoom = Math.max(0.01, Number(viewport?.zoom) || 1);
+  const offsetX = Number(viewport?.offsetX) || 0;
+  const offsetY = Number(viewport?.offsetY) || 0;
+
+  return {
+    x: ((Number(canvasSize?.width) || 1200) / 2 - offsetX) / zoom,
+    y: ((Number(canvasSize?.height) || 700) / 2 - offsetY) / zoom,
+  };
+}
+
+function createTimelineFrame(elements = [], index = 0, patch = {}) {
+  return {
+    id: makeFrameId(),
+    name: `Frame ${index + 1}`,
+    elements: cloneElements(elements),
+    hiddenElementIds: [],
+    ...patch,
+  };
+}
+
+function mergeFrameElements(...elementLists) {
+  const byId = new Map();
+  const noIdElements = [];
+
+  elementLists.forEach((list) => {
+    (list || []).forEach((element) => {
+      const cloned = cloneElements([element])[0];
+
+      if (cloned?.id) {
+        // Later frames win when same object id exists.
+        byId.set(cloned.id, cloned);
+      } else if (cloned) {
+        noIdElements.push(cloned);
+      }
+    });
+  });
+
+  return [...byId.values(), ...noIdElements];
+}
+
+function renameTimelineFrames(frames = []) {
+  return frames.map((frame, index) => ({
+    ...frame,
+    name: frame.name?.startsWith("Frame ") ? `Frame ${index + 1}` : frame.name,
+  }));
+}
+
+function hasFrameContent(frame) {
+  return Array.isArray(frame?.elements) && frame.elements.length > 0;
+}
+
+function getAnimatedElementIds(elements = []) {
+  return new Set(
+      (elements || [])
+          .filter((el) => el?.animation && el.animation.type && el.animation.type !== "none")
+          .map((el) => el.id)
+  );
+}
+
+function getFrameAnimationDurationMs(frame) {
+  const animatedElements = (frame?.elements || []).filter(
+      (element) => element?.animation?.type && element.animation.type !== "none"
+  );
+
+  if (!animatedElements.length) {
+    // Static frame still plays so user can preview/present frames without animations.
+    return 1300;
+  }
+
+  return Math.max(
+      900,
+      ...animatedElements.map((element) => {
+        const animation = element.animation || {};
+        const delayMs = Math.max(0, Number(animation.delayMs) || 0);
+        const durationMs = Math.max(1, Number(animation.durationMs) || 1000);
+        return delayMs + durationMs;
+      })
+  );
+}
+
 function VerifyPage() {
   const [status, setStatus] = useState("Verifying your email...");
   const [success, setSuccess] = useState(false);
@@ -108,6 +206,8 @@ function VerifyPage() {
           setSuccess(false);
         });
   }, []);
+
+
 
   return (
       <div className="app-shell">
@@ -196,6 +296,23 @@ function SketchyDrawPage() {
   const [maxHistoryLength] = useState(getConfiguredMaxHistoryLength);
   const [sketchyAlert, setSketchyAlert] = useState(null);
 
+  const [timelineFrames, setTimelineFrames] = useState(() => [
+    createTimelineFrame([], 0),
+  ]);
+  const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
+  const [framesPanelOpen, setFramesPanelOpen] = useState(false);
+  const [frameAnimationPlaying, setFrameAnimationPlaying] = useState(false);
+  const [frameAnimationTimeMs, setFrameAnimationTimeMs] = useState(0);
+
+  const [frameAdvanceMode, setFrameAdvanceMode] = useState("enter");
+  const [animationPlayerOpen, setAnimationPlayerOpen] = useState(false);
+  const [animationPlayerMode, setAnimationPlayerMode] = useState("current");
+  const [animationPlayerFrameIndex, setAnimationPlayerFrameIndex] = useState(0);
+  const [animationPlayerPlaying, setAnimationPlayerPlaying] = useState(false);
+  const [animationPlayerTimeMs, setAnimationPlayerTimeMs] = useState(0);
+  const [animationPlayerWaitingForNext, setAnimationPlayerWaitingForNext] = useState(false);
+  const animationPlayerAdvanceTimeoutRef = useRef(null);
+
   const showSketchyAlert = useCallback((payload) => {
     setSketchyAlert({
       open: true,
@@ -223,6 +340,505 @@ function SketchyDrawPage() {
       ...patch,
     }));
   };
+
+  const currentTimelineFrame = timelineFrames[currentFrameIndex] || timelineFrames[0];
+
+  const animationRenderOptions = useMemo(() => {
+    return {
+      animationMode: frameAnimationPlaying,
+      animationTimeMs: frameAnimationTimeMs,
+      activeAnimatedElementIds: getAnimatedElementIds(elements),
+      hiddenElementIds: new Set(currentTimelineFrame?.hiddenElementIds || []),
+      loopAnimation: frameAnimationPlaying,
+      loopPauseMs: 450,
+    };
+  }, [elements, frameAnimationPlaying, frameAnimationTimeMs, currentTimelineFrame]);
+
+  const animationPlayerFrame =
+      timelineFrames[animationPlayerFrameIndex] || timelineFrames[0] || createTimelineFrame([], 0);
+
+  const animationPlayerRenderOptions = useMemo(() => {
+    return {
+      animationMode: animationPlayerOpen,
+      animationTimeMs: animationPlayerTimeMs,
+      activeAnimatedElementIds: getAnimatedElementIds(animationPlayerFrame?.elements || []),
+      hiddenElementIds: new Set(animationPlayerFrame?.hiddenElementIds || []),
+    };
+  }, [animationPlayerOpen, animationPlayerTimeMs, animationPlayerFrame]);
+
+  useEffect(() => {
+    if (!frameAnimationPlaying) return undefined;
+
+    let rafId = null;
+    const startedAt = performance.now();
+
+    const tick = (now) => {
+      setFrameAnimationTimeMs(now - startedAt);
+      rafId = window.requestAnimationFrame(tick);
+    };
+
+    setFrameAnimationTimeMs(0);
+    rafId = window.requestAnimationFrame(tick);
+
+    return () => {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
+    };
+  }, [frameAnimationPlaying]);
+
+  const advanceAnimationPlayerFrame = useCallback(() => {
+    setAnimationPlayerFrameIndex((prevIndex) => {
+      const nextIndex = Math.min(prevIndex + 1, timelineFrames.length - 1);
+
+      if (nextIndex === prevIndex) {
+        setAnimationPlayerPlaying(false);
+        setAnimationPlayerWaitingForNext(false);
+        return prevIndex;
+      }
+
+      setAnimationPlayerTimeMs(0);
+      setAnimationPlayerWaitingForNext(false);
+      setAnimationPlayerPlaying(true);
+      setCurrentFrameIndex(nextIndex);
+      setElements(cloneElements(timelineFrames[nextIndex]?.elements || []));
+      setSelectedIds([]);
+      return nextIndex;
+    });
+  }, [timelineFrames]);
+
+  useEffect(() => {
+    if (!animationPlayerOpen || !animationPlayerPlaying) return undefined;
+
+    let rafId = null;
+    const startedAt = performance.now();
+    const durationMs = getFrameAnimationDurationMs(animationPlayerFrame);
+
+    const tick = (now) => {
+      const elapsed = now - startedAt;
+
+      if (elapsed >= durationMs) {
+        setAnimationPlayerTimeMs(durationMs);
+        setAnimationPlayerPlaying(false);
+
+        const hasNextFrame =
+            animationPlayerMode === "all" &&
+            animationPlayerFrameIndex < timelineFrames.length - 1;
+
+        if (hasNextFrame) {
+          if (frameAdvanceMode === "auto") {
+            setAnimationPlayerWaitingForNext(false);
+            animationPlayerAdvanceTimeoutRef.current = window.setTimeout(() => {
+              advanceAnimationPlayerFrame();
+            }, 650);
+          } else {
+            setAnimationPlayerWaitingForNext(true);
+          }
+        } else {
+          setAnimationPlayerWaitingForNext(false);
+        }
+
+        return;
+      }
+
+      setAnimationPlayerTimeMs(elapsed);
+      rafId = window.requestAnimationFrame(tick);
+    };
+
+    setAnimationPlayerWaitingForNext(false);
+    rafId = window.requestAnimationFrame(tick);
+
+    return () => {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
+    };
+  }, [
+    animationPlayerOpen,
+    animationPlayerPlaying,
+    animationPlayerFrame,
+    animationPlayerFrameIndex,
+    animationPlayerMode,
+    timelineFrames.length,
+    frameAdvanceMode,
+    advanceAnimationPlayerFrame,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (animationPlayerAdvanceTimeoutRef.current) {
+        window.clearTimeout(animationPlayerAdvanceTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!animationPlayerOpen) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setAnimationPlayerOpen(false);
+        setAnimationPlayerPlaying(false);
+        setAnimationPlayerWaitingForNext(false);
+        return;
+      }
+
+      if (event.key === "Enter") {
+        const hasNextFrame =
+            animationPlayerMode === "all" &&
+            animationPlayerFrameIndex < timelineFrames.length - 1;
+
+        if (animationPlayerWaitingForNext && hasNextFrame) {
+          event.preventDefault();
+          advanceAnimationPlayerFrame();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    animationPlayerOpen,
+    animationPlayerMode,
+    animationPlayerFrameIndex,
+    animationPlayerWaitingForNext,
+    timelineFrames.length,
+    advanceAnimationPlayerFrame,
+  ]);
+
+  const updateCurrentTimelineFrame = useCallback((nextElements, patch = {}) => {
+    const snapshot = cloneElements(nextElements);
+
+    setTimelineFrames((prevFrames) => {
+      const safeFrames = prevFrames.length ? prevFrames : [createTimelineFrame([], 0)];
+      const safeIndex = Math.max(0, Math.min(currentFrameIndex, safeFrames.length - 1));
+
+      return safeFrames.map((frame, index) =>
+          index === safeIndex
+              ? {
+                ...frame,
+                elements: snapshot,
+                ...patch,
+              }
+              : frame
+      );
+    });
+  }, [currentFrameIndex]);
+
+  const createTimelineFrameForNewObject = useCallback((nextElements) => {
+    const snapshot = cloneElements(nextElements);
+
+    setTimelineFrames((prevFrames) => {
+      const safeFrames = prevFrames.length ? prevFrames : [createTimelineFrame([], 0)];
+      const safeIndex = Math.max(0, Math.min(currentFrameIndex, safeFrames.length - 1));
+      const currentFrame = safeFrames[safeIndex];
+
+      if (!hasFrameContent(currentFrame)) {
+        setCurrentFrameIndex(safeIndex);
+        return safeFrames.map((frame, index) =>
+            index === safeIndex
+                ? {
+                  ...frame,
+                  elements: snapshot,
+                }
+                : frame
+        );
+      }
+
+      const nextFrames = safeFrames.slice(0, safeIndex + 1);
+      const newIndex = nextFrames.length;
+      nextFrames.push(createTimelineFrame(snapshot, newIndex));
+      setCurrentFrameIndex(newIndex);
+      return nextFrames;
+    });
+
+    setFrameAnimationPlaying(false);
+    setFrameAnimationTimeMs(0);
+  }, [currentFrameIndex]);
+
+  const replaceTimelineWithElements = useCallback((nextElements) => {
+    const nextFrame = createTimelineFrame(nextElements, 0);
+    setTimelineFrames([nextFrame]);
+    setCurrentFrameIndex(0);
+    setFrameAnimationPlaying(false);
+    setFrameAnimationTimeMs(0);
+  }, []);
+
+  const selectTimelineFrame = useCallback((index) => {
+    const frame = timelineFrames[index];
+    if (!frame) return;
+
+    setCurrentFrameIndex(index);
+    setElements(cloneElements(frame.elements));
+    setSelectedIds([]);
+    setFrameAnimationPlaying(false);
+    setFrameAnimationTimeMs(0);
+  }, [timelineFrames]);
+
+  const addTimelineFrameAfterCurrent = useCallback(() => {
+    const snapshot = cloneElements(elements);
+
+    setTimelineFrames((prevFrames) => {
+      const safeFrames = prevFrames.length ? prevFrames : [createTimelineFrame([], 0)];
+      const safeIndex = Math.max(0, Math.min(currentFrameIndex, safeFrames.length - 1));
+      const nextFrames = [...safeFrames];
+      const insertIndex = safeIndex + 1;
+      nextFrames.splice(insertIndex, 0, createTimelineFrame(snapshot, insertIndex));
+
+      const renamed = nextFrames.map((frame, index) => ({
+        ...frame,
+        name: frame.name?.startsWith("Frame ") ? `Frame ${index + 1}` : frame.name,
+      }));
+
+      setCurrentFrameIndex(insertIndex);
+      return renamed;
+    });
+
+    setFrameAnimationPlaying(false);
+    setFrameAnimationTimeMs(0);
+  }, [currentFrameIndex, elements]);
+
+  const deleteTimelineFrame = useCallback((index) => {
+    setTimelineFrames((prevFrames) => {
+      if (prevFrames.length <= 1) {
+        const emptyFrame = createTimelineFrame([], 0);
+        setCurrentFrameIndex(0);
+        setElements([]);
+        setSelectedIds([]);
+        return [emptyFrame];
+      }
+
+      const nextFrames = prevFrames
+          .filter((_, frameIndex) => frameIndex !== index)
+          .map((frame, frameIndex) => ({
+            ...frame,
+            name: frame.name?.startsWith("Frame ") ? `Frame ${frameIndex + 1}` : frame.name,
+          }));
+      const nextIndex = Math.max(0, Math.min(currentFrameIndex, nextFrames.length - 1));
+      const nextFrame = nextFrames[nextIndex];
+
+      setCurrentFrameIndex(nextIndex);
+      setElements(cloneElements(nextFrame.elements));
+      setSelectedIds([]);
+      return nextFrames;
+    });
+
+    setFrameAnimationPlaying(false);
+    setFrameAnimationTimeMs(0);
+  }, [currentFrameIndex]);
+
+  const mergeCurrentFrameWithNext = useCallback(() => {
+    setTimelineFrames((prevFrames) => {
+      const safeFrames = prevFrames.length ? prevFrames : [createTimelineFrame([], 0)];
+      const safeIndex = Math.max(0, Math.min(currentFrameIndex, safeFrames.length - 1));
+
+      if (safeIndex >= safeFrames.length - 1) {
+        return safeFrames;
+      }
+
+      const currentFrame = safeFrames[safeIndex];
+      const nextFrame = safeFrames[safeIndex + 1];
+      const mergedElements = mergeFrameElements(currentFrame.elements, nextFrame.elements);
+      const mergedHidden = [];
+
+      const mergedFrame = {
+        ...currentFrame,
+        elements: mergedElements,
+        hiddenElementIds: mergedHidden,
+      };
+
+      const nextFrames = [
+        ...safeFrames.slice(0, safeIndex),
+        mergedFrame,
+        ...safeFrames.slice(safeIndex + 2),
+      ];
+
+      const renamed = renameTimelineFrames(nextFrames);
+      setCurrentFrameIndex(safeIndex);
+      setElements(cloneElements(renamed[safeIndex]?.elements || []));
+      setSelectedIds([]);
+      return renamed;
+    });
+
+    setFrameAnimationPlaying(false);
+    setFrameAnimationTimeMs(0);
+  }, [currentFrameIndex]);
+
+  const mergeAllTimelineFrames = useCallback(() => {
+    setTimelineFrames((prevFrames) => {
+      const safeFrames = prevFrames.length ? prevFrames : [createTimelineFrame([], 0)];
+      const mergedElements = mergeFrameElements(...safeFrames.map((frame) => frame.elements || []));
+      const mergedHidden = [];
+
+      const mergedFrame = createTimelineFrame(mergedElements, 0, {
+        id: safeFrames[0]?.id || makeFrameId(),
+        name: "Frame 1",
+        hiddenElementIds: mergedHidden,
+      });
+
+      setCurrentFrameIndex(0);
+      setElements(cloneElements(mergedFrame.elements));
+      setSelectedIds([]);
+      return [mergedFrame];
+    });
+
+    setFrameAnimationPlaying(false);
+    setFrameAnimationTimeMs(0);
+  }, []);
+
+  const toggleFrameElementHidden = useCallback((frameIndex, elementId) => {
+    setTimelineFrames((prevFrames) => {
+      return prevFrames.map((frame, index) => {
+        if (index !== frameIndex) return frame;
+
+        const hidden = new Set(frame.hiddenElementIds || []);
+
+        if (hidden.has(elementId)) {
+          hidden.delete(elementId);
+        } else {
+          hidden.add(elementId);
+        }
+
+        return {
+          ...frame,
+          hiddenElementIds: Array.from(hidden),
+        };
+      });
+    });
+  }, []);
+
+  const moveFrameElementOrder = useCallback((frameIndex, elementId, direction) => {
+    if (!elementId) return;
+
+    setTimelineFrames((prevFrames) => {
+      return prevFrames.map((frame, index) => {
+        if (index !== frameIndex) return frame;
+
+        const nextElements = cloneElements(frame.elements || []);
+        const fromIndex = nextElements.findIndex((element) => element.id === elementId);
+
+        if (fromIndex < 0) return frame;
+
+        let toIndex = fromIndex;
+
+        if (direction === "first") {
+          toIndex = 0;
+        } else if (direction === "last") {
+          toIndex = nextElements.length - 1;
+        } else if (direction === "up") {
+          toIndex = Math.max(0, fromIndex - 1);
+        } else if (direction === "down") {
+          toIndex = Math.min(nextElements.length - 1, fromIndex + 1);
+        }
+
+        if (toIndex === fromIndex) return frame;
+
+        const [movedElement] = nextElements.splice(fromIndex, 1);
+        nextElements.splice(toIndex, 0, movedElement);
+
+        if (index === currentFrameIndex) {
+          setElements(cloneElements(nextElements));
+          setSelectedIds([elementId]);
+        }
+
+        return {
+          ...frame,
+          elements: nextElements,
+        };
+      });
+    });
+
+    setFrameAnimationPlaying(false);
+    setFrameAnimationTimeMs(0);
+  }, [currentFrameIndex]);
+
+  const applyFrameObjectOrderTiming = useCallback((frameIndex, options = {}) => {
+    const delayStepMs = Math.max(0, Number(options.delayStepMs) || OBJECT_ORDER_DELAY_STEP_MS);
+    setTimelineFrames((prevFrames) => {
+      return prevFrames.map((frame, index) => {
+        if (index !== frameIndex) return frame;
+
+        const nextElements = cloneElements(frame.elements || []).map((element, objectIndex) => {
+          const type = element?.animation?.type || "none";
+
+          if (type === "none") {
+            return element;
+          }
+
+          return {
+            ...element,
+            animation: {
+              ...element.animation,
+              delayMs: objectIndex * delayStepMs,
+            },
+          };
+        });
+
+        if (index === currentFrameIndex) {
+          setElements(cloneElements(nextElements));
+        }
+
+        return {
+          ...frame,
+          elements: nextElements,
+        };
+      });
+    });
+
+    setFrameAnimationPlaying(false);
+    setFrameAnimationTimeMs(0);
+  }, [currentFrameIndex]);
+
+  const toggleCurrentFrameAnimation = useCallback(() => {
+    setFrameAnimationTimeMs(0);
+    setFrameAnimationPlaying((value) => !value);
+  }, []);
+
+  const openAnimationPlayer = useCallback((mode = "current") => {
+    const startIndex = mode === "all" ? 0 : currentFrameIndex;
+    const safeIndex = Math.max(0, Math.min(startIndex, timelineFrames.length - 1));
+
+    if (animationPlayerAdvanceTimeoutRef.current) {
+      window.clearTimeout(animationPlayerAdvanceTimeoutRef.current);
+      animationPlayerAdvanceTimeoutRef.current = null;
+    }
+
+    setAnimationPlayerMode(mode);
+    setAnimationPlayerFrameIndex(safeIndex);
+    setCurrentFrameIndex(safeIndex);
+    setElements(cloneElements(timelineFrames[safeIndex]?.elements || []));
+    setSelectedIds([]);
+    setAnimationPlayerTimeMs(0);
+    setAnimationPlayerWaitingForNext(false);
+    setAnimationPlayerOpen(true);
+    setAnimationPlayerPlaying(true);
+    setFrameAnimationPlaying(false);
+    setFrameAnimationTimeMs(0);
+  }, [currentFrameIndex, timelineFrames]);
+
+  const closeAnimationPlayer = useCallback(() => {
+    if (animationPlayerAdvanceTimeoutRef.current) {
+      window.clearTimeout(animationPlayerAdvanceTimeoutRef.current);
+      animationPlayerAdvanceTimeoutRef.current = null;
+    }
+
+    setAnimationPlayerOpen(false);
+    setAnimationPlayerPlaying(false);
+    setAnimationPlayerWaitingForNext(false);
+    setAnimationPlayerTimeMs(0);
+  }, []);
+
+  const restartAnimationPlayerFrame = useCallback(() => {
+    if (animationPlayerAdvanceTimeoutRef.current) {
+      window.clearTimeout(animationPlayerAdvanceTimeoutRef.current);
+      animationPlayerAdvanceTimeoutRef.current = null;
+    }
+
+    setAnimationPlayerTimeMs(0);
+    setAnimationPlayerWaitingForNext(false);
+    setAnimationPlayerPlaying(true);
+  }, []);
 
   const [viewport, setViewport] = useState({
     zoom: 1,
@@ -253,6 +869,192 @@ function SketchyDrawPage() {
       return limited;
     });
   }, [historyIndex, maxHistoryLength]);
+
+  const insertEmojiObject = useCallback((emojiValue) => {
+    const emoji = String(emojiValue || "⭐").trim() || "⭐";
+    const center = getViewportCenterPoint(canvasSize, viewport);
+    const pageIndex = Number(canvasProps?.currentPageIndex) || 0;
+
+    const nextElement = {
+      id: makeObjectId("emoji"),
+      type: "text",
+      text: emoji,
+      x: center.x - 24,
+      y: center.y - 24,
+      w: 56,
+      h: 56,
+      fontSize: 42,
+      lineHeight: 56,
+      fontFamily: "Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif",
+      stroke: "#111827",
+      fill: "transparent",
+      textAlign: "left",
+      emojiObject: true,
+      pageIndex,
+      animation: {
+        type: "none",
+        durationMs: 1000,
+        delayMs: 0,
+      },
+    };
+
+    const next = [...elements, nextElement];
+    setElements(next);
+    setSelectedIds([nextElement.id]);
+    setTool("select");
+    commitHistory(next);
+    createTimelineFrameForNewObject(next);
+  }, [
+    canvasProps,
+    canvasSize,
+    viewport,
+    elements,
+    commitHistory,
+    createTimelineFrameForNewObject,
+  ]);
+
+  const insertRichTextObject = useCallback((richTextPayload = {}) => {
+    const center = getViewportCenterPoint(canvasSize, viewport);
+    const pageIndex = Number(canvasProps?.currentPageIndex) || 0;
+    const plainText = String(richTextPayload.plainText || "Rich text box");
+    const fontSize = Math.max(
+        8,
+        Math.min(96, Number(richTextPayload.fontSize) || 22)
+    );
+
+    const nextElement = {
+      id: makeObjectId("rich_text"),
+      type: "text",
+      x: center.x - 160,
+      y: center.y - 60,
+      w: 320,
+      h: 120,
+      html: richTextPayload.html || plainText,
+      plainText,
+      text: plainText,
+      fontSize,
+      lineHeight: Math.round(fontSize * 1.35),
+      fontFamily: richTextPayload.fontFamily || currentTextStyle.fontFamily || "Arial",
+      stroke: richTextPayload.stroke || stroke || "#111827",
+      fill: "transparent",
+      bold: !!richTextPayload.bold,
+      italic: !!richTextPayload.italic,
+      underline: !!richTextPayload.underline,
+      textAlign: "left",
+      richTextObject: true,
+      pageIndex,
+      animation: {
+        type: "none",
+        durationMs: 1000,
+        delayMs: 0,
+      },
+    };
+
+    const next = [...elements, nextElement];
+    setElements(next);
+    setSelectedIds([nextElement.id]);
+    setTool("select");
+    commitHistory(next);
+    createTimelineFrameForNewObject(next);
+  }, [
+    canvasProps,
+    canvasSize,
+    viewport,
+    elements,
+    stroke,
+    currentTextStyle,
+    commitHistory,
+    createTimelineFrameForNewObject,
+  ]);
+
+  const insertGifPrimitiveObject = useCallback((payload = {}) => {
+    const primitiveType = payload.type || "line";
+    const animationType = payload.animated ? payload.animationType || "draw" : "none";
+    const center = getViewportCenterPoint(canvasSize, viewport);
+    const pageIndex = Number(canvasProps?.currentPageIndex) || 0;
+    const baseStroke = stroke || "#111827";
+
+    let nextElement;
+
+    if (primitiveType === "rectangle") {
+      nextElement = {
+        id: makeObjectId("gif_rect"),
+        type: "rect",
+        x: center.x - 80,
+        y: center.y - 45,
+        w: 160,
+        h: 90,
+        stroke: baseStroke,
+        fill: "transparent",
+        strokeWidth: 2,
+        strokeDash: "solid",
+        cornerRadius: Number(canvasProps?.cornerRadius) || 0,
+        pageIndex,
+        gifPrimitive: true,
+        animation: {
+          type: animationType === "none" ? "none" : animationType,
+          durationMs: 1000,
+          delayMs: 0,
+        },
+      };
+    } else {
+      const isArrow = primitiveType === "arrow";
+      const x1 = center.x - 100;
+      const y1 = center.y;
+      const x2 = center.x + 100;
+      const y2 = center.y;
+
+      nextElement = {
+        id: makeObjectId(isArrow ? "gif_arrow" : "gif_line"),
+        type: isArrow ? "arrow" : "line",
+        x1,
+        y1,
+        x2,
+        y2,
+        cx1: x1,
+        cy1: y1,
+        cx2: x2,
+        cy2: y2,
+        stroke: baseStroke,
+        fill: "transparent",
+        strokeWidth: 2,
+        strokeDash: "solid",
+        lineStyle: "straight",
+        arrowEnd: isArrow,
+        pageIndex,
+        gifPrimitive: true,
+        animation: {
+          type: animationType === "none" ? "none" : animationType,
+          durationMs: 1000,
+          delayMs: 0,
+        },
+      };
+    }
+
+    const next = [...elements, nextElement];
+    setElements(next);
+    setSelectedIds([nextElement.id]);
+    setTool("select");
+    commitHistory(next);
+    createTimelineFrameForNewObject(next);
+
+    if (animationType !== "none") {
+      setFrameAnimationPlaying(false);
+      setFrameAnimationTimeMs(0);
+      window.requestAnimationFrame(() => {
+        setFrameAnimationPlaying(true);
+      });
+    }
+  }, [
+    canvasProps,
+    canvasSize,
+    viewport,
+    elements,
+    stroke,
+    commitHistory,
+    createTimelineFrameForNewObject,
+  ]);
+
   const {
     canvasRef,
     jsonInputRef,
@@ -352,6 +1154,7 @@ function SketchyDrawPage() {
 
     setElements(next);
     commitHistory(next);
+    updateCurrentTimelineFrame(next);
   };
 
   const undo = () => {
@@ -414,6 +1217,7 @@ function SketchyDrawPage() {
         setSelectedIds([]);
         setHistory([[]]);
         setHistoryIndex(0);
+        replaceTimelineWithElements([]);
 
         setViewport({
           zoom: 1,
@@ -447,6 +1251,7 @@ function SketchyDrawPage() {
         setSelectedIds([]);
         setHistory([[]]);
         setHistoryIndex(0);
+        replaceTimelineWithElements([]);
         setSketchyAlert(null);
       },
     });
@@ -477,6 +1282,7 @@ function SketchyDrawPage() {
     setElements(next);
     setSelectedIds([]);
     commitHistory(next);
+    updateCurrentTimelineFrame(next);
   };
 
   const toggleSelectedLineCurve = () => {
@@ -528,6 +1334,7 @@ function SketchyDrawPage() {
 
     setElements(next);
     commitHistory(next);
+    updateCurrentTimelineFrame(next);
   };
 
   return (
@@ -551,6 +1358,21 @@ function SketchyDrawPage() {
               updateSelectedElementStyle={updateSelectedElementStyle}
               canvasProps={canvasProps}
               updateCanvasProps={updateCanvasProps}
+              frames={timelineFrames}
+              currentFrameIndex={currentFrameIndex}
+              animationPlaying={frameAnimationPlaying}
+              animationTimeMs={frameAnimationTimeMs}
+              advanceMode={frameAdvanceMode}
+              onAdvanceModeChange={setFrameAdvanceMode}
+              onOpenPlayer={openAnimationPlayer}
+              onAddFrameAfter={addTimelineFrameAfterCurrent}
+              onToggleFrameAnimation={toggleCurrentFrameAnimation}
+              onApplyFrameObjectOrderTiming={applyFrameObjectOrderTiming}
+              onMergeFrameWithNext={mergeCurrentFrameWithNext}
+              onMergeAllFrames={mergeAllTimelineFrames}
+              onInsertGifPrimitive={insertGifPrimitiveObject}
+              onInsertEmoji={insertEmojiObject}
+              onInsertRichText={insertRichTextObject}
           />
 
           <div className="work-area">
@@ -587,6 +1409,9 @@ function SketchyDrawPage() {
                     }))
                 }
                 createNewDrawing={createNewDrawing}
+                timelineFrames={timelineFrames}
+                currentFrameIndex={currentFrameIndex}
+                openFramesPanel={() => setFramesPanelOpen(false)}
             />
 
             <CanvasBoard
@@ -611,8 +1436,74 @@ function SketchyDrawPage() {
                 canvasProps={canvasProps}
                 setCanvasProps={setCanvasProps}
                 currentTextStyle={currentTextStyle}
+                timelineFrames={timelineFrames}
+                currentFrameIndex={currentFrameIndex}
+                renderOptions={animationRenderOptions}
+                onCreateTimelineFrame={createTimelineFrameForNewObject}
+                onUpdateTimelineFrame={updateCurrentTimelineFrame}
+                onReplaceTimeline={replaceTimelineWithElements}
+            />
+
+            <FramesPanel
+                open={framesPanelOpen}
+                frames={timelineFrames}
+                currentIndex={currentFrameIndex}
+                canvasSize={canvasSize}
+                canvasViewport={viewport}
+                canvasProps={canvasProps}
+                renderOptions={animationRenderOptions}
+                animationPlaying={frameAnimationPlaying}
+                animationTimeMs={frameAnimationTimeMs}
+                onClose={() => setFramesPanelOpen(false)}
+                onSelectFrame={selectTimelineFrame}
+                onAddFrameAfter={addTimelineFrameAfterCurrent}
+                onDeleteFrame={deleteTimelineFrame}
+                onToggleElementHidden={toggleFrameElementHidden}
+                onMoveFrameElementOrder={moveFrameElementOrder}
+                onApplyFrameObjectOrderTiming={applyFrameObjectOrderTiming}
+                onMergeFrameWithNext={mergeCurrentFrameWithNext}
+                onMergeAllFrames={mergeAllTimelineFrames}
+            />
+
+            <FramePlayerScreen
+                open={animationPlayerOpen}
+                frame={animationPlayerFrame}
+                frameIndex={animationPlayerFrameIndex}
+                totalFrames={timelineFrames.length || 1}
+                mode={animationPlayerMode}
+                advanceMode={frameAdvanceMode}
+                canvasSize={canvasSize}
+                canvasViewport={viewport}
+                canvasProps={canvasProps}
+                renderOptions={animationPlayerRenderOptions}
+                playing={animationPlayerPlaying}
+                timeMs={animationPlayerTimeMs}
+                waitingForNext={animationPlayerWaitingForNext}
+                onClose={closeAnimationPlayer}
+                onRestart={restartAnimationPlayerFrame}
+                onNext={advanceAnimationPlayerFrame}
+                onAdvanceModeChange={setFrameAdvanceMode}
             />
           </div>
+
+          <RightToolTabs
+              frames={timelineFrames}
+              currentFrameIndex={currentFrameIndex}
+              canvasSize={canvasSize}
+              canvasViewport={viewport}
+              canvasProps={canvasProps}
+              renderOptions={animationRenderOptions}
+              animationPlaying={frameAnimationPlaying}
+              animationTimeMs={frameAnimationTimeMs}
+              onSelectFrame={selectTimelineFrame}
+              onAddFrameAfter={addTimelineFrameAfterCurrent}
+              onDeleteFrame={deleteTimelineFrame}
+              onToggleElementHidden={toggleFrameElementHidden}
+              onMoveFrameElementOrder={moveFrameElementOrder}
+              onApplyFrameObjectOrderTiming={applyFrameObjectOrderTiming}
+              onMergeFrameWithNext={mergeCurrentFrameWithNext}
+              onMergeAllFrames={mergeAllTimelineFrames}
+          />
         </div>
       </div>
   );

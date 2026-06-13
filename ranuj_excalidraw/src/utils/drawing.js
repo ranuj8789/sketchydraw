@@ -264,6 +264,64 @@ function getSelectionVisualBox(element, box) {
     };
 }
 
+function clamp01(value) {
+    return Math.max(0, Math.min(1, Number(value) || 0));
+}
+
+function easeOutCubic(t) {
+    const value = clamp01(t);
+    return 1 - Math.pow(1 - value, 3);
+}
+
+function getAnimationProgress(element, renderOptions = {}) {
+    const animation = element?.animation || {};
+    const type = animation.type || "none";
+
+    const activeAnimatedElementIds = renderOptions.activeAnimatedElementIds;
+    const hasActiveElementFilter =
+        activeAnimatedElementIds &&
+        typeof activeAnimatedElementIds.has === "function";
+
+    if (
+        !renderOptions.animationMode ||
+        type === "none" ||
+        (hasActiveElementFilter && !activeAnimatedElementIds.has(element.id))
+    ) {
+        return {
+            active: false,
+            type: "none",
+            progress: 1,
+        };
+    }
+
+    const durationMs = Math.max(1, Number(animation.durationMs) || 1000);
+    const delayMs = Math.max(0, Number(animation.delayMs) || 0);
+    const loopPauseMs = Math.max(0, Number(renderOptions.loopPauseMs) || 0);
+    const rawAnimationTimeMs = Math.max(0, Number(renderOptions.animationTimeMs) || 0);
+    const cycleMs = Math.max(1, delayMs + durationMs + loopPauseMs);
+    const animationTimeMs = renderOptions.loopAnimation
+        ? rawAnimationTimeMs % cycleMs
+        : rawAnimationTimeMs;
+    const rawProgress = (animationTimeMs - delayMs) / durationMs;
+
+    return {
+        active: true,
+        type,
+        progress: clamp01(rawProgress),
+    };
+}
+
+function getAnimatedTextLines(text, animationState) {
+    const fullText = String(text || "");
+
+    if (!animationState.active || animationState.type !== "typewriter") {
+        return fullText.split("\n");
+    }
+
+    const visibleChars = Math.ceil(fullText.length * animationState.progress);
+    return fullText.slice(0, visibleChars).split("\n");
+}
+
 export function hitTest(element, x, y) {
     if (!element) return false;
 
@@ -340,7 +398,7 @@ export function hitTest(element, x, y) {
     return false;
 }
 
-export function drawElement(ctx, element, selected = false) {
+export function drawElement(ctx, element, selected = false, renderOptions = {}) {
     if (!element) return;
 
     ctx.save();
@@ -351,6 +409,33 @@ export function drawElement(ctx, element, selected = false) {
 
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
+
+    const animationState = getAnimationProgress(element, renderOptions);
+    const easedProgress = easeOutCubic(animationState.progress);
+
+    if (animationState.active && animationState.type === "fadeIn") {
+        ctx.globalAlpha = ctx.globalAlpha * easedProgress;
+    }
+
+    if (animationState.active && animationState.type === "slideUp") {
+        ctx.translate(0, (1 - easedProgress) * 18);
+        ctx.globalAlpha = ctx.globalAlpha * easedProgress;
+    }
+
+    if (animationState.active && animationState.type === "scaleIn") {
+        const box = getSelectionBox(element);
+
+        if (box) {
+            const cx = box.x + box.w / 2;
+            const cy = box.y + box.h / 2;
+            const scale = 0.75 + easedProgress * 0.25;
+
+            ctx.translate(cx, cy);
+            ctx.scale(scale, scale);
+            ctx.translate(-cx, -cy);
+            ctx.globalAlpha = ctx.globalAlpha * easedProgress;
+        }
+    }
 
     if (element.type === "rect" || element.type === "rectangle") {
         const radius = element.cornerRadius ?? 0;
@@ -411,17 +496,30 @@ export function drawElement(ctx, element, selected = false) {
 
         ctx.stroke();
     } else if (element.type === "line" || element.type === "arrow") {
+        const shouldDrawProgress = animationState.active && animationState.type === "draw";
+        const progress = shouldDrawProgress ? easedProgress : 1;
+        const p0 = { x: element.x1, y: element.y1 };
+        const p1 = { x: element.cx1 ?? element.x1, y: element.cy1 ?? element.y1 };
+        const p2 = { x: element.cx2 ?? element.x2, y: element.cy2 ?? element.y2 };
+        const p3 = { x: element.x2, y: element.y2 };
+
         ctx.beginPath();
-        ctx.moveTo(element.x1, element.y1);
-        ctx.bezierCurveTo(
-            element.cx1 ?? element.x1,
-            element.cy1 ?? element.y1,
-            element.cx2 ?? element.x2,
-            element.cy2 ?? element.y2,
-            element.x2,
-            element.y2
-        );
-        ctx.stroke();
+        ctx.moveTo(p0.x, p0.y);
+
+        if (progress >= 1) {
+            ctx.bezierCurveTo(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
+            ctx.stroke();
+        } else {
+            const steps = Math.max(2, Math.ceil(32 * progress));
+
+            for (let i = 1; i <= steps; i++) {
+                const t = Math.min(progress, (i / steps) * progress);
+                const point = cubicBezierPoint(t, p0, p1, p2, p3);
+                ctx.lineTo(point.x, point.y);
+            }
+
+            ctx.stroke();
+        }
 
         const arrowStart = !!element.arrowStart;
         const arrowEnd =
@@ -429,7 +527,7 @@ export function drawElement(ctx, element, selected = false) {
                 ? element.arrowEnd !== false
                 : !!element.arrowEnd;
 
-        if (arrowStart) {
+        if (progress >= 1 && arrowStart) {
             drawArrowHead(
                 ctx,
                 element.cx1 ?? element.x2,
@@ -441,13 +539,16 @@ export function drawElement(ctx, element, selected = false) {
             );
         }
 
-        if (arrowEnd) {
+        if (arrowEnd && progress > 0.04) {
+            const headPoint = progress >= 1 ? p3 : cubicBezierPoint(progress, p0, p1, p2, p3);
+            const prevPoint = cubicBezierPoint(Math.max(0, progress - 0.05), p0, p1, p2, p3);
+
             drawArrowHead(
                 ctx,
-                element.cx2 ?? element.x1,
-                element.cy2 ?? element.y1,
-                element.x2,
-                element.y2,
+                prevPoint.x,
+                prevPoint.y,
+                headPoint.x,
+                headPoint.y,
                 stroke,
                 strokeWidth
             );
@@ -456,10 +557,14 @@ export function drawElement(ctx, element, selected = false) {
         const points = element.points || [];
 
         if (points.length > 1) {
+            const shouldDrawProgress = animationState.active && animationState.type === "draw";
+            const progress = shouldDrawProgress ? easedProgress : 1;
+            const lastIndex = Math.max(1, Math.ceil((points.length - 1) * progress));
+
             ctx.beginPath();
             ctx.moveTo(points[0].x, points[0].y);
 
-            for (let i = 1; i < points.length; i++) {
+            for (let i = 1; i <= lastIndex && i < points.length; i++) {
                 ctx.lineTo(points[i].x, points[i].y);
             }
 
@@ -505,7 +610,7 @@ export function drawElement(ctx, element, selected = false) {
         ctx.textBaseline = "top";
         ctx.textAlign = style.textAlign;
 
-        const lines = String(element.text || "").split("\n");
+        const lines = getAnimatedTextLines(element.text, animationState);
 
         lines.forEach((line, index) => {
             const textX = getTextAnchorX(element, style);
