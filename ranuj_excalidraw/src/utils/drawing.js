@@ -291,6 +291,10 @@ function getAnimationProgress(element, renderOptions = {}) {
             active: false,
             type: "none",
             progress: 1,
+            easedProgress: 1,
+            localTimeMs: 0,
+            durationMs: 1000,
+            loop: false,
         };
     }
 
@@ -298,17 +302,163 @@ function getAnimationProgress(element, renderOptions = {}) {
     const delayMs = Math.max(0, Number(animation.delayMs) || 0);
     const loopPauseMs = Math.max(0, Number(renderOptions.loopPauseMs) || 0);
     const rawAnimationTimeMs = Math.max(0, Number(renderOptions.animationTimeMs) || 0);
+    const loop = !!animation.loop || !!renderOptions.loopAnimation;
     const cycleMs = Math.max(1, delayMs + durationMs + loopPauseMs);
-    const animationTimeMs = renderOptions.loopAnimation
+    const animationTimeMs = loop
         ? rawAnimationTimeMs % cycleMs
         : rawAnimationTimeMs;
-    const rawProgress = (animationTimeMs - delayMs) / durationMs;
+    const localTimeMs = Math.max(0, animationTimeMs - delayMs);
+    const rawProgress = localTimeMs / durationMs;
+    const progress = clamp01(rawProgress);
 
     return {
         active: true,
         type,
-        progress: clamp01(rawProgress),
+        progress,
+        easedProgress: easeOutCubic(progress),
+        localTimeMs,
+        durationMs,
+        loop,
     };
+}
+
+function getPulseWave(animationState) {
+    if (!animationState?.active) return 0;
+
+    const durationMs = Math.max(1, animationState.durationMs || 1000);
+    const phase = (animationState.localTimeMs % durationMs) / durationMs;
+    return (Math.sin(phase * Math.PI * 2 - Math.PI / 2) + 1) / 2;
+}
+
+function applyAnimationBeforeDraw(ctx, element, animationState) {
+    if (!animationState.active) return;
+
+    const box = getSelectionBox(element);
+    const wave = getPulseWave(animationState);
+
+    if (animationState.type === "blink") {
+        ctx.globalAlpha *= wave > 0.45 ? 1 : 0.22;
+    }
+
+    if (animationState.type === "pulse" && box) {
+        const cx = box.x + box.w / 2;
+        const cy = box.y + box.h / 2;
+        const scale = 1 + wave * 0.075;
+
+        ctx.translate(cx, cy);
+        ctx.scale(scale, scale);
+        ctx.translate(-cx, -cy);
+    }
+
+    if (animationState.type === "glow") {
+        ctx.shadowColor = element.stroke || "#2563eb";
+        ctx.shadowBlur = 8 + wave * 14;
+    }
+
+    if (animationState.type === "movingDashes") {
+        ctx.setLineDash([12, 8]);
+        ctx.lineDashOffset = -(animationState.localTimeMs || 0) / 32;
+    }
+}
+
+function strokePathWithProgress(ctx, pathLength, progress) {
+    const safeLength = Math.max(1, pathLength || 1);
+
+    if (progress >= 0.995) {
+        ctx.stroke();
+        return;
+    }
+
+    ctx.save();
+    ctx.setLineDash([safeLength * clamp01(progress), safeLength]);
+    ctx.lineDashOffset = 0;
+    ctx.stroke();
+    ctx.restore();
+}
+
+function getRectPathLength(w, h) {
+    return Math.max(1, 2 * (Math.abs(w || 0) + Math.abs(h || 0)));
+}
+
+function getEllipsePathLength(w, h) {
+    const a = Math.abs(w || 0) / 2;
+    const b = Math.abs(h || 0) / 2;
+
+    if (!a || !b) return 1;
+
+    return Math.PI * (3 * (a + b) - Math.sqrt((3 * a + b) * (a + 3 * b)));
+}
+
+function getDiamondPathLength(w, h) {
+    return Math.max(1, 4 * Math.hypot(Math.abs(w || 0) / 2, Math.abs(h || 0) / 2));
+}
+
+function shouldDrawPathProgress(animationState) {
+    return (
+        animationState.active &&
+        (animationState.type === "draw" || animationState.type === "borderDraw")
+    );
+}
+
+function drawMovingHead(ctx, element, animationState, stroke, strokeWidth) {
+    if (!animationState.active || animationState.type !== "movingHead") return;
+    if (element.type !== "line" && element.type !== "arrow") return;
+
+    const p0 = {x: element.x1, y: element.y1};
+    const p1 = {x: element.cx1 ?? element.x1, y: element.cy1 ?? element.y1};
+    const p2 = {x: element.cx2 ?? element.x2, y: element.cy2 ?? element.y2};
+    const p3 = {x: element.x2, y: element.y2};
+    const t = Math.max(0.04, animationState.progress || 0.04);
+    const headPoint = cubicBezierPoint(t, p0, p1, p2, p3);
+    const prevPoint = cubicBezierPoint(Math.max(0, t - 0.05), p0, p1, p2, p3);
+
+    drawArrowHead(ctx, prevPoint.x, prevPoint.y, headPoint.x, headPoint.y, stroke, strokeWidth);
+}
+
+function drawPulseRing(ctx, element, animationState, stroke) {
+    if (!animationState.active) return;
+    if (animationState.type !== "pulseRing" && animationState.type !== "spotlight") return;
+
+    const box = getSelectionBox(element);
+    if (!box) return;
+
+    const wave = animationState.type === "spotlight" ? getPulseWave(animationState) : animationState.progress;
+    const pad = animationState.type === "spotlight" ? 10 + wave * 10 : 8 + wave * 24;
+    const alpha = animationState.type === "spotlight" ? 0.16 + wave * 0.10 : Math.max(0, 0.42 * (1 - wave));
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = stroke || "#2563eb";
+    ctx.fillStyle = stroke || "#2563eb";
+    ctx.lineWidth = animationState.type === "spotlight" ? 0 : 3;
+    ctx.setLineDash([]);
+
+    const x = box.x - pad;
+    const y = box.y - pad;
+    const w = box.w + pad * 2;
+    const h = box.h + pad * 2;
+
+    if (element.type === "ellipse") {
+        ctx.beginPath();
+        ctx.ellipse(x + w / 2, y + h / 2, Math.abs(w / 2), Math.abs(h / 2), 0, 0, Math.PI * 2);
+    } else {
+        const radius = Math.min(18, Math.max(6, Math.min(Math.abs(w), Math.abs(h)) * 0.08));
+        if (typeof ctx.roundRect === "function") {
+            ctx.beginPath();
+            ctx.roundRect(x, y, w, h, radius);
+        } else {
+            ctx.beginPath();
+            ctx.rect(x, y, w, h);
+        }
+    }
+
+    if (animationState.type === "spotlight") {
+        ctx.fill();
+    } else {
+        ctx.stroke();
+    }
+
+    ctx.restore();
 }
 
 function getAnimatedTextLines(text, animationState) {
@@ -437,10 +587,13 @@ export function drawElement(ctx, element, selected = false, renderOptions = {}) 
         }
     }
 
+    applyAnimationBeforeDraw(ctx, element, animationState);
+
     if (element.type === "rect" || element.type === "rectangle") {
         const radius = element.cornerRadius ?? 0;
+        const drawProgressPath = shouldDrawPathProgress(animationState);
 
-        if (radius > 0) {
+        if (radius > 0 || drawProgressPath) {
             drawRoundedRectPath(
                 ctx,
                 element.x,
@@ -450,11 +603,15 @@ export function drawElement(ctx, element, selected = false, renderOptions = {}) 
                 radius
             );
 
-            if (element.fill && element.fill !== "transparent") {
+            if (element.fill && element.fill !== "transparent" && !drawProgressPath) {
                 ctx.fill();
             }
 
-            ctx.stroke();
+            if (drawProgressPath) {
+                strokePathWithProgress(ctx, getRectPathLength(element.w, element.h), easedProgress);
+            } else {
+                ctx.stroke();
+            }
         } else {
             if (element.fill && element.fill !== "transparent") {
                 ctx.fillRect(element.x, element.y, element.w, element.h);
@@ -474,11 +631,17 @@ export function drawElement(ctx, element, selected = false, renderOptions = {}) 
             Math.PI * 2
         );
 
-        if (element.fill && element.fill !== "transparent") {
+        const drawProgressPath = shouldDrawPathProgress(animationState);
+
+        if (element.fill && element.fill !== "transparent" && !drawProgressPath) {
             ctx.fill();
         }
 
-        ctx.stroke();
+        if (drawProgressPath) {
+            strokePathWithProgress(ctx, getEllipsePathLength(element.w, element.h), easedProgress);
+        } else {
+            ctx.stroke();
+        }
     } else if (element.type === "diamond") {
         const cx = element.x + element.w / 2;
         const cy = element.y + element.h / 2;
@@ -490,11 +653,17 @@ export function drawElement(ctx, element, selected = false, renderOptions = {}) 
         ctx.lineTo(element.x, cy);
         ctx.closePath();
 
-        if (element.fill && element.fill !== "transparent") {
+        const drawProgressPath = shouldDrawPathProgress(animationState);
+
+        if (element.fill && element.fill !== "transparent" && !drawProgressPath) {
             ctx.fill();
         }
 
-        ctx.stroke();
+        if (drawProgressPath) {
+            strokePathWithProgress(ctx, getDiamondPathLength(element.w, element.h), easedProgress);
+        } else {
+            ctx.stroke();
+        }
     } else if (element.type === "line" || element.type === "arrow") {
         const shouldDrawProgress = animationState.active && animationState.type === "draw";
         const progress = shouldDrawProgress ? easedProgress : 1;
@@ -553,6 +722,8 @@ export function drawElement(ctx, element, selected = false, renderOptions = {}) 
                 strokeWidth
             );
         }
+
+        drawMovingHead(ctx, element, animationState, stroke, strokeWidth);
     } else if (element.type === "pencil") {
         const points = element.points || [];
 
@@ -639,6 +810,7 @@ export function drawElement(ctx, element, selected = false, renderOptions = {}) 
         });
     }
 
+    drawPulseRing(ctx, element, animationState, stroke);
 
     if (selected) {
         const box = getSelectionBox(element);

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { renderCanvas } from "../../canvas/canvasRender";
 import "./RightToolTabs.css";
 
@@ -123,6 +123,26 @@ export default function RightToolTabs({
     onMergeFrameWithNext,
     onMergeAllFrames,
 }) {
+    const [pinned, setPinned] = useState(() => {
+        try {
+            return window.localStorage.getItem("sketchydraw_frames_sidebar_pinned") !== "false";
+        } catch {
+            return true;
+        }
+    });
+
+    const togglePinned = () => {
+        setPinned((value) => {
+            const next = !value;
+            try {
+                window.localStorage.setItem("sketchydraw_frames_sidebar_pinned", String(next));
+            } catch {
+                // ignore localStorage errors
+            }
+            return next;
+        });
+    };
+
     const currentFrame = frames[currentFrameIndex] || frames[0] || null;
 
     const animatedCount = useMemo(() => {
@@ -142,11 +162,38 @@ export default function RightToolTabs({
         }, 0);
     }, [frames]);
 
+    if (!pinned) {
+        return (
+            <aside className="right-tool-tabs right-frames-only unpinned">
+                <button
+                    type="button"
+                    className="right-frames-rail-btn"
+                    onClick={togglePinned}
+                    title="Pin Frames sidebar"
+                >
+                    <span>📌</span>
+                    <strong>Frames</strong>
+                    <em>{frames.length || 1}</em>
+                </button>
+            </aside>
+        );
+    }
+
     return (
-        <aside className="right-tool-tabs right-frames-only">
+        <aside className="right-tool-tabs right-frames-only pinned">
             <div className="right-tabs-header">
-                <strong>Frames</strong>
-                <span>Only frames live here. GIF tools are now in the left toolbar tab.</span>
+                <div>
+                    <strong>Frames</strong>
+                    <span>Only frames live here. GIF tools are now in the left toolbar tab.</span>
+                </div>
+                <button
+                    type="button"
+                    className="right-pin-btn"
+                    onClick={togglePinned}
+                    title="Unpin Frames sidebar"
+                >
+                    📌 Pinned
+                </button>
             </div>
 
             <div className="right-frame-actions">

@@ -24,6 +24,8 @@ import {
   DEFAULT_TITLE,
 } from "./components/DrawingGroupStore/drawingGroupStore";
 import { DEFAULT_TEXT_STYLE } from "./canvas/textStyle";
+import { createAnimationConfig } from "./canvas/animationRegistry";
+import { exportTimelineGif } from "./utils/exportGif";
 import {
   normalizeTextStyle,
   pickTextStylePatch,
@@ -295,6 +297,8 @@ function SketchyDrawPage() {
   const [historyIndex, setHistoryIndex] = useState(0);
   const [maxHistoryLength] = useState(getConfiguredMaxHistoryLength);
   const [sketchyAlert, setSketchyAlert] = useState(null);
+  const [gifExporting, setGifExporting] = useState(false);
+  const [gifExportProgress, setGifExportProgress] = useState(0);
 
   const [timelineFrames, setTimelineFrames] = useState(() => [
     createTimelineFrame([], 0),
@@ -795,6 +799,16 @@ function SketchyDrawPage() {
     setFrameAnimationPlaying((value) => !value);
   }, []);
 
+  const startCurrentFrameAnimationPreview = useCallback(() => {
+    setFrameAnimationPlaying(false);
+    setFrameAnimationTimeMs(0);
+    window.requestAnimationFrame(() => {
+      setFrameAnimationPlaying(true);
+    });
+  }, []);
+
+
+
   const openAnimationPlayer = useCallback((mode = "current") => {
     const startIndex = mode === "all" ? 0 : currentFrameIndex;
     const safeIndex = Math.max(0, Math.min(startIndex, timelineFrames.length - 1));
@@ -852,6 +866,43 @@ function SketchyDrawPage() {
     groupName: DEFAULT_GROUP,
     description: "",
   });
+
+  const exportGif = useCallback(async () => {
+    if (gifExporting) return;
+
+    setGifExporting(true);
+    setGifExportProgress(0);
+
+    try {
+      await exportTimelineGif({
+        frames: timelineFrames,
+        canvasSize,
+        viewport,
+        canvasProps,
+        fileName: `${currentDrawingMeta.title || DEFAULT_TITLE}.gif`,
+        fps: 12,
+        onProgress: (progress) => setGifExportProgress(progress || 0),
+      });
+    } catch (error) {
+      console.error("GIF export failed", error);
+      showSketchyAlert({
+        icon: "⚠️",
+        title: "GIF export failed",
+        message: "GIF encoder could not load or export failed. Check internet/CDN access and try again.",
+      });
+    } finally {
+      setGifExporting(false);
+      setGifExportProgress(0);
+    }
+  }, [
+    gifExporting,
+    timelineFrames,
+    canvasSize,
+    viewport,
+    canvasProps,
+    currentDrawingMeta.title,
+    showSketchyAlert,
+  ]);
 
   const commitHistory = useCallback((nextElements) => {
     const snapshot = cloneElements(nextElements);
@@ -976,26 +1027,25 @@ function SketchyDrawPage() {
 
     let nextElement;
 
-    if (primitiveType === "rectangle") {
+    if (primitiveType === "rectangle" || primitiveType === "ellipse" || primitiveType === "circle") {
+      const isEllipse = primitiveType === "ellipse" || primitiveType === "circle";
+      const size = primitiveType === "circle" ? 110 : null;
+
       nextElement = {
-        id: makeObjectId("gif_rect"),
-        type: "rect",
-        x: center.x - 80,
-        y: center.y - 45,
-        w: 160,
-        h: 90,
+        id: makeObjectId(isEllipse ? "gif_ellipse" : "gif_rect"),
+        type: isEllipse ? "ellipse" : "rect",
+        x: center.x - (size ? size / 2 : 80),
+        y: center.y - (size ? size / 2 : 45),
+        w: size || 160,
+        h: size || 90,
         stroke: baseStroke,
         fill: "transparent",
         strokeWidth: 2,
         strokeDash: "solid",
-        cornerRadius: Number(canvasProps?.cornerRadius) || 0,
+        cornerRadius: isEllipse ? 0 : Number(canvasProps?.cornerRadius) || 0,
         pageIndex,
         gifPrimitive: true,
-        animation: {
-          type: animationType === "none" ? "none" : animationType,
-          durationMs: 1000,
-          delayMs: 0,
-        },
+        animation: createAnimationConfig(animationType),
       };
     } else {
       const isArrow = primitiveType === "arrow";
@@ -1023,11 +1073,7 @@ function SketchyDrawPage() {
         arrowEnd: isArrow,
         pageIndex,
         gifPrimitive: true,
-        animation: {
-          type: animationType === "none" ? "none" : animationType,
-          durationMs: 1000,
-          delayMs: 0,
-        },
+        animation: createAnimationConfig(animationType),
       };
     }
 
@@ -1411,7 +1457,10 @@ function SketchyDrawPage() {
                 createNewDrawing={createNewDrawing}
                 timelineFrames={timelineFrames}
                 currentFrameIndex={currentFrameIndex}
-                openFramesPanel={() => setFramesPanelOpen(false)}
+                openFramesPanel={() => setFramesPanelOpen(true)}
+                exportGIF={exportGif}
+                gifExporting={gifExporting}
+                gifExportProgress={gifExportProgress}
             />
 
             <CanvasBoard
@@ -1442,6 +1491,7 @@ function SketchyDrawPage() {
                 onCreateTimelineFrame={createTimelineFrameForNewObject}
                 onUpdateTimelineFrame={updateCurrentTimelineFrame}
                 onReplaceTimeline={replaceTimelineWithElements}
+                onStartAnimationPreview={startCurrentFrameAnimationPreview}
             />
 
             <FramesPanel

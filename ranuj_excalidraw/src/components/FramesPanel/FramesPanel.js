@@ -324,7 +324,7 @@ export default function FramesPanel({
                     <div>
                         <h2>Frames</h2>
                         <p>
-                            Frames are separate from undo history. GIF playback is now in the right-side GIF tab.
+                            Frames are separate from undo history. The right Frames sidebar is pinnable; GIF tools stay in the left tab.
                         </p>
                     </div>
 

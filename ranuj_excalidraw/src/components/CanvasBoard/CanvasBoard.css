@@ -50,3 +50,101 @@
         opacity: 1;
     }
 }
+
+.object-animation-widget {
+    position: absolute;
+    z-index: 40;
+    pointer-events: auto;
+}
+
+.object-animation-trigger {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border-radius: 999px;
+    border: 2px solid #f59e0b;
+    background: #ffffff;
+    color: #92400e;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+    font-size: 16px;
+    font-weight: 950;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.object-animation-trigger:hover,
+.object-animation-trigger.active {
+    background: #f59e0b;
+    color: #ffffff;
+}
+
+.object-animation-popover {
+    position: absolute;
+    top: 40px;
+    right: 0;
+    width: 260px;
+    padding: 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.20);
+}
+
+.object-animation-popover-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.object-animation-popover-head strong {
+    color: #111827;
+    font-size: 13px;
+    font-weight: 950;
+}
+
+.object-animation-popover-head span {
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 850;
+}
+
+.object-animation-preset-grid {
+    display: grid;
+    gap: 7px;
+    max-height: 330px;
+    overflow: auto;
+}
+
+.object-animation-preset-grid button {
+    display: grid;
+    gap: 2px;
+    width: 100%;
+    min-height: 44px;
+    padding: 7px 9px;
+    border: 1px solid #e2e8f0;
+    border-radius: 11px;
+    background: #f8fafc;
+    text-align: left;
+}
+
+.object-animation-preset-grid button:hover,
+.object-animation-preset-grid button.active {
+    border-color: #f59e0b;
+    background: #fffbeb;
+}
+
+.object-animation-preset-grid button strong {
+    color: #111827;
+    font-size: 12px;
+    font-weight: 950;
+}
+
+.object-animation-preset-grid button span {
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 750;
+    line-height: 1.25;
+}

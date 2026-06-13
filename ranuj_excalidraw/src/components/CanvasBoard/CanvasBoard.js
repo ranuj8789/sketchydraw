@@ -96,6 +96,11 @@ import {
     saveLocalDrawing,
 } from "../DrawingGroupStore/localDrawingStore";
 import {saveDrawingSnapshotAsync} from "../../utils/indexedDbStorage";
+import {
+    createAnimationConfig,
+    getAnimationLabel,
+    getAnimationPresetsForSelection,
+} from "../../canvas/animationRegistry";
 
 const ERASER_CURSOR_SVG = `
 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
@@ -478,6 +483,7 @@ export default function CanvasBoard({
                                         onCreateTimelineFrame,
                                         onUpdateTimelineFrame,
                                         onReplaceTimeline,
+                                        onStartAnimationPreview,
                                     }) {
     const wrapRef = useRef(null);
     const localDraftIdRef = useRef(null);
@@ -517,6 +523,7 @@ export default function CanvasBoard({
     const [connectionHint, setConnectionHint] = useState(null);
     const [isSpacePressed, setIsSpacePressed] = useState(false);
     const [myDrawingsOpen, setMyDrawingsOpen] = useState(false);
+    const [animationMenuOpen, setAnimationMenuOpen] = useState(false);
 
     const {
         isSavingDrawing,
@@ -777,6 +784,10 @@ export default function CanvasBoard({
     useEffect(() => {
         showGridRef.current = showGrid;
     }, [showGrid]);
+
+    useEffect(() => {
+        setAnimationMenuOpen(false);
+    }, [selectedIds.join("|")]);
 
     const clearDragPreviewRefs = () => {
         dragBaseElementsRef.current = null;
@@ -1206,6 +1217,54 @@ export default function CanvasBoard({
     const getSelectedElements = () => {
         const selectedSet = new Set(selectedIds || []);
         return elements.filter((el) => selectedSet.has(el.id));
+    };
+
+    const selectedAnimationElements = getSelectedElements();
+    const selectedAnimationBounds = getGroupBounds(selectedAnimationElements);
+    const selectedAnimationPresets = getAnimationPresetsForSelection(selectedAnimationElements);
+    const selectedAnimationType =
+        selectedAnimationElements.length === 1
+            ? selectedAnimationElements[0]?.animation?.type || "none"
+            : "multiple";
+
+    const selectedAnimationAnchor = selectedAnimationBounds
+        ? {
+            left:
+                selectedAnimationBounds.x * viewport.zoom +
+                viewport.offsetX +
+                selectedAnimationBounds.w * viewport.zoom +
+                12,
+            top:
+                selectedAnimationBounds.y * viewport.zoom +
+                viewport.offsetY -
+                14,
+        }
+        : null;
+
+    const applyAnimationToSelected = (animationType) => {
+        if (!selectedIds.length) return;
+
+        const selectedSet = new Set(selectedIds);
+        const animation = createAnimationConfig(animationType);
+
+        const next = elements.map((element) => {
+            if (!selectedSet.has(element.id)) return element;
+
+            return {
+                ...element,
+                animation,
+            };
+        });
+
+        elementsRef.current = next;
+        setElements(next);
+        commitHistory(next);
+        onUpdateTimelineFrame?.(next);
+        setAnimationMenuOpen(false);
+
+        if (animation.type !== "none") {
+            onStartAnimationPreview?.();
+        }
     };
 
     const getSelectedScreenCrop = () => {
@@ -2750,6 +2809,71 @@ export default function CanvasBoard({
                         }}
                     />
                 )}
+
+                {tool === "select" &&
+                    !editor &&
+                    !dragState &&
+                    selectedAnimationAnchor &&
+                    selectedAnimationElements.length > 0 && (
+                        <div
+                            className="object-animation-widget"
+                            style={{
+                                left: selectedAnimationAnchor.left,
+                                top: selectedAnimationAnchor.top,
+                            }}
+                            onMouseDown={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                            }}
+                            onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                            }}
+                        >
+                            <button
+                                type="button"
+                                className={`object-animation-trigger ${
+                                    selectedAnimationType !== "none" && selectedAnimationType !== "multiple"
+                                        ? "active"
+                                        : ""
+                                }`}
+                                onClick={() => setAnimationMenuOpen((value) => !value)}
+                                title="Add GIF / animation to selected object"
+                            >
+                                ⚡
+                            </button>
+
+                            {animationMenuOpen && (
+                                <div className="object-animation-popover">
+                                    <div className="object-animation-popover-head">
+                                        <strong>Animation</strong>
+                                        <span>
+                                            {selectedAnimationElements.length === 1
+                                                ? getAnimationLabel(selectedAnimationType)
+                                                : `${selectedAnimationElements.length} objects`}
+                                        </span>
+                                    </div>
+
+                                    <div className="object-animation-preset-grid">
+                                        {selectedAnimationPresets.map((preset) => (
+                                            <button
+                                                type="button"
+                                                key={preset.type}
+                                                className={
+                                                    selectedAnimationType === preset.type ? "active" : ""
+                                                }
+                                                onClick={() => applyAnimationToSelected(preset.type)}
+                                                title={preset.description}
+                                            >
+                                                <strong>{preset.label}</strong>
+                                                <span>{preset.description}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                 <TextEditor
                     editor={editor}

@@ -44,6 +44,9 @@ export default function Toolbar({
                                     timelineFrames = [],
                                     currentFrameIndex = 0,
                                     openFramesPanel,
+                                    exportGIF,
+                                    gifExporting = false,
+                                    gifExportProgress = 0,
                                 }) {
     const [loginOpen, setLoginOpen] = useState(false);
     const [subscriptionOpen, setSubscriptionOpen] = useState(false);
@@ -601,6 +604,12 @@ export default function Toolbar({
 
                                 <button type="button" onClick={() => runExport(exportJSON)}>
                                     📄 Export as JSON
+                                </button>
+
+                                <button type="button" onClick={() => runExport(exportGIF)} disabled={gifExporting}>
+                                    🎞️ {gifExporting
+                                        ? `Exporting GIF ${Math.round((gifExportProgress || 0) * 100)}%`
+                                        : "Export as GIF"}
                                 </button>
 
                                 {/*<div className="export-video-box">*/}

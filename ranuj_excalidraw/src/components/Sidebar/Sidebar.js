@@ -13,6 +13,7 @@ import {
     Image as ImageIcon,
 } from "lucide-react";
 import PropertiesPanel from "../PropertiesPanel/PropertiesPanel";
+import { getAnimationLabel } from "../../canvas/animationRegistry";
 import "./Sidebar.css";
 
 const TOOLS = [
@@ -151,31 +152,45 @@ function GifToolsTab({
                     />
                     <PrimitiveButton
                         title="Line"
-                        subtitle="draws itself"
+                        subtitle={getAnimationLabel("draw")}
                         primary
                         onClick={() => insertPrimitive("line", { animated: true, animationType: "draw" })}
                     />
                     <PrimitiveButton
                         title="Arrow"
-                        subtitle="static"
-                        onClick={() => insertPrimitive("arrow")}
+                        subtitle={getAnimationLabel("movingHead")}
+                        primary
+                        onClick={() => insertPrimitive("arrow", { animated: true, animationType: "movingHead" })}
                     />
                     <PrimitiveButton
                         title="Arrow"
-                        subtitle="moving draw"
+                        subtitle={getAnimationLabel("movingDashes")}
                         primary
-                        onClick={() => insertPrimitive("arrow", { animated: true, animationType: "draw" })}
+                        onClick={() => insertPrimitive("arrow", { animated: true, animationType: "movingDashes" })}
                     />
                     <PrimitiveButton
                         title="Rectangle"
-                        subtitle="static"
-                        onClick={() => insertPrimitive("rectangle")}
+                        subtitle={getAnimationLabel("draw")}
+                        primary
+                        onClick={() => insertPrimitive("rectangle", { animated: true, animationType: "draw" })}
                     />
                     <PrimitiveButton
                         title="Rectangle"
-                        subtitle="fade in"
+                        subtitle={getAnimationLabel("pulseRing")}
                         primary
-                        onClick={() => insertPrimitive("rectangle", { animated: true, animationType: "fadeIn" })}
+                        onClick={() => insertPrimitive("rectangle", { animated: true, animationType: "pulseRing" })}
+                    />
+                    <PrimitiveButton
+                        title="Circle"
+                        subtitle={getAnimationLabel("pulseRing")}
+                        primary
+                        onClick={() => insertPrimitive("circle", { animated: true, animationType: "pulseRing" })}
+                    />
+                    <PrimitiveButton
+                        title="Ellipse"
+                        subtitle={getAnimationLabel("movingDashes")}
+                        primary
+                        onClick={() => insertPrimitive("ellipse", { animated: true, animationType: "movingDashes" })}
                     />
                 </div>
             </div>
