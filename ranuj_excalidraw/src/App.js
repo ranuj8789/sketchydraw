@@ -173,7 +173,7 @@ function getFrameAnimationDurationMs(frame) {
   }
 
   return Math.max(
-      900,
+      Math.max(900, Number(frame?.durationMs) || 0),
       ...animatedElements.map((element) => {
         const animation = element.animation || {};
         const delayMs = Math.max(0, Number(animation.delayMs) || 0);
@@ -571,6 +571,40 @@ function SketchyDrawPage() {
     setCurrentFrameIndex(0);
     setFrameAnimationPlaying(false);
     setFrameAnimationTimeMs(0);
+  }, []);
+
+
+  const restoreTimelineFrames = useCallback((savedFrames, requestedIndex = 0) => {
+    const normalizedFrames = (Array.isArray(savedFrames) ? savedFrames : [])
+        .filter(Boolean)
+        .map((savedFrame, index) => createTimelineFrame(savedFrame.elements || [], index, {
+          ...savedFrame,
+          id: savedFrame.id || makeFrameId(),
+          name: savedFrame.name || `Frame ${index + 1}`,
+          durationMs: Math.max(1000, Number(savedFrame.durationMs) || 10000),
+          hiddenElementIds: Array.isArray(savedFrame.hiddenElementIds)
+              ? [...savedFrame.hiddenElementIds]
+              : [],
+          elements: cloneElements(savedFrame.elements || []),
+        }));
+
+    const nextFrames = normalizedFrames.length
+        ? normalizedFrames
+        : [createTimelineFrame([], 0)];
+    const safeIndex = Math.max(
+        0,
+        Math.min(Number(requestedIndex) || 0, nextFrames.length - 1)
+    );
+
+    setTimelineFrames(nextFrames);
+    setCurrentFrameIndex(safeIndex);
+    setElements(cloneElements(nextFrames[safeIndex]?.elements || []));
+    setSelectedIds([]);
+    setHistory([cloneElements(nextFrames[safeIndex]?.elements || [])]);
+    setHistoryIndex(0);
+    setFrameAnimationPlaying(false);
+    setFrameAnimationTimeMs(0);
+    setFramesPanelOpen(true);
   }, []);
 
   const selectTimelineFrame = useCallback((index) => {
@@ -1130,6 +1164,7 @@ function SketchyDrawPage() {
     const nextFrames = generatedFrames.map((generatedFrame, index) =>
         createTimelineFrame(generatedFrame.elements, index, {
           name: generatedFrame.name || `Step ${index + 1}`,
+          durationMs: generatedFrame.durationMs,
         })
     );
 
@@ -1540,6 +1575,7 @@ function SketchyDrawPage() {
                 onCreateTimelineFrame={createTimelineFrameForNewObject}
                 onUpdateTimelineFrame={updateCurrentTimelineFrame}
                 onReplaceTimeline={replaceTimelineWithElements}
+                onRestoreTimeline={restoreTimelineFrames}
                 onStartAnimationPreview={startCurrentFrameAnimationPreview}
             />
 
@@ -1596,6 +1632,7 @@ function SketchyDrawPage() {
               renderOptions={animationRenderOptions}
               animationPlaying={frameAnimationPlaying}
               animationTimeMs={frameAnimationTimeMs}
+              onOpenPlayer={openAnimationPlayer}
               onSelectFrame={selectTimelineFrame}
               onAddFrameAfter={addTimelineFrameAfterCurrent}
               onDeleteFrame={deleteTimelineFrame}

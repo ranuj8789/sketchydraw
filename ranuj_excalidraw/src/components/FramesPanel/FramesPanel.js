@@ -44,15 +44,15 @@ function getFrameRenderOptions(frame, baseOptions = {}, active = false) {
 }
 
 function FrameThumbnail({
-    frame,
-    index,
-    active,
-    canvasSize,
-    canvasViewport,
-    canvasProps,
-    renderOptions = {},
-    onClick,
-}) {
+                            frame,
+                            index,
+                            active,
+                            canvasSize,
+                            canvasViewport,
+                            canvasProps,
+                            renderOptions = {},
+                            onClick,
+                        }) {
     const canvasRef = useRef(null);
 
     useEffect(() => {
@@ -102,24 +102,24 @@ function FrameThumbnail({
 }
 
 function FramePlayerScreen({
-    open,
-    frame,
-    frameIndex,
-    totalFrames,
-    mode,
-    advanceMode,
-    canvasSize,
-    canvasViewport,
-    canvasProps,
-    renderOptions = {},
-    playing,
-    timeMs,
-    waitingForNext,
-    onClose,
-    onRestart,
-    onNext,
-    onAdvanceModeChange,
-}) {
+                               open,
+                               frame,
+                               frameIndex,
+                               totalFrames,
+                               mode,
+                               advanceMode,
+                               canvasSize,
+                               canvasViewport,
+                               canvasProps,
+                               renderOptions = {},
+                               playing,
+                               timeMs,
+                               waitingForNext,
+                               onClose,
+                               onRestart,
+                               onNext,
+                               onAdvanceModeChange,
+                           }) {
     const canvasRef = useRef(null);
     const [screenSize, setScreenSize] = useState({
         width: typeof window !== "undefined" ? window.innerWidth : 1200,
@@ -262,40 +262,40 @@ function FramePlayerScreen({
 }
 
 export default function FramesPanel({
-    open,
-    frames = [],
-    currentIndex = 0,
-    canvasSize,
-    canvasViewport,
-    canvasProps,
-    renderOptions = {},
-    animationPlaying = false,
-    animationTimeMs = 0,
-    advanceMode = "enter",
-    playerOpen = false,
-    playerMode = "current",
-    playerFrameIndex = 0,
-    playerFrame = null,
-    playerRenderOptions = {},
-    playerPlaying = false,
-    playerTimeMs = 0,
-    playerWaitingForNext = false,
-    onClose,
-    onSelectFrame,
-    onAddFrameAfter,
-    onDeleteFrame,
-    onToggleFrameAnimation,
-    onToggleElementHidden,
-    onMoveFrameElementOrder,
-    onApplyFrameObjectOrderTiming,
-    onOpenPlayer,
-    onClosePlayer,
-    onRestartPlayerFrame,
-    onAdvancePlayerFrame,
-    onAdvanceModeChange,
-    onMergeFrameWithNext,
-    onMergeAllFrames,
-}) {
+                                        open,
+                                        frames = [],
+                                        currentIndex = 0,
+                                        canvasSize,
+                                        canvasViewport,
+                                        canvasProps,
+                                        renderOptions = {},
+                                        animationPlaying = false,
+                                        animationTimeMs = 0,
+                                        advanceMode = "enter",
+                                        playerOpen = false,
+                                        playerMode = "current",
+                                        playerFrameIndex = 0,
+                                        playerFrame = null,
+                                        playerRenderOptions = {},
+                                        playerPlaying = false,
+                                        playerTimeMs = 0,
+                                        playerWaitingForNext = false,
+                                        onClose,
+                                        onSelectFrame,
+                                        onAddFrameAfter,
+                                        onDeleteFrame,
+                                        onToggleFrameAnimation,
+                                        onToggleElementHidden,
+                                        onMoveFrameElementOrder,
+                                        onApplyFrameObjectOrderTiming,
+                                        onOpenPlayer,
+                                        onClosePlayer,
+                                        onRestartPlayerFrame,
+                                        onAdvancePlayerFrame,
+                                        onAdvanceModeChange,
+                                        onMergeFrameWithNext,
+                                        onMergeAllFrames,
+                                    }) {
     const currentFrame = frames[currentIndex] || frames[0] || null;
 
     const animatedCount = useMemo(() => {
@@ -318,7 +318,7 @@ export default function FramesPanel({
     if (!open) return null;
 
     return (
-        <div className="frames-panel-backdrop">
+        <div className="frames-panel-backdrop" data-frames-ui-version="2">
             <aside className="frames-panel">
                 <div className="frames-panel-header">
                     <div>

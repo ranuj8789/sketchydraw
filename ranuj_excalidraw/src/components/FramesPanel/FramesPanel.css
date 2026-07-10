@@ -1,3 +1,29 @@
+/* Frames UI v2 - loaded from both FramesPanel.js and App.js so production builds cannot omit it. */
+.frames-panel-backdrop[data-frames-ui-version="2"] {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 2147483000 !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+    align-items: stretch !important;
+    background: rgba(15, 23, 42, 0.35) !important;
+}
+
+.frames-panel-backdrop[data-frames-ui-version="2"] *,
+.frames-panel-backdrop[data-frames-ui-version="2"] *::before,
+.frames-panel-backdrop[data-frames-ui-version="2"] *::after {
+    box-sizing: border-box;
+}
+
+.frames-panel-backdrop[data-frames-ui-version="2"] > .frames-panel {
+    position: relative !important;
+    flex: 0 0 min(420px, 96vw) !important;
+    width: min(420px, 96vw) !important;
+    max-width: 96vw !important;
+    height: 100vh !important;
+    overflow-y: auto !important;
+}
+
 .frames-panel-backdrop {
     position: fixed;
     inset: 0;

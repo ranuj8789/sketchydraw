@@ -56,6 +56,10 @@ export default function Toolbar({
     const [exportOpen, setExportOpen] = useState(false);
     const [gridOpen, setGridOpen] = useState(false);
     const [videoGapSeconds, setVideoGapSeconds] = useState("0.5");
+    const [videoFrameFrom, setVideoFrameFrom] = useState("1");
+    const [videoFrameTo, setVideoFrameTo] = useState("1");
+    const [videoExportMode, setVideoExportMode] = useState(() => localStorage.getItem("sketchydraw.videoExportMode") || "server");
+    const [videoExportState, setVideoExportState] = useState({ exporting: false, progress: 0, status: "" });
     const [legalOpen, setLegalOpen] = useState(false);
 
     const [user, setUser] = useState(getUser());
@@ -81,6 +85,27 @@ export default function Toolbar({
     const exportRef = useRef(null);
     const gridRef = useRef(null);
     const legalRef = useRef(null);
+
+    useEffect(() => {
+        const totalFrames = Math.max(1, timelineFrames.length || 1);
+        setVideoFrameFrom((current) => {
+            const parsed = Number.parseInt(current, 10);
+            return String(Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), totalFrames) : 1);
+        });
+        setVideoFrameTo((current) => {
+            const parsed = Number.parseInt(current, 10);
+            if (!Number.isFinite(parsed) || parsed <= 1) return String(totalFrames);
+            return String(Math.min(Math.max(parsed, 1), totalFrames));
+        });
+    }, [timelineFrames.length]);
+
+    useEffect(() => {
+        const handleVideoExportState = (event) => {
+            setVideoExportState(event.detail || { exporting: false, progress: 0, status: "" });
+        };
+        window.addEventListener("sketchydraw:video-export-state", handleVideoExportState);
+        return () => window.removeEventListener("sketchydraw:video-export-state", handleVideoExportState);
+    }, []);
 
     useEffect(() => {
         refreshAuthState();
@@ -330,14 +355,46 @@ export default function Toolbar({
     };
 
     const runVideoExport = () => {
+        if (videoExportState.exporting) {
+            alert(`Video export is already running: ${videoExportState.status || "Please wait"}`);
+            return;
+        }
+
+        const totalFrames = timelineFrames.length;
+        if (!totalFrames) {
+            alert("There are no timeline frames to export.");
+            return;
+        }
+
+        const requestedFrom = Number.parseInt(videoFrameFrom, 10);
+        const requestedTo = Number.parseInt(videoFrameTo, 10);
+        const frameFrom = Math.min(Math.max(Number.isFinite(requestedFrom) ? requestedFrom : 1, 1), totalFrames);
+        const frameTo = Math.min(Math.max(Number.isFinite(requestedTo) ? requestedTo : totalFrames, 1), totalFrames);
+
+        if (frameFrom > frameTo) {
+            alert(`Start frame (${frameFrom}) cannot be after end frame (${frameTo}).`);
+            return;
+        }
+
         const gapSeconds = Math.max(
             0.1,
             Math.min(5, Number(videoGapSeconds) || 0.5)
         );
+        const selectedFrames = timelineFrames.slice(frameFrom - 1, frameTo);
+        const paddedFrom = String(frameFrom).padStart(2, "0");
+        const paddedTo = String(frameTo).padStart(2, "0");
 
         window.dispatchEvent(
             new CustomEvent("sketchydraw:export-video", {
-                detail: { gapSeconds },
+                detail: {
+                    gapSeconds,
+                    timelineFrames: JSON.parse(JSON.stringify(selectedFrames)),
+                    mode: videoExportMode,
+                    frameFrom,
+                    frameTo,
+                    totalFrames,
+                    fileName: `sketchydraw-frames-${paddedFrom}-${paddedTo}.${videoExportMode === "server" ? "mp4" : "webm"}`,
+                },
             })
         );
 
@@ -650,9 +707,64 @@ export default function Toolbar({
                                         />
                                     </label>
 
-                                    <button type="button" onClick={runVideoExport}>
-                                        🎬 Export Video
+                                    <div className="video-frame-range">
+                                        <label>
+                                            From frame
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                max={Math.max(1, timelineFrames.length)}
+                                                step="1"
+                                                value={videoFrameFrom}
+                                                onChange={(event) => setVideoFrameFrom(event.target.value)}
+                                                disabled={videoExportState.exporting || timelineFrames.length === 0}
+                                            />
+                                        </label>
+
+                                        <label>
+                                            To frame
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                max={Math.max(1, timelineFrames.length)}
+                                                step="1"
+                                                value={videoFrameTo}
+                                                onChange={(event) => setVideoFrameTo(event.target.value)}
+                                                disabled={videoExportState.exporting || timelineFrames.length === 0}
+                                            />
+                                        </label>
+                                    </div>
+
+                                    <div className="video-range-hint">
+                                        Exporting {Math.max(0, Math.min(timelineFrames.length, Number(videoFrameTo) || 0) - Math.max(1, Number(videoFrameFrom) || 1) + 1)} of {timelineFrames.length} frames
+                                    </div>
+
+                                    <label>
+                                        Export using
+                                        <select
+                                            value={videoExportMode}
+                                            onChange={(event) => {
+                                                const value = event.target.value;
+                                                setVideoExportMode(value);
+                                                localStorage.setItem("sketchydraw.videoExportMode", value);
+                                            }}
+                                        >
+                                            <option value="server">Server MP4 (recommended)</option>
+                                            <option value="browser">Browser WebM</option>
+                                        </select>
+                                    </label>
+
+                                    <button type="button" onClick={runVideoExport} disabled={videoExportState.exporting}>
+                                        {videoExportState.exporting
+                                            ? `⏳ ${Math.round(videoExportState.progress || 0)}%`
+                                            : (videoExportMode === "server" ? "🎬 Export MP4 on server" : "🎬 Export WebM in browser")}
                                     </button>
+                                    {videoExportState.exporting && (
+                                        <div className="video-export-progress" role="status" aria-live="polite">
+                                            <progress max="100" value={Math.round(videoExportState.progress || 0)} />
+                                            <span>{videoExportState.status || "Exporting video..."}</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}

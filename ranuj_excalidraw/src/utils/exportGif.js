@@ -55,7 +55,7 @@ function getFrameAnimationDurationMs(frame) {
     }
 
     return Math.max(
-        900,
+        Math.max(900, Number(frame?.durationMs) || 0),
         ...animatedElements.map((element) => {
             const animation = element.animation || {};
             const delayMs = Math.max(0, Number(animation.delayMs) || 0);
@@ -96,13 +96,13 @@ function getExportSizing(canvasSize = {}, viewport = {}) {
 }
 
 function renderGifFrame({
-    canvas,
-    frame,
-    canvasSize,
-    viewport,
-    canvasProps,
-    animationTimeMs,
-}) {
+                            canvas,
+                            frame,
+                            canvasSize,
+                            viewport,
+                            canvasProps,
+                            animationTimeMs,
+                        }) {
     const elements = cloneElements(frame?.elements || []);
 
     renderCanvas({
@@ -137,14 +137,14 @@ function downloadBlob(blob, fileName) {
 }
 
 export async function exportTimelineGif({
-    frames = [],
-    canvasSize,
-    viewport,
-    canvasProps,
-    fileName = "sketchydraw.gif",
-    fps = DEFAULT_FPS,
-    onProgress,
-} = {}) {
+                                            frames = [],
+                                            canvasSize,
+                                            viewport,
+                                            canvasProps,
+                                            fileName = "sketchydraw.gif",
+                                            fps = DEFAULT_FPS,
+                                            onProgress,
+                                        } = {}) {
     const safeFrames = frames.length ? frames : [{ elements: [] }];
     const safeFps = Math.max(4, Math.min(30, Number(fps) || DEFAULT_FPS));
     const frameDelayMs = Math.round(1000 / safeFps);

@@ -48,15 +48,15 @@ function getFrameRenderOptions(frame, baseOptions = {}, active = false) {
 }
 
 function FrameThumbnail({
-    frame,
-    index,
-    active,
-    canvasSize,
-    canvasViewport,
-    canvasProps,
-    renderOptions = {},
-    onClick,
-}) {
+                            frame,
+                            index,
+                            active,
+                            canvasSize,
+                            canvasViewport,
+                            canvasProps,
+                            renderOptions = {},
+                            onClick,
+                        }) {
     const canvasRef = useRef(null);
 
     useEffect(() => {
@@ -106,23 +106,24 @@ function FrameThumbnail({
 }
 
 export default function RightToolTabs({
-    frames = [],
-    currentFrameIndex = 0,
-    canvasSize,
-    canvasViewport,
-    canvasProps,
-    renderOptions = {},
-    animationPlaying = false,
-    animationTimeMs = 0,
-    onSelectFrame,
-    onAddFrameAfter,
-    onDeleteFrame,
-    onToggleElementHidden,
-    onMoveFrameElementOrder,
-    onApplyFrameObjectOrderTiming,
-    onMergeFrameWithNext,
-    onMergeAllFrames,
-}) {
+                                          frames = [],
+                                          currentFrameIndex = 0,
+                                          canvasSize,
+                                          canvasViewport,
+                                          canvasProps,
+                                          renderOptions = {},
+                                          animationPlaying = false,
+                                          animationTimeMs = 0,
+                                          onSelectFrame,
+                                          onOpenPlayer,
+                                          onAddFrameAfter,
+                                          onDeleteFrame,
+                                          onToggleElementHidden,
+                                          onMoveFrameElementOrder,
+                                          onApplyFrameObjectOrderTiming,
+                                          onMergeFrameWithNext,
+                                          onMergeAllFrames,
+                                      }) {
     const [pinned, setPinned] = useState(() => {
         try {
             return window.localStorage.getItem("sketchydraw_frames_sidebar_pinned") !== "false";
@@ -197,6 +198,22 @@ export default function RightToolTabs({
             </div>
 
             <div className="right-frame-actions">
+                <button
+                    type="button"
+                    className="right-frame-play"
+                    onClick={() => onOpenPlayer?.("current")}
+                    disabled={!currentFrame}
+                >
+                    ▶ Play frame
+                </button>
+                <button
+                    type="button"
+                    className="right-frame-play"
+                    onClick={() => onOpenPlayer?.("all")}
+                    disabled={!frames.length}
+                >
+                    ▶ Play all
+                </button>
                 <button type="button" onClick={onAddFrameAfter}>+ Add frame</button>
                 <button
                     type="button"

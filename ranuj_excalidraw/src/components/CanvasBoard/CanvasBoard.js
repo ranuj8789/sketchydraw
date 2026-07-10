@@ -258,10 +258,13 @@ function findContainedElementIds(elements, containerElement, containerBounds) {
         .map((el) => el.id);
 }
 
-const getIdleCanvasCursor = (tool, isSpacePressed) => {
-    if (isSpacePressed || tool === "hand") return "grab";
+const getIdleCanvasCursor = (tool) => {
+    // Panning is available only when the user explicitly chooses Hand.
+    // Select must always remain the normal canvas interaction.
+    if (tool === "hand") return "grab";
     if (tool === "eraser") return "crosshair";
-    return "default";
+    if (tool === "select") return "default";
+    return "crosshair";
 };
 
 function readImageFileAsDataUrl(file) {
@@ -487,6 +490,7 @@ export default function CanvasBoard({
                                         onCreateTimelineFrame,
                                         onUpdateTimelineFrame,
                                         onReplaceTimeline,
+                                        onRestoreTimeline,
                                         onStartAnimationPreview,
                                     }) {
     const wrapRef = useRef(null);
@@ -541,6 +545,8 @@ export default function CanvasBoard({
         viewport,
         canvasSize,
         canvasProps,
+        timelineFrames,
+        currentFrameIndex,
         currentDrawingMeta,
         setCurrentDrawingMeta,
     });
@@ -686,6 +692,12 @@ export default function CanvasBoard({
         const handleVideoExport = (event) => {
             downloadUndoRedoVideo({
                 gapSeconds: event.detail?.gapSeconds,
+                timelineFrames: event.detail?.timelineFrames,
+                mode: event.detail?.mode || "server",
+                frameFrom: event.detail?.frameFrom,
+                frameTo: event.detail?.frameTo,
+                totalFrames: event.detail?.totalFrames,
+                fileName: event.detail?.fileName,
             });
         };
 
@@ -925,7 +937,14 @@ export default function CanvasBoard({
             }
 
             commitHistory(nextElements);
-            onReplaceTimeline?.(nextElements);
+
+            const savedFrames = actualDrawing.frames || actualDrawing.timelineFrames;
+            const savedFrameIndex = actualDrawing.activeFrameIndex ?? actualDrawing.currentFrameIndex ?? 0;
+            if (Array.isArray(savedFrames) && savedFrames.length) {
+                onRestoreTimeline?.(savedFrames, savedFrameIndex);
+            } else {
+                onReplaceTimeline?.(nextElements);
+            }
         } catch (error) {
             console.error("Local drawing restore failed", error);
         }
@@ -942,6 +961,37 @@ export default function CanvasBoard({
 
             const localSaveId = existingId || localDraftIdRef.current;
 
+            const safeFrames = Array.isArray(timelineFrames) && timelineFrames.length
+                ? timelineFrames
+                : [{
+                    id: "frame_1",
+                    name: "Frame 1",
+                    durationMs: 10000,
+                    hiddenElementIds: [],
+                    elements,
+                }];
+            const safeFrameIndex = Math.max(0, Math.min(currentFrameIndex, safeFrames.length - 1));
+            const autoSavePayload = {
+                version: 1,
+                app: "SketchyDraw",
+                title: currentDrawingMeta?.title || DEFAULT_TITLE,
+                groupName: currentDrawingMeta?.groupName || DEFAULT_GROUP,
+                workspace: currentDrawingMeta?.groupName || DEFAULT_GROUP,
+                description: currentDrawingMeta?.description || "",
+                savedAt: new Date().toISOString(),
+                data: {
+                    version: 1,
+                    elements: safeFrames[safeFrameIndex]?.elements || elements,
+                    frames: safeFrames,
+                    timelineFrames: safeFrames,
+                    activeFrameIndex: safeFrameIndex,
+                    currentFrameIndex: safeFrameIndex,
+                    viewport,
+                    canvas: canvasSize,
+                    canvasProps,
+                },
+            };
+
             const localRow = saveLocalDrawing({
                 id: localSaveId,
                 title: currentDrawingMeta?.title || DEFAULT_TITLE,
@@ -951,6 +1001,7 @@ export default function CanvasBoard({
                 viewport,
                 canvasSize,
                 canvasProps,
+                drawingJson: JSON.stringify(autoSavePayload),
             });
 
             let imageDataUrl = null;
@@ -987,6 +1038,8 @@ export default function CanvasBoard({
         viewport,
         canvasSize,
         canvasProps,
+        timelineFrames,
+        currentFrameIndex,
         currentDrawingMeta?.id,
         currentDrawingMeta?.title,
         currentDrawingMeta?.groupName,
@@ -1053,7 +1106,7 @@ export default function CanvasBoard({
             const canvas = canvasRef.current;
             if (canvas) {
                 canvas.style.cursor =
-                    isSpacePressed || tool === "hand" ? "grab" : "default";
+                    tool === "hand" ? "grab" : tool === "select" ? "default" : "crosshair";
             }
 
             setSelectionBox(null);
@@ -1656,18 +1709,22 @@ export default function CanvasBoard({
 
         if (!target) return "default";
 
-        const handle = getResizeHandleAtPoint(
-            target,
-            point.x,
-            point.y,
-            viewportRef.current?.zoom || 1
-        );
-
-        if (handle && target.type !== "pencil") {
-            return getCursorForHandle(handle);
-        }
-
         const isAlreadySelected = currentSelectedIds.includes(target.id);
+
+        // Resize cursors are shown only for an already-selected object and only
+        // when the pointer is directly over one of its visible resize handles.
+        if (isAlreadySelected && currentSelectedIds.length === 1) {
+            const handle = getResizeHandleAtPoint(
+                target,
+                point.x,
+                point.y,
+                viewportRef.current?.zoom || 1
+            );
+
+            if (handle && target.type !== "pencil") {
+                return getCursorForHandle(handle);
+            }
+        }
 
         // Selected rectangle/container ke andar empty area:
         // yahan marquee/multi-select start hoga, move cursor nahi.
@@ -1749,21 +1806,9 @@ export default function CanvasBoard({
 
         const isAlreadySelected = currentSelectedIds.includes(target.id);
 
-        // Edge / corner pe click = resize, even if not selected.
-        const directHandle = getResizeHandleAtPoint(
-            target,
-            point.x,
-            point.y,
-            viewportRef.current?.zoom || 1
-        );
-
-        if (directHandle && target.type !== "pencil") {
-            const nextSelectedIds = [target.id];
-            selectedIdsRef.current = nextSelectedIds;
-            setSelectedIds(nextSelectedIds);
-            startResize(target, directHandle, point);
-            return;
-        }
+        // Clicking an unselected object always selects/moves it.
+        // Resize is deliberately available only after selection, through the
+        // visible resize handles handled above.
 
         /**
          * Important behavior:
@@ -1930,19 +1975,6 @@ export default function CanvasBoard({
             return;
         }
 
-        if (isSpacePressed && event.button === 0) {
-            event.preventDefault();
-
-            setDragState({
-                mode: "pan",
-                startScreenX: rawPoint.x,
-                startScreenY: rawPoint.y,
-            });
-
-            canvas.style.cursor = "grabbing";
-            return;
-        }
-
         if (event.button !== 0) return;
         if (event.detail === 2) return;
 
@@ -2007,18 +2039,18 @@ export default function CanvasBoard({
         const rawPoint = getPointerPosition(event, canvas);
         const point = screenToWorld(rawPoint, viewport);
 
-        if (!dragState && tool === "eraser" && !isSpacePressed) {
+        if (!dragState && tool === "eraser") {
             const target = findTopElementAtPoint(elements, point);
 
             canvas.style.cursor = target ? ERASER_CURSOR : "crosshair";
             return;
         }
 
-        if (!dragState && (isSpacePressed || tool === "hand")) {
+        if (!dragState && tool === "hand") {
             canvas.style.cursor = "grab";
         }
 
-        if (!dragState && tool === "select" && !isSpacePressed) {
+        if (!dragState && tool === "select") {
             let cursor = "default";
 
             if (selectedIds.length === 1) {
@@ -2784,7 +2816,14 @@ export default function CanvasBoard({
             }
 
             commitHistory(nextElements);
-            onReplaceTimeline?.(nextElements);
+
+            const savedFrames = actualDrawing.frames || actualDrawing.timelineFrames;
+            const savedFrameIndex = actualDrawing.activeFrameIndex ?? actualDrawing.currentFrameIndex ?? 0;
+            if (Array.isArray(savedFrames) && savedFrames.length) {
+                onRestoreTimeline?.(savedFrames, savedFrameIndex);
+            } else {
+                onReplaceTimeline?.(nextElements);
+            }
             setMyDrawingsOpen(false);
         } catch (error) {
             console.error("Open drawing failed", error);

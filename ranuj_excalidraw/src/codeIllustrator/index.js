@@ -5,6 +5,7 @@ import { arrayMaxFrames, dutchFlagFrames, moveZerosFrames, removeDuplicatesFrame
 import { bubbleSortFrames, insertionSortFrames, quickSortFrames, selectionSortFrames } from "./algorithms/sortAlgorithms";
 import { genericListFrames } from "./algorithms/genericList";
 import { duplicateArrayFrames, hashMapFrames, hashSetFrames, priorityQueueFrames, queueFrames, stackFrames, variablesFrames } from "./algorithms/dataStructures";
+import { systemDesignFoundationFrames } from "./systemDesignFoundations";
 
 export { parseCodeIllustratorNumbers };
 
@@ -12,6 +13,7 @@ export function buildCodeIllustrationFrames({ algorithm = "bubble", problemType 
   const safeNumbers = (Array.isArray(numbers) && numbers.length ? numbers : DEFAULT_NUMBERS).slice(0, MAX_ITEMS);
   const type = inferProblemType({ problemType, code, algorithm });
   const safeTitle = title || "Code Illustrator";
+  if (type === "systemDesignFoundation") return systemDesignFoundationFrames();
   if (type === "maxSubarray") return maxSubarrayFrames(safeNumbers, centerX, safeTitle).slice(0, 80);
   if (type === "prefixSum") return prefixSumFrames(safeNumbers, centerX, safeTitle).slice(0, 80);
   if (type === "twoSum") return twoSumFrames(safeNumbers, centerX, safeTitle, code).slice(0, 80);

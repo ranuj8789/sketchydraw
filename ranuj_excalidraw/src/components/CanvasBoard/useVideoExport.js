@@ -6,29 +6,65 @@ const DEFAULT_GAP_SECONDS = 0.5;
 export function useVideoExport({ history, elements, timelineFrames, canvasSize, canvasProps }) {
     const [isVideoExporting, setIsVideoExporting] = useState(false);
     const [videoExportProgress, setVideoExportProgress] = useState(0);
+    const [videoExportStatus, setVideoExportStatus] = useState("");
 
     const videoExportingRef = useRef(false);
 
     const downloadUndoRedoVideo = useCallback(async (options = {}) => {
-        if (videoExportingRef.current) return;
+        if (videoExportingRef.current) {
+            alert("A video export is already running. Please wait for it to finish.");
+            return;
+        }
 
         const gapSeconds = Number.isFinite(Number(options.gapSeconds))
             ? Number(options.gapSeconds)
             : DEFAULT_GAP_SECONDS;
+        const exportTimelineFrames = Array.isArray(options.timelineFrames)
+        && options.timelineFrames.length > 0
+            ? options.timelineFrames
+            : (timelineFrames || []);
+
+        if (!exportTimelineFrames.length) {
+            alert("There are no frames in the selected export range.");
+            return;
+        }
+
+        const frameFrom = Number.isFinite(Number(options.frameFrom)) ? Number(options.frameFrom) : 1;
+        const frameTo = Number.isFinite(Number(options.frameTo)) ? Number(options.frameTo) : frameFrom + exportTimelineFrames.length - 1;
+        const rangeLabel = `frames ${frameFrom}-${frameTo}`;
 
         videoExportingRef.current = true;
         setIsVideoExporting(true);
         setVideoExportProgress(0);
+        const preparingMessage = `Preparing ${rangeLabel} (${exportTimelineFrames.length} frames)...`;
+        setVideoExportStatus(preparingMessage);
+        window.dispatchEvent(new CustomEvent("sketchydraw:video-export-state", {
+            detail: { exporting: true, progress: 0, status: preparingMessage },
+        }));
 
         try {
             await exportUndoRedoAnimationVideo({
                 historyStates: history || [],
                 currentElements: elements || [],
-                timelineFrames: timelineFrames || [],
+                timelineFrames: exportTimelineFrames,
                 canvasSize,
                 canvasProps,
                 gapSeconds,
-                onProgress: setVideoExportProgress,
+                mode: options.mode || "server",
+                fileName: options.fileName || `sketchydraw-frames-${frameFrom}-${frameTo}.${options.mode === "browser" ? "webm" : "mp4"}`,
+                onProgress: (progress) => {
+                    setVideoExportProgress(progress);
+                    window.dispatchEvent(new CustomEvent("sketchydraw:video-export-state", {
+                        detail: { exporting: true, progress, status: videoExportStatus },
+                    }));
+                },
+                onStatus: (status) => {
+                    const message = status?.message || status?.phase || "Exporting video...";
+                    setVideoExportStatus(message);
+                    window.dispatchEvent(new CustomEvent("sketchydraw:video-export-state", {
+                        detail: { exporting: true, progress: status?.progress || 0, status: message },
+                    }));
+                },
             });
         } catch (error) {
             console.error("Video export failed:", error);
@@ -36,13 +72,20 @@ export function useVideoExport({ history, elements, timelineFrames, canvasSize, 
         } finally {
             videoExportingRef.current = false;
             setIsVideoExporting(false);
-            setTimeout(() => setVideoExportProgress(0), 600);
+            window.dispatchEvent(new CustomEvent("sketchydraw:video-export-state", {
+                detail: { exporting: false, progress: 0, status: "" },
+            }));
+            setTimeout(() => {
+                setVideoExportProgress(0);
+                setVideoExportStatus("");
+            }, 1200);
         }
     }, [history, elements, timelineFrames, canvasSize, canvasProps]);
 
     return {
         isVideoExporting,
         videoExportProgress,
+        videoExportStatus,
         downloadUndoRedoVideo,
     };
 }

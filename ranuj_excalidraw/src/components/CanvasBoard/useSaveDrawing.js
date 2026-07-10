@@ -45,6 +45,8 @@ export function useSaveDrawing({
                                    viewport,
                                    canvasSize,
                                    canvasProps,
+                                   timelineFrames = [],
+                                   currentFrameIndex = 0,
                                    currentDrawingMeta,
                                    setCurrentDrawingMeta,
                                }) {
@@ -90,6 +92,33 @@ export function useSaveDrawing({
             name: finalTitle,
         });
 
+        const savedFrames = (Array.isArray(timelineFrames) && timelineFrames.length
+                ? timelineFrames
+                : [{
+                    id: `frame_${Date.now()}`,
+                    name: "Frame 1",
+                    durationMs: 10000,
+                    hiddenElementIds: [],
+                    elements,
+                }]
+        ).map((frame, index) => ({
+            ...frame,
+            id: frame?.id || `frame_${Date.now()}_${index}`,
+            name: frame?.name || `Frame ${index + 1}`,
+            durationMs: Math.max(1000, Number(frame?.durationMs) || 10000),
+            hiddenElementIds: Array.isArray(frame?.hiddenElementIds)
+                ? [...frame.hiddenElementIds]
+                : [],
+            elements: Array.isArray(frame?.elements)
+                ? frame.elements
+                : [],
+        }));
+
+        const savedActiveFrameIndex = Math.max(
+            0,
+            Math.min(Number(currentFrameIndex) || 0, savedFrames.length - 1)
+        );
+
         const drawingPayload = {
             version: 1,
             app: "SketchyDraw",
@@ -103,6 +132,11 @@ export function useSaveDrawing({
             data: {
                 ...localDrawingJson,
                 canvasProps: finalCanvasProps,
+                frames: savedFrames,
+                timelineFrames: savedFrames,
+                activeFrameIndex: savedActiveFrameIndex,
+                currentFrameIndex: savedActiveFrameIndex,
+                elements: savedFrames[savedActiveFrameIndex]?.elements || elements,
             },
         };
 

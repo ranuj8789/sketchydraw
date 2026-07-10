@@ -93,7 +93,6 @@ function GifToolsTab({
                          animationTimeMs = 0,
                          advanceMode = "enter",
                          onAdvanceModeChange,
-                         onOpenPlayer,
                          onAddFrameAfter,
                          onToggleFrameAnimation,
                          onApplyFrameObjectOrderTiming,
@@ -135,15 +134,6 @@ function GifToolsTab({
                     <span>
                         Frame {currentFrameIndex + 1}/{Math.max(frames.length, 1)} · {objectCount} objects · {animatedCount} animated
                     </span>
-                </div>
-
-                <div className="left-tool-grid two">
-                    <button type="button" className="left-primary-btn" onClick={() => onOpenPlayer?.("current")}>
-                        Play screen
-                    </button>
-                    <button type="button" className="left-primary-btn blue" onClick={() => onOpenPlayer?.("all")}>
-                        Play all
-                    </button>
                 </div>
 
                 <div className="left-tool-grid two">
@@ -252,6 +242,7 @@ function GifToolsTab({
 
 const CODE_PROBLEMS = [
     { id: "auto", label: "Auto detect from code", hint: "paste code / choose pattern" },
+    { id: "systemDesignFoundation", label: "System Design Foundations (5 min)", hint: "30 animated request-response frames" },
     { id: "variables", label: "Variables / Dry Run", hint: "sum, count, max update" },
     { id: "genericList", label: "Generic List / Code Flow", hint: "create list + loop + add values" },
     { id: "hashSet", label: "HashSet", hint: "unique values + contains" },
@@ -283,6 +274,16 @@ const CODE_LANGUAGES = [
 ];
 
 const CODE_PRESETS = {
+    systemDesignFoundation: {
+        numbers: "",
+        title: "System Design Foundations",
+        code: `User sends HTTPS request
+Application server validates and authorizes
+Check cache
+Query database on cache miss
+Log and measure the operation
+Return response to user`,
+    },
     dutchFlag: {
         numbers: "2, 0, 2, 1, 1, 0",
         title: "Dutch National Flag",
@@ -663,7 +664,7 @@ function getPresetForLanguage(presetKey, language) {
     return { ...preset, code: getPresetCode(preset, language) };
 }
 
-function CodeIllustratorTab({ onGenerateCodeIllustration, onOpenPlayer }) {
+function CodeIllustratorTab({ onGenerateCodeIllustration }) {
     const [problemType, setProblemType] = useState("dutchFlag");
     const [language, setLanguage] = useState("java");
     const initialPreset = getPresetForLanguage("dutchFlag", "java");
@@ -774,10 +775,7 @@ function CodeIllustratorTab({ onGenerateCodeIllustration, onOpenPlayer }) {
                     Generate proper frames
                 </button>
 
-                <div className="left-tool-grid two">
-                    <button type="button" onClick={() => onOpenPlayer?.("all")}>Play all</button>
-                    <button type="button" onClick={() => applyPreset("maxSubarray")}>Max subarray demo</button>
-                </div>
+                <button type="button" onClick={() => applyPreset("maxSubarray")}>Max subarray demo</button>
             </div>
 
             <div className="left-tool-card">
@@ -787,6 +785,7 @@ function CodeIllustratorTab({ onGenerateCodeIllustration, onOpenPlayer }) {
                 </div>
 
                 <div className="code-template-grid">
+                    <button type="button" onClick={() => applyPreset("systemDesignFoundation")}>System Design 5 min</button>
                     <button type="button" onClick={() => applyPreset("variables")}>Variables</button>
                     <button type="button" onClick={() => applyPreset("genericList")}>List add</button>
                     <button type="button" onClick={() => applyPreset("hashSet")}>HashSet</button>
@@ -816,7 +815,7 @@ function CodeIllustratorTab({ onGenerateCodeIllustration, onOpenPlayer }) {
                 </div>
 
                 <div className="code-illustrator-help">
-                    <p>Supported now: Array Builder (Dutch 0/1/2, move zeroes, remove duplicates, reverse array, find max), variables, generic list, HashSet, HashMap, duplicate array, stack, queue, PriorityQueue/heap, max subarray, prefix sum, two sum, binary search, sliding window, and sorting.</p>
+                    <p>Supported now: 5-minute System Design Foundations, Array Builder (Dutch 0/1/2, move zeroes, remove duplicates, reverse array, find max), variables, generic list, HashSet, HashMap, duplicate array, stack, queue, PriorityQueue/heap, max subarray, prefix sum, two sum, binary search, sliding window, and sorting.</p>
                     <p>Auto detect works from words like <b>HashSet</b>, <b>HashMap</b>, <b>Stack</b>, <b>Queue</b>, <b>PriorityQueue</b>, <b>duplicate</b>, <b>list.add(i)</b>, <b>target = 9</b>, and <b>k = 3</b>.</p>
                 </div>
             </div>
@@ -1099,7 +1098,6 @@ export default function Sidebar({
                     animationTimeMs={animationTimeMs}
                     advanceMode={advanceMode}
                     onAdvanceModeChange={onAdvanceModeChange}
-                    onOpenPlayer={onOpenPlayer}
                     onAddFrameAfter={onAddFrameAfter}
                     onToggleFrameAnimation={onToggleFrameAnimation}
                     onApplyFrameObjectOrderTiming={onApplyFrameObjectOrderTiming}
@@ -1112,7 +1110,6 @@ export default function Sidebar({
             {activeTab === "code" && (
                 <CodeIllustratorTab
                     onGenerateCodeIllustration={onGenerateCodeIllustration}
-                    onOpenPlayer={onOpenPlayer}
                 />
             )}
 
