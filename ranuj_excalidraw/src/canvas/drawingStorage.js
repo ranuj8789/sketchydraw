@@ -1,3 +1,4 @@
+import { isSystemDesignType } from "./canvasConstants";
 export const DRAWING_SCHEMA_VERSION = 1;
 
 export const DEFAULT_CANVAS_PROPS = {
@@ -58,7 +59,9 @@ export function normalizeElementForSave(element) {
         element.type === "rect" ||
         element.type === "rectangle" ||
         element.type === "ellipse" ||
-        element.type === "diamond"
+        element.type === "diamond" ||
+        element.type === "user" ||
+        isSystemDesignType(element.type)
     ) {
         return {
             ...base,

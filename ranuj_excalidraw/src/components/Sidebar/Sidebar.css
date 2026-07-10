@@ -45,7 +45,7 @@
 
 .left-toolbar-tabs {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 6px;
     padding: 6px;
     border: 1px solid #e2e8f0;
@@ -413,4 +413,18 @@
 .code-template-grid button:hover {
     border-color: #2563eb;
     background: #eff6ff;
+}
+
+
+.left-system-btn.active {
+    border-color: #2563eb !important;
+    background: #eff6ff !important;
+}
+
+.left-system-btn.active strong {
+    color: #1d4ed8;
+}
+
+.left-system-btn.active span {
+    color: #2563eb;
 }

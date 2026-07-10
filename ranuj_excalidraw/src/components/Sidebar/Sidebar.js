@@ -12,6 +12,7 @@ import {
     Hand,
     Image as ImageIcon,
     Code2,
+    UserRound,
 } from "lucide-react";
 import PropertiesPanel from "../PropertiesPanel/PropertiesPanel";
 import { getAnimationLabel } from "../../canvas/animationRegistry";
@@ -26,6 +27,7 @@ const TOOLS = [
     { id: "rect", label: "Rectangle", icon: Square },
     { id: "diamond", label: "Diamond", icon: Diamond },
     { id: "ellipse", label: "Ellipse", icon: Circle },
+    { id: "user", label: "User", icon: UserRound },
     { id: "text", label: "Text", icon: Type },
     { id: "image", label: "Image", icon: ImageIcon },
     { id: "eraser", label: "Eraser", icon: Eraser },
@@ -47,6 +49,19 @@ const QUICK_EMOJIS = [
 ];
 
 const ORDER_DELAY_STEP_OPTIONS = [250, 500, 750, 1000];
+
+const SYSTEM_DESIGN_TOOLS = [
+    { id: "cache", title: "Cache", subtitle: "read / write" },
+    { id: "database", title: "Database", subtitle: "SQL / NoSQL" },
+    { id: "server", title: "Server", subtitle: "app / API" },
+    { id: "nginx", title: "Nginx", subtitle: "gateway / LB" },
+    { id: "datacenter", title: "Data centre", subtitle: "infra / racks" },
+    { id: "kafka", title: "Kafka", subtitle: "event stream" },
+    { id: "splunk", title: "Splunk", subtitle: "logs / traces" },
+    { id: "security", title: "Security", subtitle: "shield / lock" },
+    { id: "broker", title: "Broker", subtitle: "message broker" },
+    { id: "partition", title: "Partition", subtitle: "topic split" },
+];
 
 function getCurrentFrame(frames = [], currentFrameIndex = 0) {
     return frames[currentFrameIndex] || frames[0] || null;
@@ -809,6 +824,45 @@ function CodeIllustratorTab({ onGenerateCodeIllustration, onOpenPlayer }) {
     );
 }
 
+
+function SystemDesignTab({ tool, setTool }) {
+    return (
+        <div className="left-tab-panel">
+            <div className="left-tool-card">
+                <div className="left-card-heading">
+                    <strong>System design</strong>
+                    <span>Pick a system block, then drag on the canvas to draw it just like the User tool.</span>
+                </div>
+
+                <div className="left-primitive-grid">
+                    {SYSTEM_DESIGN_TOOLS.map((item) => (
+                        <button
+                            key={item.id}
+                            type="button"
+                            className={`left-primitive-btn left-system-btn ${tool === item.id ? "active" : ""}`}
+                            onClick={() => setTool(item.id)}
+                        >
+                            <strong>{item.title}</strong>
+                            <span>{item.subtitle}</span>
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            <div className="left-tool-card">
+                <div className="left-card-heading">
+                    <strong>Usage</strong>
+                    <span>These are real drawable tools now, not pre-inserted overlapping groups.</span>
+                </div>
+                <div className="code-illustrator-help">
+                    <p>Select one block here and drag on the canvas to place it.</p>
+                    <p>After drawing, you can resize, recolor, animate and connect it with arrows.</p>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function RichTextTab({ onInsertEmoji, onInsertRichText }) {
     const [emojiValue, setEmojiValue] = useState("🔥");
     const [plainText, setPlainText] = useState("Rich text box");
@@ -987,6 +1041,13 @@ export default function Sidebar({
                 </button>
                 <button
                     type="button"
+                    className={activeTab === "system" ? "active" : ""}
+                    onClick={() => setActiveTab("system")}
+                >
+                    System
+                </button>
+                <button
+                    type="button"
                     className={activeTab === "rich" ? "active" : ""}
                     onClick={() => setActiveTab("rich")}
                 >
@@ -1053,6 +1114,10 @@ export default function Sidebar({
                     onGenerateCodeIllustration={onGenerateCodeIllustration}
                     onOpenPlayer={onOpenPlayer}
                 />
+            )}
+
+            {activeTab === "system" && (
+                <SystemDesignTab tool={tool} setTool={setTool} />
             )}
 
             {activeTab === "rich" && (

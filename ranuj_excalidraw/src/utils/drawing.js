@@ -4,6 +4,7 @@ import {
     getUnderlineBounds,
     normalizeTextStyle,
 } from "../canvas/textRenderStyle";
+import { isSystemDesignType } from "../canvas/canvasConstants";
 
 const SELECTION_COLOR = "#6965db";
 const SELECTION_PADDING = 6;
@@ -484,6 +485,15 @@ export function hitTest(element, x, y) {
         return x >= minX && x <= maxX && y >= minY && y <= maxY;
     }
 
+    if (element.type === "user" || isSystemDesignType(element.type)) {
+        const minX = Math.min(element.x, element.x + element.w);
+        const minY = Math.min(element.y, element.y + element.h);
+        const maxX = Math.max(element.x, element.x + element.w);
+        const maxY = Math.max(element.y, element.y + element.h);
+
+        return x >= minX && x <= maxX && y >= minY && y <= maxY;
+    }
+
     if (element.type === "ellipse") {
         const cx = element.x + element.w / 2;
         const cy = element.y + element.h / 2;
@@ -546,6 +556,249 @@ export function hitTest(element, x, y) {
     }
 
     return false;
+}
+
+
+function drawSystemDesignLabel(ctx, text, x, y, w, fontSize, stroke, lineHeight = 1.15) {
+    const lines = String(text || "").split("\n");
+    const safeFontSize = Math.max(10, fontSize || 14);
+
+    ctx.save();
+    ctx.setLineDash([]);
+    ctx.font = `700 ${safeFontSize}px "Caveat", cursive`;
+    ctx.fillStyle = stroke || "#111827";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    lines.forEach((line, index) => {
+        const lineY = y + index * safeFontSize * lineHeight;
+        ctx.fillText(line, x + w / 2, lineY);
+    });
+
+    ctx.restore();
+}
+
+function drawSystemDesignShape(ctx, element) {
+    const left = Math.min(element.x, element.x + element.w);
+    const top = Math.min(element.y, element.y + element.h);
+    const width = Math.max(20, Math.abs(element.w || 0));
+    const height = Math.max(20, Math.abs(element.h || 0));
+    const fill = element.fill;
+    const shouldFill = fill && fill !== "transparent";
+    const stroke = element.stroke || "#111827";
+    const minSide = Math.min(width, height);
+    const pad = minSide * 0.12;
+
+    const strokeCurrentPath = () => {
+        if (shouldFill) ctx.fill();
+        ctx.stroke();
+    };
+
+    if (element.type === "cache") {
+        drawRoundedRectPath(ctx, left + width * 0.08, top + height * 0.18, width * 0.84, height * 0.62, minSide * 0.12);
+        strokeCurrentPath();
+        [0, 1, 2].forEach((index) => {
+            const y = top + height * 0.34 + index * height * 0.13;
+            ctx.beginPath();
+            ctx.moveTo(left + width * 0.23, y);
+            ctx.lineTo(left + width * 0.66, y);
+            ctx.stroke();
+        });
+        ctx.beginPath();
+        ctx.moveTo(left + width * 0.74, top + height * 0.36);
+        ctx.lineTo(left + width * 0.68, top + height * 0.52);
+        ctx.lineTo(left + width * 0.77, top + height * 0.52);
+        ctx.lineTo(left + width * 0.70, top + height * 0.68);
+        ctx.stroke();
+        drawSystemDesignLabel(ctx, "cache", left + width * 0.12, top + height * 0.18, width * 0.76, minSide * 0.18, stroke);
+        return;
+    }
+
+    if (element.type === "database") {
+        const rx = width * 0.36;
+        const ry = height * 0.11;
+        const cx = left + width / 2;
+        const topY = top + height * 0.22;
+        const bottomY = top + height * 0.78;
+        ctx.beginPath();
+        ctx.ellipse(cx, topY, rx, ry, 0, 0, Math.PI * 2);
+        if (shouldFill) ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(cx - rx, topY);
+        ctx.lineTo(cx - rx, bottomY);
+        ctx.moveTo(cx + rx, topY);
+        ctx.lineTo(cx + rx, bottomY);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.ellipse(cx, bottomY, rx, ry, 0, 0, Math.PI);
+        ctx.stroke();
+        drawSystemDesignLabel(ctx, "database", left + width * 0.1, top + height * 0.49, width * 0.8, minSide * 0.16, stroke);
+        return;
+    }
+
+    if (element.type === "server") {
+        drawRoundedRectPath(ctx, left + width * 0.18, top + height * 0.08, width * 0.64, height * 0.84, minSide * 0.08);
+        strokeCurrentPath();
+        [0, 1, 2].forEach((index) => {
+            const sy = top + height * (0.28 + index * 0.18);
+            drawRoundedRectPath(ctx, left + width * 0.28, sy, width * 0.38, height * 0.09, minSide * 0.03);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(left + width * 0.72, sy + height * 0.045, minSide * 0.02, 0, Math.PI * 2);
+            if (index === 0 && shouldFill) ctx.fill();
+            ctx.stroke();
+        });
+        drawSystemDesignLabel(ctx, "server", left + width * 0.18, top + height * 0.16, width * 0.64, minSide * 0.15, stroke);
+        return;
+    }
+
+    if (element.type === "nginx") {
+        const cx = left + width / 2;
+        const cy = top + height / 2;
+        const rx = width * 0.32;
+        const ry = height * 0.36;
+        ctx.beginPath();
+        for (let i = 0; i < 6; i += 1) {
+            const angle = -Math.PI / 2 + (i * Math.PI) / 3;
+            const px = cx + Math.cos(angle) * rx;
+            const py = cy + Math.sin(angle) * ry;
+            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        strokeCurrentPath();
+        drawSystemDesignLabel(ctx, "nginx", left + width * 0.18, top + height * 0.48, width * 0.64, minSide * 0.18, stroke);
+        return;
+    }
+
+    if (element.type === "datacenter") {
+        drawRoundedRectPath(ctx, left + width * 0.08, top + height * 0.14, width * 0.84, height * 0.72, minSide * 0.06);
+        strokeCurrentPath();
+        [0, 1, 2].forEach((index) => {
+            const rackX = left + width * (0.18 + index * 0.22);
+            drawRoundedRectPath(ctx, rackX, top + height * 0.30, width * 0.14, height * 0.38, minSide * 0.03);
+            ctx.stroke();
+            [0, 1, 2].forEach((slot) => {
+                const slotY = top + height * (0.36 + slot * 0.09);
+                ctx.beginPath();
+                ctx.moveTo(rackX + width * 0.03, slotY);
+                ctx.lineTo(rackX + width * 0.11, slotY);
+                ctx.stroke();
+            });
+        });
+        drawSystemDesignLabel(ctx, "data\ncentre", left + width * 0.58, top + height * 0.45, width * 0.24, minSide * 0.15, stroke);
+        return;
+    }
+
+    if (element.type === "kafka") {
+        const points = [
+            [left + width * 0.22, top + height * 0.30],
+            [left + width * 0.22, top + height * 0.70],
+            [left + width * 0.50, top + height * 0.20],
+            [left + width * 0.50, top + height * 0.50],
+            [left + width * 0.50, top + height * 0.80],
+            [left + width * 0.78, top + height * 0.30],
+            [left + width * 0.78, top + height * 0.70],
+        ];
+        const links = [[0,2],[1,4],[2,3],[3,4],[2,5],[4,6],[5,6]];
+        links.forEach(([a,b]) => {
+            ctx.beginPath();
+            ctx.moveTo(points[a][0], points[a][1]);
+            ctx.lineTo(points[b][0], points[b][1]);
+            ctx.stroke();
+        });
+        points.forEach(([px, py]) => {
+            ctx.beginPath();
+            ctx.arc(px, py, minSide * 0.045, 0, Math.PI * 2);
+            if (shouldFill) ctx.fill();
+            ctx.stroke();
+        });
+        drawSystemDesignLabel(ctx, "kafka", left + width * 0.18, top + height * 0.50, width * 0.64, minSide * 0.18, stroke);
+        return;
+    }
+
+    if (element.type === "splunk") {
+        drawRoundedRectPath(ctx, left + width * 0.10, top + height * 0.18, width * 0.80, height * 0.60, minSide * 0.09);
+        strokeCurrentPath();
+        ctx.beginPath();
+        ctx.moveTo(left + width * 0.24, top + height * 0.52);
+        ctx.lineTo(left + width * 0.34, top + height * 0.42);
+        ctx.lineTo(left + width * 0.24, top + height * 0.32);
+        ctx.stroke();
+        [0,1,2].forEach((index) => {
+            const barH = height * (0.10 + index * 0.06);
+            const bx = left + width * (0.50 + index * 0.09);
+            const by = top + height * 0.62 - barH;
+            ctx.beginPath();
+            ctx.moveTo(bx, by + barH);
+            ctx.lineTo(bx, by);
+            ctx.stroke();
+        });
+        drawSystemDesignLabel(ctx, "splunk", left + width * 0.16, top + height * 0.74, width * 0.68, minSide * 0.15, stroke);
+        return;
+    }
+
+    if (element.type === "security") {
+        const cx = left + width / 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, top + height * 0.14);
+        ctx.quadraticCurveTo(left + width * 0.78, top + height * 0.22, left + width * 0.72, top + height * 0.54);
+        ctx.quadraticCurveTo(left + width * 0.68, top + height * 0.78, cx, top + height * 0.88);
+        ctx.quadraticCurveTo(left + width * 0.32, top + height * 0.78, left + width * 0.28, top + height * 0.54);
+        ctx.quadraticCurveTo(left + width * 0.22, top + height * 0.22, cx, top + height * 0.14);
+        ctx.closePath();
+        strokeCurrentPath();
+        drawRoundedRectPath(ctx, left + width * 0.41, top + height * 0.44, width * 0.18, height * 0.16, minSide * 0.03);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx, top + height * 0.42, width * 0.07, Math.PI, 0);
+        ctx.stroke();
+        drawSystemDesignLabel(ctx, "security", left + width * 0.16, top + height * 0.28, width * 0.68, minSide * 0.14, stroke);
+        return;
+    }
+
+    if (element.type === "broker") {
+        drawRoundedRectPath(ctx, left + width * 0.12, top + height * 0.20, width * 0.76, height * 0.54, minSide * 0.08);
+        strokeCurrentPath();
+        [0,1,2].forEach((index) => {
+            const y = top + height * (0.34 + index * 0.10);
+            ctx.beginPath();
+            ctx.moveTo(left + width * 0.28, y);
+            ctx.lineTo(left + width * 0.62, y);
+            ctx.stroke();
+        });
+        ctx.beginPath();
+        ctx.moveTo(left + width * 0.10, top + height * 0.47);
+        ctx.lineTo(left + width * 0.20, top + height * 0.47);
+        ctx.lineTo(left + width * 0.17, top + height * 0.44);
+        ctx.moveTo(left + width * 0.20, top + height * 0.47);
+        ctx.lineTo(left + width * 0.17, top + height * 0.50);
+        ctx.moveTo(left + width * 0.88, top + height * 0.47);
+        ctx.lineTo(left + width * 0.78, top + height * 0.47);
+        ctx.lineTo(left + width * 0.81, top + height * 0.44);
+        ctx.moveTo(left + width * 0.78, top + height * 0.47);
+        ctx.lineTo(left + width * 0.81, top + height * 0.50);
+        ctx.stroke();
+        drawSystemDesignLabel(ctx, "broker", left + width * 0.20, top + height * 0.18, width * 0.60, minSide * 0.16, stroke);
+        return;
+    }
+
+    if (element.type === "partition") {
+        drawRoundedRectPath(ctx, left + width * 0.10, top + height * 0.20, width * 0.80, height * 0.56, minSide * 0.06);
+        strokeCurrentPath();
+        [1,2].forEach((index) => {
+            const x = left + width * (0.10 + index * 0.2666);
+            ctx.beginPath();
+            ctx.moveTo(x, top + height * 0.20);
+            ctx.lineTo(x, top + height * 0.76);
+            ctx.stroke();
+        });
+        drawSystemDesignLabel(ctx, "p0", left + width * 0.10, top + height * 0.48, width * 0.27, minSide * 0.15, stroke);
+        drawSystemDesignLabel(ctx, "p1", left + width * 0.37, top + height * 0.48, width * 0.27, minSide * 0.15, stroke);
+        drawSystemDesignLabel(ctx, "p2", left + width * 0.63, top + height * 0.48, width * 0.27, minSide * 0.15, stroke);
+        drawSystemDesignLabel(ctx, "partition", left + width * 0.18, top + height * 0.14, width * 0.64, minSide * 0.14, stroke);
+        return;
+    }
 }
 
 export function drawElement(ctx, element, selected = false, renderOptions = {}) {
@@ -642,6 +895,35 @@ export function drawElement(ctx, element, selected = false, renderOptions = {}) 
         } else {
             ctx.stroke();
         }
+    } else if (element.type === "user") {
+        const left = Math.min(element.x, element.x + element.w);
+        const top = Math.min(element.y, element.y + element.h);
+        const width = Math.abs(element.w || 0);
+        const height = Math.abs(element.h || 0);
+
+        const cx = left + width / 2;
+        const headRadius = Math.max(3, Math.min(width * 0.22, height * 0.18));
+        const headCy = top + height * 0.27;
+        const shoulderY = top + height * 0.58;
+        const bodyBottomY = top + height * 0.9;
+        const shoulderHalf = width * 0.38;
+        const waistHalf = width * 0.24;
+
+        ctx.beginPath();
+        ctx.arc(cx, headCy, headRadius, 0, Math.PI * 2);
+        if (element.fill && element.fill !== "transparent") ctx.fill();
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(cx - shoulderHalf, shoulderY);
+        ctx.quadraticCurveTo(cx, top + height * 0.48, cx + shoulderHalf, shoulderY);
+        ctx.lineTo(cx + waistHalf, bodyBottomY);
+        ctx.lineTo(cx - waistHalf, bodyBottomY);
+        ctx.closePath();
+        if (element.fill && element.fill !== "transparent") ctx.fill();
+        ctx.stroke();
+    } else if (isSystemDesignType(element.type)) {
+        drawSystemDesignShape(ctx, element);
     } else if (element.type === "diamond") {
         const cx = element.x + element.w / 2;
         const cy = element.y + element.h / 2;

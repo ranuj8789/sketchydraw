@@ -21,6 +21,7 @@ import {
     SHAPE_TYPES,
     LINE_TYPES,
     TEXT_CONTAINER_TYPES,
+    isSystemDesignType,
 } from "../../canvas/canvasConstants";
 import {
     buildShapeDraft,
@@ -184,6 +185,8 @@ function scaleElementInsideBounds(element, fromBounds, toBounds) {
         element.type === "rectangle" ||
         element.type === "ellipse" ||
         element.type === "diamond" ||
+        element.type === "user" ||
+        isSystemDesignType(element.type) ||
         element.type === "image" ||
         element.type === "text"
     ) {

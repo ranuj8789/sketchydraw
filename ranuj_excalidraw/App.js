@@ -24,6 +24,9 @@ import {
   DEFAULT_TITLE,
 } from "./components/DrawingGroupStore/drawingGroupStore";
 import { DEFAULT_TEXT_STYLE } from "./canvas/textStyle";
+import { createAnimationConfig } from "./canvas/animationRegistry";
+import { buildCodeIllustrationFrames, parseCodeIllustratorNumbers } from "./canvas/codeIllustrator";
+import { exportTimelineGif } from "./utils/exportGif";
 import {
   normalizeTextStyle,
   pickTextStylePatch,
@@ -108,6 +111,289 @@ function getViewportCenterPoint(canvasSize, viewport) {
     x: ((Number(canvasSize?.width) || 1200) / 2 - offsetX) / zoom,
     y: ((Number(canvasSize?.height) || 700) / 2 - offsetY) / zoom,
   };
+}
+
+
+function buildSystemDesignPrimitiveElements({
+                                              primitiveType = "cache",
+                                              center,
+                                              pageIndex = 0,
+                                              strokeColor = "#111827",
+                                              cornerRadius = 16,
+                                            }) {
+  const animation = createAnimationConfig("none");
+  const elements = [];
+
+  const push = (element) => {
+    elements.push({
+      ...element,
+      pageIndex,
+      animation,
+      systemDesignPrimitive: true,
+    });
+  };
+
+  const createRect = ({
+                        x,
+                        y,
+                        w,
+                        h,
+                        fill = "#ffffff",
+                        stroke = strokeColor,
+                        radius = cornerRadius,
+                        strokeWidth = 2,
+                        dash = "solid",
+                      }) => ({
+    id: makeObjectId("system_rect"),
+    type: "rect",
+    x,
+    y,
+    w,
+    h,
+    stroke,
+    fill,
+    strokeWidth,
+    strokeDash: dash,
+    cornerRadius: radius,
+  });
+
+  const createEllipse = ({
+                           x,
+                           y,
+                           w,
+                           h,
+                           fill = "#ffffff",
+                           stroke = strokeColor,
+                           strokeWidth = 2,
+                           dash = "solid",
+                         }) => ({
+    id: makeObjectId("system_ellipse"),
+    type: "ellipse",
+    x,
+    y,
+    w,
+    h,
+    stroke,
+    fill,
+    strokeWidth,
+    strokeDash: dash,
+    cornerRadius: 0,
+  });
+
+  const createDiamond = ({
+                           x,
+                           y,
+                           w,
+                           h,
+                           fill = "#ffffff",
+                           stroke = strokeColor,
+                           strokeWidth = 2,
+                           dash = "solid",
+                         }) => ({
+    id: makeObjectId("system_diamond"),
+    type: "diamond",
+    x,
+    y,
+    w,
+    h,
+    stroke,
+    fill,
+    strokeWidth,
+    strokeDash: dash,
+    cornerRadius: 0,
+  });
+
+  const createLine = ({
+                        x1,
+                        y1,
+                        x2,
+                        y2,
+                        stroke = strokeColor,
+                        strokeWidth = 2,
+                        dash = "solid",
+                      }) => ({
+    id: makeObjectId("system_line"),
+    type: "line",
+    x1,
+    y1,
+    x2,
+    y2,
+    cx1: x1,
+    cy1: y1,
+    cx2: x2,
+    cy2: y2,
+    stroke,
+    fill: "transparent",
+    strokeWidth,
+    strokeDash: dash,
+    lineStyle: "straight",
+    arrowEnd: false,
+  });
+
+  const createText = ({
+                        x,
+                        y,
+                        text,
+                        fontSize = 16,
+                        stroke = "#111827",
+                        width = null,
+                        bold = true,
+                        align = "center",
+                        parentId = null,
+                      }) => {
+    const textStyle = normalizeTextStyle({
+      ...DEFAULT_TEXT_STYLE,
+      fontSize,
+      lineHeight: Math.round(fontSize * 1.3),
+      fontFamily: "Arial",
+      bold,
+      italic: false,
+      underline: false,
+      textAlign: align,
+      stroke,
+    });
+    const measured = measureTextBox(text, textStyle);
+    return {
+      id: makeObjectId("system_text"),
+      type: "text",
+      x,
+      y,
+      w: width || measured.w,
+      h: measured.h,
+      text,
+      plainText: text,
+      html: text,
+      fontSize: textStyle.fontSize,
+      lineHeight: textStyle.lineHeight,
+      fontFamily: textStyle.fontFamily,
+      stroke: textStyle.stroke,
+      fill: "transparent",
+      bold: textStyle.bold,
+      italic: false,
+      underline: false,
+      textAlign: align,
+      parentId,
+    };
+  };
+
+  const x = Number(center?.x) || 0;
+  const y = Number(center?.y) || 0;
+
+  if (primitiveType === "cache") {
+    const shell = createRect({ x: x - 110, y: y - 55, w: 220, h: 110, fill: "#fef3c7", radius: 22 });
+    push(shell);
+    push(createText({ x: shell.x + 44, y: shell.y + 12, width: 132, text: "CACHE", fontSize: 22 }));
+    push(createRect({ x: shell.x + 28, y: shell.y + 54, w: 164, h: 14, fill: "#fde68a", radius: 10, stroke: "#d97706" }));
+    push(createRect({ x: shell.x + 28, y: shell.y + 74, w: 126, h: 14, fill: "#fde68a", radius: 10, stroke: "#d97706" }));
+    push(createText({ x: shell.x + 44, y: shell.y + 91, width: 132, text: "fast reads", fontSize: 12, stroke: "#92400e" }));
+    return elements;
+  }
+
+  if (primitiveType === "database") {
+    push(createEllipse({ x: x - 82, y: y - 62, w: 164, h: 34, fill: "#dbeafe", stroke: "#2563eb" }));
+    push(createRect({ x: x - 82, y: y - 46, w: 164, h: 104, fill: "#dbeafe", stroke: "#2563eb", radius: 12 }));
+    push(createEllipse({ x: x - 82, y: y + 40, w: 164, h: 34, fill: "#bfdbfe", stroke: "#2563eb" }));
+    push(createLine({ x1: x - 82, y1: y - 28, x2: x - 82, y2: y + 56, stroke: "#2563eb" }));
+    push(createLine({ x1: x + 82, y1: y - 28, x2: x + 82, y2: y + 56, stroke: "#2563eb" }));
+    push(createText({ x: x - 62, y: y - 8, width: 124, text: "DATABASE", fontSize: 20, stroke: "#1e3a8a" }));
+    return elements;
+  }
+
+  if (primitiveType === "server") {
+    const shell = createRect({ x: x - 82, y: y - 92, w: 164, h: 184, fill: "#e2e8f0", radius: 18, stroke: "#475569" });
+    push(shell);
+    push(createText({ x: shell.x + 28, y: shell.y + 12, width: 108, text: "SERVER", fontSize: 20, stroke: "#0f172a" }));
+    [0, 1, 2].forEach((index) => {
+      const slotY = shell.y + 52 + index * 34;
+      push(createRect({ x: shell.x + 22, y: slotY, w: 120, h: 22, fill: "#cbd5e1", radius: 8, stroke: "#64748b" }));
+      push(createEllipse({ x: shell.x + 132, y: slotY + 5, w: 10, h: 10, fill: index === 0 ? "#22c55e" : "#94a3b8", stroke: index === 0 ? "#16a34a" : "#64748b" }));
+    });
+    return elements;
+  }
+
+  if (primitiveType === "nginx") {
+    const shell = createDiamond({ x: x - 82, y: y - 82, w: 164, h: 164, fill: "#dcfce7", stroke: "#16a34a" });
+    push(shell);
+    push(createText({ x: x - 48, y: y - 14, width: 96, text: "NGINX", fontSize: 22, stroke: "#166534" }));
+    push(createText({ x: x - 70, y: y + 18, width: 140, text: "gateway / load balancer", fontSize: 12, stroke: "#166534" }));
+    return elements;
+  }
+
+  if (primitiveType === "datacenter") {
+    const shell = createRect({ x: x - 132, y: y - 96, w: 264, h: 192, fill: "#f8fafc", radius: 20, stroke: "#334155" });
+    push(shell);
+    push(createText({ x: shell.x + 48, y: shell.y + 12, width: 168, text: "DATA CENTRE", fontSize: 20, stroke: "#0f172a" }));
+    [-76, 0, 76].forEach((offset) => {
+      const rack = createRect({ x: x + offset - 26, y: y - 24, w: 52, h: 92, fill: "#e2e8f0", radius: 10, stroke: "#475569" });
+      push(rack);
+      [0, 1, 2].forEach((slot) => {
+        push(createRect({ x: rack.x + 10, y: rack.y + 10 + slot * 24, w: 32, h: 12, fill: "#cbd5e1", radius: 5, stroke: "#64748b" }));
+      });
+    });
+    return elements;
+  }
+
+  if (primitiveType === "kafka") {
+    const shell = createRect({ x: x - 150, y: y - 96, w: 300, h: 192, fill: "#f5f3ff", radius: 22, stroke: "#7c3aed" });
+    push(shell);
+    push(createText({ x: shell.x + 94, y: shell.y + 12, width: 112, text: "KAFKA", fontSize: 24, stroke: "#5b21b6" }));
+    [-84, 0, 84].forEach((offset, index) => {
+      const broker = createRect({ x: x + offset - 34, y: y - 14, w: 68, h: 80, fill: "#ede9fe", radius: 12, stroke: "#8b5cf6" });
+      push(broker);
+      push(createText({ x: broker.x + 8, y: broker.y + 10, width: 52, text: `B${index + 1}`, fontSize: 18, stroke: "#4c1d95" }));
+      [0, 1].forEach((partitionIndex) => {
+        push(createRect({ x: broker.x + 12, y: broker.y + 38 + partitionIndex * 16, w: 44, h: 10, fill: "#ddd6fe", radius: 5, stroke: "#a78bfa" }));
+      });
+    });
+    return elements;
+  }
+
+  if (primitiveType === "splunk") {
+    const shell = createRect({ x: x - 118, y: y - 68, w: 236, h: 136, fill: "#ecfccb", radius: 20, stroke: "#65a30d" });
+    push(shell);
+    push(createText({ x: shell.x + 62, y: shell.y + 12, width: 112, text: "SPLUNK", fontSize: 24, stroke: "#3f6212" }));
+    [0, 1, 2, 3].forEach((barIndex) => {
+      push(createRect({ x: shell.x + 28 + barIndex * 44, y: shell.y + 72 - barIndex * 8, w: 22, h: 28 + barIndex * 8, fill: "#bef264", radius: 8, stroke: "#65a30d" }));
+    });
+    return elements;
+  }
+
+  if (primitiveType === "security") {
+    const shell = createDiamond({ x: x - 96, y: y - 96, w: 192, h: 192, fill: "#fee2e2", stroke: "#dc2626" });
+    push(shell);
+    push(createText({ x: x - 64, y: y - 22, width: 128, text: "SECURITY", fontSize: 20, stroke: "#991b1b" }));
+    push(createText({ x: x - 52, y: y + 10, width: 104, text: "Auth / WAF", fontSize: 13, stroke: "#991b1b" }));
+    return elements;
+  }
+
+  if (primitiveType === "broker") {
+    const shell = createRect({ x: x - 134, y: y - 80, w: 268, h: 160, fill: "#eef2ff", radius: 20, stroke: "#4f46e5" });
+    push(shell);
+    push(createText({ x: shell.x + 82, y: shell.y + 12, width: 104, text: "BROKER", fontSize: 22, stroke: "#312e81" }));
+    [0, 1, 2].forEach((partitionIndex) => {
+      const row = createRect({ x: shell.x + 24, y: shell.y + 48 + partitionIndex * 28, w: 220, h: 18, fill: "#c7d2fe", radius: 8, stroke: "#818cf8" });
+      push(row);
+      push(createText({ x: row.x + 10, y: row.y + 1, width: 200, text: `Partition ${partitionIndex}`, fontSize: 12, stroke: "#4338ca" }));
+    });
+    return elements;
+  }
+
+  if (primitiveType === "partition") {
+    const shell = createRect({ x: x - 98, y: y - 88, w: 196, h: 176, fill: "#faf5ff", radius: 20, stroke: "#9333ea" });
+    push(shell);
+    push(createText({ x: shell.x + 44, y: shell.y + 12, width: 108, text: "PARTITION", fontSize: 20, stroke: "#6b21a8" }));
+    [0, 1, 2].forEach((segmentIndex) => {
+      const segment = createRect({ x: shell.x + 28, y: shell.y + 48 + segmentIndex * 34, w: 140, h: 22, fill: "#e9d5ff", radius: 8, stroke: "#c084fc" });
+      push(segment);
+      push(createText({ x: segment.x + 12, y: segment.y + 2, width: 116, text: `Offset ${segmentIndex}`, fontSize: 12, stroke: "#7e22ce" }));
+    });
+    return elements;
+  }
+
+  const fallback = createRect({ x: x - 90, y: y - 50, w: 180, h: 100, fill: "#f8fafc", radius: 18, stroke: strokeColor });
+  push(fallback);
+  push(createText({ x: fallback.x + 16, y: fallback.y + 26, width: 148, text: primitiveType.toUpperCase(), fontSize: 18 }));
+  return elements;
 }
 
 function createTimelineFrame(elements = [], index = 0, patch = {}) {
@@ -207,83 +493,6 @@ function VerifyPage() {
         });
   }, []);
 
-  const insertEmojiObject = useCallback((emojiValue) => {
-    const emoji = String(emojiValue || "⭐").trim() || "⭐";
-    const center = getViewportCenterPoint(canvasSize, viewport);
-    const pageIndex = Number(canvasProps?.currentPageIndex) || 0;
-
-    const nextElement = {
-      id: makeObjectId("emoji"),
-      type: "text",
-      text: emoji,
-      x: center.x - 24,
-      y: center.y - 24,
-      w: 56,
-      h: 56,
-      fontSize: 42,
-      lineHeight: 56,
-      fontFamily: "Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif",
-      stroke: "#111827",
-      fill: "transparent",
-      textAlign: "left",
-      emojiObject: true,
-      pageIndex,
-      animation: {
-        type: "none",
-        durationMs: 1000,
-        delayMs: 0,
-      },
-    };
-
-    const next = [...elements, nextElement];
-    setElements(next);
-    setSelectedIds([nextElement.id]);
-    setTool("select");
-    commitHistory(next);
-    createTimelineFrameForNewObject(next);
-  }, [canvasProps, canvasSize, viewport, elements, commitHistory, createTimelineFrameForNewObject]);
-
-  const insertRichTextObject = useCallback((richTextPayload = {}) => {
-    const center = getViewportCenterPoint(canvasSize, viewport);
-    const pageIndex = Number(canvasProps?.currentPageIndex) || 0;
-    const plainText = String(richTextPayload.plainText || "Rich text box");
-    const fontSize = Math.max(8, Math.min(96, Number(richTextPayload.fontSize) || 22));
-
-    const nextElement = {
-      id: makeObjectId("rich_text"),
-      type: "text",
-      x: center.x - 160,
-      y: center.y - 60,
-      w: 320,
-      h: 120,
-      html: richTextPayload.html || plainText,
-      plainText,
-      text: plainText,
-      fontSize,
-      lineHeight: Math.round(fontSize * 1.35),
-      fontFamily: richTextPayload.fontFamily || currentTextStyle.fontFamily || "Arial",
-      stroke: richTextPayload.stroke || stroke || "#111827",
-      fill: "transparent",
-      bold: !!richTextPayload.bold,
-      italic: !!richTextPayload.italic,
-      underline: !!richTextPayload.underline,
-      textAlign: "left",
-      richTextObject: true,
-      pageIndex,
-      animation: {
-        type: "none",
-        durationMs: 1000,
-        delayMs: 0,
-      },
-    };
-
-    const next = [...elements, nextElement];
-    setElements(next);
-    setSelectedIds([nextElement.id]);
-    setTool("select");
-    commitHistory(next);
-    createTimelineFrameForNewObject(next);
-  }, [canvasProps, canvasSize, viewport, elements, stroke, currentTextStyle, commitHistory, createTimelineFrameForNewObject]);
 
 
   return (
@@ -372,6 +581,8 @@ function SketchyDrawPage() {
   const [historyIndex, setHistoryIndex] = useState(0);
   const [maxHistoryLength] = useState(getConfiguredMaxHistoryLength);
   const [sketchyAlert, setSketchyAlert] = useState(null);
+  const [gifExporting, setGifExporting] = useState(false);
+  const [gifExportProgress, setGifExportProgress] = useState(0);
 
   const [timelineFrames, setTimelineFrames] = useState(() => [
     createTimelineFrame([], 0),
@@ -388,6 +599,7 @@ function SketchyDrawPage() {
   const [animationPlayerPlaying, setAnimationPlayerPlaying] = useState(false);
   const [animationPlayerTimeMs, setAnimationPlayerTimeMs] = useState(0);
   const [animationPlayerWaitingForNext, setAnimationPlayerWaitingForNext] = useState(false);
+  const [animationPlayerSpeed, setAnimationPlayerSpeed] = useState(1);
   const animationPlayerAdvanceTimeoutRef = useRef(null);
 
   const showSketchyAlert = useCallback((payload) => {
@@ -426,6 +638,8 @@ function SketchyDrawPage() {
       animationTimeMs: frameAnimationTimeMs,
       activeAnimatedElementIds: getAnimatedElementIds(elements),
       hiddenElementIds: new Set(currentTimelineFrame?.hiddenElementIds || []),
+      loopAnimation: frameAnimationPlaying,
+      loopPauseMs: 450,
     };
   }, [elements, frameAnimationPlaying, frameAnimationTimeMs, currentTimelineFrame]);
 
@@ -488,9 +702,10 @@ function SketchyDrawPage() {
     let rafId = null;
     const startedAt = performance.now();
     const durationMs = getFrameAnimationDurationMs(animationPlayerFrame);
+    const speed = Math.max(0.25, Number(animationPlayerSpeed) || 1);
 
     const tick = (now) => {
-      const elapsed = now - startedAt;
+      const elapsed = (now - startedAt) * speed;
 
       if (elapsed >= durationMs) {
         setAnimationPlayerTimeMs(durationMs);
@@ -505,7 +720,7 @@ function SketchyDrawPage() {
             setAnimationPlayerWaitingForNext(false);
             animationPlayerAdvanceTimeoutRef.current = window.setTimeout(() => {
               advanceAnimationPlayerFrame();
-            }, 650);
+            }, Math.max(120, 650 / speed));
           } else {
             setAnimationPlayerWaitingForNext(true);
           }
@@ -537,6 +752,7 @@ function SketchyDrawPage() {
     timelineFrames.length,
     frameAdvanceMode,
     advanceAnimationPlayerFrame,
+    animationPlayerSpeed,
   ]);
 
   useEffect(() => {
@@ -870,6 +1086,16 @@ function SketchyDrawPage() {
     setFrameAnimationPlaying((value) => !value);
   }, []);
 
+  const startCurrentFrameAnimationPreview = useCallback(() => {
+    setFrameAnimationPlaying(false);
+    setFrameAnimationTimeMs(0);
+    window.requestAnimationFrame(() => {
+      setFrameAnimationPlaying(true);
+    });
+  }, []);
+
+
+
   const openAnimationPlayer = useCallback((mode = "current") => {
     const startIndex = mode === "all" ? 0 : currentFrameIndex;
     const safeIndex = Math.max(0, Math.min(startIndex, timelineFrames.length - 1));
@@ -928,6 +1154,43 @@ function SketchyDrawPage() {
     description: "",
   });
 
+  const exportGif = useCallback(async () => {
+    if (gifExporting) return;
+
+    setGifExporting(true);
+    setGifExportProgress(0);
+
+    try {
+      await exportTimelineGif({
+        frames: timelineFrames,
+        canvasSize,
+        viewport,
+        canvasProps,
+        fileName: `${currentDrawingMeta.title || DEFAULT_TITLE}.gif`,
+        fps: 12,
+        onProgress: (progress) => setGifExportProgress(progress || 0),
+      });
+    } catch (error) {
+      console.error("GIF export failed", error);
+      showSketchyAlert({
+        icon: "⚠️",
+        title: "GIF export failed",
+        message: "GIF encoder could not load or export failed. Check internet/CDN access and try again.",
+      });
+    } finally {
+      setGifExporting(false);
+      setGifExportProgress(0);
+    }
+  }, [
+    gifExporting,
+    timelineFrames,
+    canvasSize,
+    viewport,
+    canvasProps,
+    currentDrawingMeta.title,
+    showSketchyAlert,
+  ]);
+
   const commitHistory = useCallback((nextElements) => {
     const snapshot = cloneElements(nextElements);
 
@@ -944,6 +1207,263 @@ function SketchyDrawPage() {
       return limited;
     });
   }, [historyIndex, maxHistoryLength]);
+
+  const insertEmojiObject = useCallback((emojiValue) => {
+    const emoji = String(emojiValue || "⭐").trim() || "⭐";
+    const center = getViewportCenterPoint(canvasSize, viewport);
+    const pageIndex = Number(canvasProps?.currentPageIndex) || 0;
+
+    const nextElement = {
+      id: makeObjectId("emoji"),
+      type: "text",
+      text: emoji,
+      x: center.x - 24,
+      y: center.y - 24,
+      w: 56,
+      h: 56,
+      fontSize: 42,
+      lineHeight: 56,
+      fontFamily: "Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif",
+      stroke: "#111827",
+      fill: "transparent",
+      textAlign: "left",
+      emojiObject: true,
+      pageIndex,
+      animation: {
+        type: "none",
+        durationMs: 1000,
+        delayMs: 0,
+      },
+    };
+
+    const next = [...elements, nextElement];
+    setElements(next);
+    setSelectedIds([nextElement.id]);
+    setTool("select");
+    commitHistory(next);
+    createTimelineFrameForNewObject(next);
+  }, [
+    canvasProps,
+    canvasSize,
+    viewport,
+    elements,
+    commitHistory,
+    createTimelineFrameForNewObject,
+  ]);
+
+  const insertRichTextObject = useCallback((richTextPayload = {}) => {
+    const center = getViewportCenterPoint(canvasSize, viewport);
+    const pageIndex = Number(canvasProps?.currentPageIndex) || 0;
+    const plainText = String(richTextPayload.plainText || "Rich text box");
+    const fontSize = Math.max(
+        8,
+        Math.min(96, Number(richTextPayload.fontSize) || 22)
+    );
+
+    const nextElement = {
+      id: makeObjectId("rich_text"),
+      type: "text",
+      x: center.x - 160,
+      y: center.y - 60,
+      w: 320,
+      h: 120,
+      html: richTextPayload.html || plainText,
+      plainText,
+      text: plainText,
+      fontSize,
+      lineHeight: Math.round(fontSize * 1.35),
+      fontFamily: richTextPayload.fontFamily || currentTextStyle.fontFamily || "Arial",
+      stroke: richTextPayload.stroke || stroke || "#111827",
+      fill: "transparent",
+      bold: !!richTextPayload.bold,
+      italic: !!richTextPayload.italic,
+      underline: !!richTextPayload.underline,
+      textAlign: "left",
+      richTextObject: true,
+      pageIndex,
+      animation: {
+        type: "none",
+        durationMs: 1000,
+        delayMs: 0,
+      },
+    };
+
+    const next = [...elements, nextElement];
+    setElements(next);
+    setSelectedIds([nextElement.id]);
+    setTool("select");
+    commitHistory(next);
+    createTimelineFrameForNewObject(next);
+  }, [
+    canvasProps,
+    canvasSize,
+    viewport,
+    elements,
+    stroke,
+    currentTextStyle,
+    commitHistory,
+    createTimelineFrameForNewObject,
+  ]);
+
+  const insertGifPrimitiveObject = useCallback((payload = {}) => {
+    const primitiveType = payload.type || "line";
+    const animationType = payload.animated ? payload.animationType || "draw" : "none";
+    const center = getViewportCenterPoint(canvasSize, viewport);
+    const pageIndex = Number(canvasProps?.currentPageIndex) || 0;
+    const baseStroke = stroke || "#111827";
+
+    let nextElement;
+
+    if (primitiveType === "rectangle" || primitiveType === "ellipse" || primitiveType === "circle") {
+      const isEllipse = primitiveType === "ellipse" || primitiveType === "circle";
+      const size = primitiveType === "circle" ? 110 : null;
+
+      nextElement = {
+        id: makeObjectId(isEllipse ? "gif_ellipse" : "gif_rect"),
+        type: isEllipse ? "ellipse" : "rect",
+        x: center.x - (size ? size / 2 : 80),
+        y: center.y - (size ? size / 2 : 45),
+        w: size || 160,
+        h: size || 90,
+        stroke: baseStroke,
+        fill: "transparent",
+        strokeWidth: 2,
+        strokeDash: "solid",
+        cornerRadius: isEllipse ? 0 : Number(canvasProps?.cornerRadius) || 0,
+        pageIndex,
+        gifPrimitive: true,
+        animation: createAnimationConfig(animationType),
+      };
+    } else {
+      const isArrow = primitiveType === "arrow";
+      const x1 = center.x - 100;
+      const y1 = center.y;
+      const x2 = center.x + 100;
+      const y2 = center.y;
+
+      nextElement = {
+        id: makeObjectId(isArrow ? "gif_arrow" : "gif_line"),
+        type: isArrow ? "arrow" : "line",
+        x1,
+        y1,
+        x2,
+        y2,
+        cx1: x1,
+        cy1: y1,
+        cx2: x2,
+        cy2: y2,
+        stroke: baseStroke,
+        fill: "transparent",
+        strokeWidth: 2,
+        strokeDash: "solid",
+        lineStyle: "straight",
+        arrowEnd: isArrow,
+        pageIndex,
+        gifPrimitive: true,
+        animation: createAnimationConfig(animationType),
+      };
+    }
+
+    const next = [...elements, nextElement];
+    setElements(next);
+    setSelectedIds([nextElement.id]);
+    setTool("select");
+    commitHistory(next);
+    createTimelineFrameForNewObject(next);
+
+    if (animationType !== "none") {
+      setFrameAnimationPlaying(false);
+      setFrameAnimationTimeMs(0);
+      window.requestAnimationFrame(() => {
+        setFrameAnimationPlaying(true);
+      });
+    }
+  }, [
+    canvasProps,
+    canvasSize,
+    viewport,
+    elements,
+    stroke,
+    commitHistory,
+    createTimelineFrameForNewObject,
+  ]);
+
+
+  const insertSystemDesignPrimitiveObject = useCallback((payload = {}) => {
+    const center = getViewportCenterPoint(canvasSize, viewport);
+    const pageIndex = Number(canvasProps?.currentPageIndex) || 0;
+    const createdElements = buildSystemDesignPrimitiveElements({
+      primitiveType: payload.type || "cache",
+      center,
+      pageIndex,
+      strokeColor: stroke || "#111827",
+      cornerRadius: Number(canvasProps?.cornerRadius) || 16,
+    });
+
+    if (!createdElements.length) {
+      return;
+    }
+
+    const next = [...elements, ...createdElements];
+    setElements(next);
+    setSelectedIds(createdElements.map((element) => element.id));
+    setTool("select");
+    commitHistory(next);
+    createTimelineFrameForNewObject(next);
+  }, [
+    canvasProps,
+    canvasSize,
+    viewport,
+    elements,
+    stroke,
+    commitHistory,
+    createTimelineFrameForNewObject,
+  ]);
+
+
+  const generateCodeIllustration = useCallback((payload = {}) => {
+    const center = getViewportCenterPoint(canvasSize, viewport);
+    const numbers = parseCodeIllustratorNumbers(payload.numbers);
+    const generatedFrames = buildCodeIllustrationFrames({
+      algorithm: payload.algorithm || "bubble",
+      problemType: payload.problemType || "auto",
+      code: payload.code || "",
+      numbers,
+      centerX: center.x,
+      title: payload.title || "Code Illustrator",
+    });
+
+    if (!generatedFrames.length) {
+      showSketchyAlert({
+        icon: "⚠️",
+        title: "Code Illustrator",
+        message: "No animation frames could be generated for this input.",
+      });
+      return;
+    }
+
+    const nextFrames = generatedFrames.map((generatedFrame, index) =>
+        createTimelineFrame(generatedFrame.elements, index, {
+          name: generatedFrame.name || `Step ${index + 1}`,
+        })
+    );
+
+    const firstElements = cloneElements(nextFrames[0]?.elements || []);
+
+    setTimelineFrames(nextFrames);
+    setCurrentFrameIndex(0);
+    setElements(firstElements);
+    setSelectedIds([]);
+    setTool("select");
+    setFrameAnimationPlaying(false);
+    setFrameAnimationTimeMs(0);
+    setFramesPanelOpen(true);
+    commitHistory(firstElements);
+
+    // Do not show a blocking modal here. It blurs the canvas and looks like a frozen screen
+    // while the user is trying to inspect generated frames. Frames panel opens automatically.
+  }, [canvasSize, viewport, commitHistory, showSketchyAlert]);
+
   const {
     canvasRef,
     jsonInputRef,
@@ -1247,6 +1767,23 @@ function SketchyDrawPage() {
               updateSelectedElementStyle={updateSelectedElementStyle}
               canvasProps={canvasProps}
               updateCanvasProps={updateCanvasProps}
+              frames={timelineFrames}
+              currentFrameIndex={currentFrameIndex}
+              animationPlaying={frameAnimationPlaying}
+              animationTimeMs={frameAnimationTimeMs}
+              advanceMode={frameAdvanceMode}
+              onAdvanceModeChange={setFrameAdvanceMode}
+              onOpenPlayer={openAnimationPlayer}
+              onAddFrameAfter={addTimelineFrameAfterCurrent}
+              onToggleFrameAnimation={toggleCurrentFrameAnimation}
+              onApplyFrameObjectOrderTiming={applyFrameObjectOrderTiming}
+              onMergeFrameWithNext={mergeCurrentFrameWithNext}
+              onMergeAllFrames={mergeAllTimelineFrames}
+              onInsertGifPrimitive={insertGifPrimitiveObject}
+              onInsertEmoji={insertEmojiObject}
+              onInsertRichText={insertRichTextObject}
+              onGenerateCodeIllustration={generateCodeIllustration}
+              onInsertSystemDesignPrimitive={insertSystemDesignPrimitiveObject}
           />
 
           <div className="work-area">
@@ -1286,6 +1823,9 @@ function SketchyDrawPage() {
                 timelineFrames={timelineFrames}
                 currentFrameIndex={currentFrameIndex}
                 openFramesPanel={() => setFramesPanelOpen(true)}
+                exportGIF={exportGif}
+                gifExporting={gifExporting}
+                gifExportProgress={gifExportProgress}
             />
 
             <CanvasBoard
@@ -1316,6 +1856,7 @@ function SketchyDrawPage() {
                 onCreateTimelineFrame={createTimelineFrameForNewObject}
                 onUpdateTimelineFrame={updateCurrentTimelineFrame}
                 onReplaceTimeline={replaceTimelineWithElements}
+                onStartAnimationPreview={startCurrentFrameAnimationPreview}
             />
 
             <FramesPanel
@@ -1353,6 +1894,8 @@ function SketchyDrawPage() {
                 playing={animationPlayerPlaying}
                 timeMs={animationPlayerTimeMs}
                 waitingForNext={animationPlayerWaitingForNext}
+                playbackSpeed={animationPlayerSpeed}
+                onPlaybackSpeedChange={setAnimationPlayerSpeed}
                 onClose={closeAnimationPlayer}
                 onRestart={restartAnimationPlayerFrame}
                 onNext={advanceAnimationPlayerFrame}
@@ -1363,19 +1906,20 @@ function SketchyDrawPage() {
           <RightToolTabs
               frames={timelineFrames}
               currentFrameIndex={currentFrameIndex}
+              canvasSize={canvasSize}
+              canvasViewport={viewport}
+              canvasProps={canvasProps}
+              renderOptions={animationRenderOptions}
               animationPlaying={frameAnimationPlaying}
               animationTimeMs={frameAnimationTimeMs}
-              advanceMode={frameAdvanceMode}
-              onAdvanceModeChange={setFrameAdvanceMode}
-              onOpenFramesPanel={() => setFramesPanelOpen(true)}
-              onOpenPlayer={openAnimationPlayer}
+              onSelectFrame={selectTimelineFrame}
               onAddFrameAfter={addTimelineFrameAfterCurrent}
-              onToggleFrameAnimation={toggleCurrentFrameAnimation}
+              onDeleteFrame={deleteTimelineFrame}
+              onToggleElementHidden={toggleFrameElementHidden}
+              onMoveFrameElementOrder={moveFrameElementOrder}
               onApplyFrameObjectOrderTiming={applyFrameObjectOrderTiming}
               onMergeFrameWithNext={mergeCurrentFrameWithNext}
               onMergeAllFrames={mergeAllTimelineFrames}
-              onInsertEmoji={insertEmojiObject}
-              onInsertRichText={insertRichTextObject}
           />
         </div>
       </div>

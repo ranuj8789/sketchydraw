@@ -1,3 +1,5 @@
+import { isSystemDesignType } from "../canvas/canvasConstants";
+
 export function getElementBounds(element) {
     if (!element) return null;
 
@@ -6,6 +8,8 @@ export function getElementBounds(element) {
         element.type === "rectangle" ||
         element.type === "ellipse" ||
         element.type === "diamond" ||
+        element.type === "user" ||
+        isSystemDesignType(element.type) ||
         element.type === "image"
     ) {
         const w = element.w || 0;

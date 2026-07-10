@@ -1,3 +1,5 @@
+import { isSystemDesignType } from "../canvas/canvasConstants";
+
 function resizeBox({
                        dragState,
                        dx,
@@ -55,6 +57,8 @@ export function resizeElement(element, dragState, point) {
         element.type === "rectangle" ||
         element.type === "ellipse" ||
         element.type === "diamond" ||
+        element.type === "user" ||
+        isSystemDesignType(element.type) ||
         element.type === "image"
     ) {
         const box = resizeBox({

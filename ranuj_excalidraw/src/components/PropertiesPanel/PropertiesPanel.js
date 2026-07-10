@@ -5,6 +5,7 @@ import {
     getLineHeightForFontSize,
 } from "../../canvas/textStyle";
 import "./PropertiesPanel.css";
+import { isSystemDesignType } from "../../canvas/canvasConstants";
 
 const LINE_WIDTHS = [1, 2, 3, 4, 6, 8];
 
@@ -212,7 +213,8 @@ export default function PropertiesPanel({
         selectedElement?.type === "rect" ||
         selectedElement?.type === "rectangle" ||
         selectedElement?.type === "ellipse" ||
-        selectedElement?.type === "diamond";
+        selectedElement?.type === "diamond" ||
+        isSystemDesignType(selectedElement?.type);
 
     const supportsCornerRadius =
         selectedElement?.type === "rect" ||

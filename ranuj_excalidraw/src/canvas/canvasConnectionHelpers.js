@@ -1,3 +1,4 @@
+import { isSystemDesignType } from "./canvasConstants";
 import { getElementBounds } from "../utils/elementBounds";
 
 export function isConnectorElement(element) {
@@ -17,6 +18,7 @@ export function getBindableShapes(elements, options = {}) {
                 el.type === "rectangle" ||
                 el.type === "ellipse" ||
                 el.type === "diamond" ||
+                isSystemDesignType(el.type) ||
                 el.type === "image" ||
                 el.type === "text"
             )

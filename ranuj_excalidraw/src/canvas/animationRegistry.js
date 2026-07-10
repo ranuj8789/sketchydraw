@@ -1,3 +1,5 @@
+import { SYSTEM_DESIGN_TYPES } from "./canvasConstants";
+
 export const DEFAULT_ANIMATION_DURATION_MS = 1000;
 
 export const ANIMATION_PRESETS = [
@@ -12,7 +14,7 @@ export const ANIMATION_PRESETS = [
         type: "draw",
         label: "Draw",
         description: "Object draws itself",
-        compatibleTypes: ["line", "arrow", "pencil", "rect", "rectangle", "ellipse", "diamond"],
+        compatibleTypes: ["line", "arrow", "pencil", "rect", "rectangle", "ellipse", "diamond", "user", ...SYSTEM_DESIGN_TYPES],
         durationMs: 1000,
     },
     {
@@ -27,7 +29,7 @@ export const ANIMATION_PRESETS = [
         type: "movingDashes",
         label: "Moving dashes",
         description: "Marching ants / flow line",
-        compatibleTypes: ["line", "arrow", "rect", "rectangle", "ellipse", "diamond"],
+        compatibleTypes: ["line", "arrow", "rect", "rectangle", "ellipse", "diamond", "user", ...SYSTEM_DESIGN_TYPES],
         durationMs: 1200,
         loop: true,
     },
@@ -51,7 +53,7 @@ export const ANIMATION_PRESETS = [
         type: "pulseRing",
         label: "Pulse ring",
         description: "Expanding ring around object",
-        compatibleTypes: ["rect", "rectangle", "ellipse", "diamond", "text", "image"],
+        compatibleTypes: ["rect", "rectangle", "ellipse", "diamond", "user", ...SYSTEM_DESIGN_TYPES, "text", "image"],
         durationMs: 1100,
         loop: true,
     },
@@ -59,7 +61,7 @@ export const ANIMATION_PRESETS = [
         type: "spotlight",
         label: "Spotlight",
         description: "Soft focus highlight behind object",
-        compatibleTypes: ["rect", "rectangle", "ellipse", "diamond", "text", "image"],
+        compatibleTypes: ["rect", "rectangle", "ellipse", "diamond", "user", ...SYSTEM_DESIGN_TYPES, "text", "image"],
         durationMs: 1200,
         loop: true,
     },
