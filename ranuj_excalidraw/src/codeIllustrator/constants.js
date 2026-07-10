@@ -1,0 +1,10 @@
+export const TOP_Y = 76;
+export const ARRAY_Y = 310;
+export const BOX_W = 70;
+export const BOX_H = 56;
+export const BOX_GAP = 12;
+export const CODE_X = 84;
+export const CODE_W = 350;
+export const PANEL_X_OFFSET = 470;
+export const MAX_ITEMS = 12;
+export const DEFAULT_NUMBERS = [5, -2, 3, 4, -1, 2];

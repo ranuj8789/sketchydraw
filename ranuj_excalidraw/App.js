@@ -24,9 +24,6 @@ import {
   DEFAULT_TITLE,
 } from "./components/DrawingGroupStore/drawingGroupStore";
 import { DEFAULT_TEXT_STYLE } from "./canvas/textStyle";
-import { createAnimationConfig } from "./canvas/animationRegistry";
-import { buildCodeIllustrationFrames, parseCodeIllustratorNumbers } from "./canvas/codeIllustrator";
-import { exportTimelineGif } from "./utils/exportGif";
 import {
   normalizeTextStyle,
   pickTextStylePatch,
@@ -210,6 +207,83 @@ function VerifyPage() {
         });
   }, []);
 
+  const insertEmojiObject = useCallback((emojiValue) => {
+    const emoji = String(emojiValue || "⭐").trim() || "⭐";
+    const center = getViewportCenterPoint(canvasSize, viewport);
+    const pageIndex = Number(canvasProps?.currentPageIndex) || 0;
+
+    const nextElement = {
+      id: makeObjectId("emoji"),
+      type: "text",
+      text: emoji,
+      x: center.x - 24,
+      y: center.y - 24,
+      w: 56,
+      h: 56,
+      fontSize: 42,
+      lineHeight: 56,
+      fontFamily: "Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif",
+      stroke: "#111827",
+      fill: "transparent",
+      textAlign: "left",
+      emojiObject: true,
+      pageIndex,
+      animation: {
+        type: "none",
+        durationMs: 1000,
+        delayMs: 0,
+      },
+    };
+
+    const next = [...elements, nextElement];
+    setElements(next);
+    setSelectedIds([nextElement.id]);
+    setTool("select");
+    commitHistory(next);
+    createTimelineFrameForNewObject(next);
+  }, [canvasProps, canvasSize, viewport, elements, commitHistory, createTimelineFrameForNewObject]);
+
+  const insertRichTextObject = useCallback((richTextPayload = {}) => {
+    const center = getViewportCenterPoint(canvasSize, viewport);
+    const pageIndex = Number(canvasProps?.currentPageIndex) || 0;
+    const plainText = String(richTextPayload.plainText || "Rich text box");
+    const fontSize = Math.max(8, Math.min(96, Number(richTextPayload.fontSize) || 22));
+
+    const nextElement = {
+      id: makeObjectId("rich_text"),
+      type: "text",
+      x: center.x - 160,
+      y: center.y - 60,
+      w: 320,
+      h: 120,
+      html: richTextPayload.html || plainText,
+      plainText,
+      text: plainText,
+      fontSize,
+      lineHeight: Math.round(fontSize * 1.35),
+      fontFamily: richTextPayload.fontFamily || currentTextStyle.fontFamily || "Arial",
+      stroke: richTextPayload.stroke || stroke || "#111827",
+      fill: "transparent",
+      bold: !!richTextPayload.bold,
+      italic: !!richTextPayload.italic,
+      underline: !!richTextPayload.underline,
+      textAlign: "left",
+      richTextObject: true,
+      pageIndex,
+      animation: {
+        type: "none",
+        durationMs: 1000,
+        delayMs: 0,
+      },
+    };
+
+    const next = [...elements, nextElement];
+    setElements(next);
+    setSelectedIds([nextElement.id]);
+    setTool("select");
+    commitHistory(next);
+    createTimelineFrameForNewObject(next);
+  }, [canvasProps, canvasSize, viewport, elements, stroke, currentTextStyle, commitHistory, createTimelineFrameForNewObject]);
 
 
   return (
@@ -298,8 +372,6 @@ function SketchyDrawPage() {
   const [historyIndex, setHistoryIndex] = useState(0);
   const [maxHistoryLength] = useState(getConfiguredMaxHistoryLength);
   const [sketchyAlert, setSketchyAlert] = useState(null);
-  const [gifExporting, setGifExporting] = useState(false);
-  const [gifExportProgress, setGifExportProgress] = useState(0);
 
   const [timelineFrames, setTimelineFrames] = useState(() => [
     createTimelineFrame([], 0),
@@ -316,7 +388,6 @@ function SketchyDrawPage() {
   const [animationPlayerPlaying, setAnimationPlayerPlaying] = useState(false);
   const [animationPlayerTimeMs, setAnimationPlayerTimeMs] = useState(0);
   const [animationPlayerWaitingForNext, setAnimationPlayerWaitingForNext] = useState(false);
-  const [animationPlayerSpeed, setAnimationPlayerSpeed] = useState(1);
   const animationPlayerAdvanceTimeoutRef = useRef(null);
 
   const showSketchyAlert = useCallback((payload) => {
@@ -355,8 +426,6 @@ function SketchyDrawPage() {
       animationTimeMs: frameAnimationTimeMs,
       activeAnimatedElementIds: getAnimatedElementIds(elements),
       hiddenElementIds: new Set(currentTimelineFrame?.hiddenElementIds || []),
-      loopAnimation: frameAnimationPlaying,
-      loopPauseMs: 450,
     };
   }, [elements, frameAnimationPlaying, frameAnimationTimeMs, currentTimelineFrame]);
 
@@ -419,10 +488,9 @@ function SketchyDrawPage() {
     let rafId = null;
     const startedAt = performance.now();
     const durationMs = getFrameAnimationDurationMs(animationPlayerFrame);
-    const speed = Math.max(0.25, Number(animationPlayerSpeed) || 1);
 
     const tick = (now) => {
-      const elapsed = (now - startedAt) * speed;
+      const elapsed = now - startedAt;
 
       if (elapsed >= durationMs) {
         setAnimationPlayerTimeMs(durationMs);
@@ -437,7 +505,7 @@ function SketchyDrawPage() {
             setAnimationPlayerWaitingForNext(false);
             animationPlayerAdvanceTimeoutRef.current = window.setTimeout(() => {
               advanceAnimationPlayerFrame();
-            }, Math.max(120, 650 / speed));
+            }, 650);
           } else {
             setAnimationPlayerWaitingForNext(true);
           }
@@ -469,7 +537,6 @@ function SketchyDrawPage() {
     timelineFrames.length,
     frameAdvanceMode,
     advanceAnimationPlayerFrame,
-    animationPlayerSpeed,
   ]);
 
   useEffect(() => {
@@ -803,16 +870,6 @@ function SketchyDrawPage() {
     setFrameAnimationPlaying((value) => !value);
   }, []);
 
-  const startCurrentFrameAnimationPreview = useCallback(() => {
-    setFrameAnimationPlaying(false);
-    setFrameAnimationTimeMs(0);
-    window.requestAnimationFrame(() => {
-      setFrameAnimationPlaying(true);
-    });
-  }, []);
-
-
-
   const openAnimationPlayer = useCallback((mode = "current") => {
     const startIndex = mode === "all" ? 0 : currentFrameIndex;
     const safeIndex = Math.max(0, Math.min(startIndex, timelineFrames.length - 1));
@@ -871,43 +928,6 @@ function SketchyDrawPage() {
     description: "",
   });
 
-  const exportGif = useCallback(async () => {
-    if (gifExporting) return;
-
-    setGifExporting(true);
-    setGifExportProgress(0);
-
-    try {
-      await exportTimelineGif({
-        frames: timelineFrames,
-        canvasSize,
-        viewport,
-        canvasProps,
-        fileName: `${currentDrawingMeta.title || DEFAULT_TITLE}.gif`,
-        fps: 12,
-        onProgress: (progress) => setGifExportProgress(progress || 0),
-      });
-    } catch (error) {
-      console.error("GIF export failed", error);
-      showSketchyAlert({
-        icon: "⚠️",
-        title: "GIF export failed",
-        message: "GIF encoder could not load or export failed. Check internet/CDN access and try again.",
-      });
-    } finally {
-      setGifExporting(false);
-      setGifExportProgress(0);
-    }
-  }, [
-    gifExporting,
-    timelineFrames,
-    canvasSize,
-    viewport,
-    canvasProps,
-    currentDrawingMeta.title,
-    showSketchyAlert,
-  ]);
-
   const commitHistory = useCallback((nextElements) => {
     const snapshot = cloneElements(nextElements);
 
@@ -924,231 +944,6 @@ function SketchyDrawPage() {
       return limited;
     });
   }, [historyIndex, maxHistoryLength]);
-
-  const insertEmojiObject = useCallback((emojiValue) => {
-    const emoji = String(emojiValue || "⭐").trim() || "⭐";
-    const center = getViewportCenterPoint(canvasSize, viewport);
-    const pageIndex = Number(canvasProps?.currentPageIndex) || 0;
-
-    const nextElement = {
-      id: makeObjectId("emoji"),
-      type: "text",
-      text: emoji,
-      x: center.x - 24,
-      y: center.y - 24,
-      w: 56,
-      h: 56,
-      fontSize: 42,
-      lineHeight: 56,
-      fontFamily: "Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif",
-      stroke: "#111827",
-      fill: "transparent",
-      textAlign: "left",
-      emojiObject: true,
-      pageIndex,
-      animation: {
-        type: "none",
-        durationMs: 1000,
-        delayMs: 0,
-      },
-    };
-
-    const next = [...elements, nextElement];
-    setElements(next);
-    setSelectedIds([nextElement.id]);
-    setTool("select");
-    commitHistory(next);
-    createTimelineFrameForNewObject(next);
-  }, [
-    canvasProps,
-    canvasSize,
-    viewport,
-    elements,
-    commitHistory,
-    createTimelineFrameForNewObject,
-  ]);
-
-  const insertRichTextObject = useCallback((richTextPayload = {}) => {
-    const center = getViewportCenterPoint(canvasSize, viewport);
-    const pageIndex = Number(canvasProps?.currentPageIndex) || 0;
-    const plainText = String(richTextPayload.plainText || "Rich text box");
-    const fontSize = Math.max(
-        8,
-        Math.min(96, Number(richTextPayload.fontSize) || 22)
-    );
-
-    const nextElement = {
-      id: makeObjectId("rich_text"),
-      type: "text",
-      x: center.x - 160,
-      y: center.y - 60,
-      w: 320,
-      h: 120,
-      html: richTextPayload.html || plainText,
-      plainText,
-      text: plainText,
-      fontSize,
-      lineHeight: Math.round(fontSize * 1.35),
-      fontFamily: richTextPayload.fontFamily || currentTextStyle.fontFamily || "Arial",
-      stroke: richTextPayload.stroke || stroke || "#111827",
-      fill: "transparent",
-      bold: !!richTextPayload.bold,
-      italic: !!richTextPayload.italic,
-      underline: !!richTextPayload.underline,
-      textAlign: "left",
-      richTextObject: true,
-      pageIndex,
-      animation: {
-        type: "none",
-        durationMs: 1000,
-        delayMs: 0,
-      },
-    };
-
-    const next = [...elements, nextElement];
-    setElements(next);
-    setSelectedIds([nextElement.id]);
-    setTool("select");
-    commitHistory(next);
-    createTimelineFrameForNewObject(next);
-  }, [
-    canvasProps,
-    canvasSize,
-    viewport,
-    elements,
-    stroke,
-    currentTextStyle,
-    commitHistory,
-    createTimelineFrameForNewObject,
-  ]);
-
-  const insertGifPrimitiveObject = useCallback((payload = {}) => {
-    const primitiveType = payload.type || "line";
-    const animationType = payload.animated ? payload.animationType || "draw" : "none";
-    const center = getViewportCenterPoint(canvasSize, viewport);
-    const pageIndex = Number(canvasProps?.currentPageIndex) || 0;
-    const baseStroke = stroke || "#111827";
-
-    let nextElement;
-
-    if (primitiveType === "rectangle" || primitiveType === "ellipse" || primitiveType === "circle") {
-      const isEllipse = primitiveType === "ellipse" || primitiveType === "circle";
-      const size = primitiveType === "circle" ? 110 : null;
-
-      nextElement = {
-        id: makeObjectId(isEllipse ? "gif_ellipse" : "gif_rect"),
-        type: isEllipse ? "ellipse" : "rect",
-        x: center.x - (size ? size / 2 : 80),
-        y: center.y - (size ? size / 2 : 45),
-        w: size || 160,
-        h: size || 90,
-        stroke: baseStroke,
-        fill: "transparent",
-        strokeWidth: 2,
-        strokeDash: "solid",
-        cornerRadius: isEllipse ? 0 : Number(canvasProps?.cornerRadius) || 0,
-        pageIndex,
-        gifPrimitive: true,
-        animation: createAnimationConfig(animationType),
-      };
-    } else {
-      const isArrow = primitiveType === "arrow";
-      const x1 = center.x - 100;
-      const y1 = center.y;
-      const x2 = center.x + 100;
-      const y2 = center.y;
-
-      nextElement = {
-        id: makeObjectId(isArrow ? "gif_arrow" : "gif_line"),
-        type: isArrow ? "arrow" : "line",
-        x1,
-        y1,
-        x2,
-        y2,
-        cx1: x1,
-        cy1: y1,
-        cx2: x2,
-        cy2: y2,
-        stroke: baseStroke,
-        fill: "transparent",
-        strokeWidth: 2,
-        strokeDash: "solid",
-        lineStyle: "straight",
-        arrowEnd: isArrow,
-        pageIndex,
-        gifPrimitive: true,
-        animation: createAnimationConfig(animationType),
-      };
-    }
-
-    const next = [...elements, nextElement];
-    setElements(next);
-    setSelectedIds([nextElement.id]);
-    setTool("select");
-    commitHistory(next);
-    createTimelineFrameForNewObject(next);
-
-    if (animationType !== "none") {
-      setFrameAnimationPlaying(false);
-      setFrameAnimationTimeMs(0);
-      window.requestAnimationFrame(() => {
-        setFrameAnimationPlaying(true);
-      });
-    }
-  }, [
-    canvasProps,
-    canvasSize,
-    viewport,
-    elements,
-    stroke,
-    commitHistory,
-    createTimelineFrameForNewObject,
-  ]);
-
-
-  const generateCodeIllustration = useCallback((payload = {}) => {
-    const center = getViewportCenterPoint(canvasSize, viewport);
-    const numbers = parseCodeIllustratorNumbers(payload.numbers);
-    const generatedFrames = buildCodeIllustrationFrames({
-      algorithm: payload.algorithm || "bubble",
-      problemType: payload.problemType || "auto",
-      code: payload.code || "",
-      numbers,
-      centerX: center.x,
-      title: payload.title || "Code Illustrator",
-    });
-
-    if (!generatedFrames.length) {
-      showSketchyAlert({
-        icon: "⚠️",
-        title: "Code Illustrator",
-        message: "No animation frames could be generated for this input.",
-      });
-      return;
-    }
-
-    const nextFrames = generatedFrames.map((generatedFrame, index) =>
-        createTimelineFrame(generatedFrame.elements, index, {
-          name: generatedFrame.name || `Step ${index + 1}`,
-        })
-    );
-
-    const firstElements = cloneElements(nextFrames[0]?.elements || []);
-
-    setTimelineFrames(nextFrames);
-    setCurrentFrameIndex(0);
-    setElements(firstElements);
-    setSelectedIds([]);
-    setTool("select");
-    setFrameAnimationPlaying(false);
-    setFrameAnimationTimeMs(0);
-    setFramesPanelOpen(true);
-    commitHistory(firstElements);
-
-    // Do not show a blocking modal here. It blurs the canvas and looks like a frozen screen
-    // while the user is trying to inspect generated frames. Frames panel opens automatically.
-  }, [canvasSize, viewport, commitHistory, showSketchyAlert]);
-
   const {
     canvasRef,
     jsonInputRef,
@@ -1452,22 +1247,6 @@ function SketchyDrawPage() {
               updateSelectedElementStyle={updateSelectedElementStyle}
               canvasProps={canvasProps}
               updateCanvasProps={updateCanvasProps}
-              frames={timelineFrames}
-              currentFrameIndex={currentFrameIndex}
-              animationPlaying={frameAnimationPlaying}
-              animationTimeMs={frameAnimationTimeMs}
-              advanceMode={frameAdvanceMode}
-              onAdvanceModeChange={setFrameAdvanceMode}
-              onOpenPlayer={openAnimationPlayer}
-              onAddFrameAfter={addTimelineFrameAfterCurrent}
-              onToggleFrameAnimation={toggleCurrentFrameAnimation}
-              onApplyFrameObjectOrderTiming={applyFrameObjectOrderTiming}
-              onMergeFrameWithNext={mergeCurrentFrameWithNext}
-              onMergeAllFrames={mergeAllTimelineFrames}
-              onInsertGifPrimitive={insertGifPrimitiveObject}
-              onInsertEmoji={insertEmojiObject}
-              onInsertRichText={insertRichTextObject}
-              onGenerateCodeIllustration={generateCodeIllustration}
           />
 
           <div className="work-area">
@@ -1507,9 +1286,6 @@ function SketchyDrawPage() {
                 timelineFrames={timelineFrames}
                 currentFrameIndex={currentFrameIndex}
                 openFramesPanel={() => setFramesPanelOpen(true)}
-                exportGIF={exportGif}
-                gifExporting={gifExporting}
-                gifExportProgress={gifExportProgress}
             />
 
             <CanvasBoard
@@ -1540,7 +1316,6 @@ function SketchyDrawPage() {
                 onCreateTimelineFrame={createTimelineFrameForNewObject}
                 onUpdateTimelineFrame={updateCurrentTimelineFrame}
                 onReplaceTimeline={replaceTimelineWithElements}
-                onStartAnimationPreview={startCurrentFrameAnimationPreview}
             />
 
             <FramesPanel
@@ -1578,8 +1353,6 @@ function SketchyDrawPage() {
                 playing={animationPlayerPlaying}
                 timeMs={animationPlayerTimeMs}
                 waitingForNext={animationPlayerWaitingForNext}
-                playbackSpeed={animationPlayerSpeed}
-                onPlaybackSpeedChange={setAnimationPlayerSpeed}
                 onClose={closeAnimationPlayer}
                 onRestart={restartAnimationPlayerFrame}
                 onNext={advanceAnimationPlayerFrame}
@@ -1590,20 +1363,19 @@ function SketchyDrawPage() {
           <RightToolTabs
               frames={timelineFrames}
               currentFrameIndex={currentFrameIndex}
-              canvasSize={canvasSize}
-              canvasViewport={viewport}
-              canvasProps={canvasProps}
-              renderOptions={animationRenderOptions}
               animationPlaying={frameAnimationPlaying}
               animationTimeMs={frameAnimationTimeMs}
-              onSelectFrame={selectTimelineFrame}
+              advanceMode={frameAdvanceMode}
+              onAdvanceModeChange={setFrameAdvanceMode}
+              onOpenFramesPanel={() => setFramesPanelOpen(true)}
+              onOpenPlayer={openAnimationPlayer}
               onAddFrameAfter={addTimelineFrameAfterCurrent}
-              onDeleteFrame={deleteTimelineFrame}
-              onToggleElementHidden={toggleFrameElementHidden}
-              onMoveFrameElementOrder={moveFrameElementOrder}
+              onToggleFrameAnimation={toggleCurrentFrameAnimation}
               onApplyFrameObjectOrderTiming={applyFrameObjectOrderTiming}
               onMergeFrameWithNext={mergeCurrentFrameWithNext}
               onMergeAllFrames={mergeAllTimelineFrames}
+              onInsertEmoji={insertEmojiObject}
+              onInsertRichText={insertRichTextObject}
           />
         </div>
       </div>

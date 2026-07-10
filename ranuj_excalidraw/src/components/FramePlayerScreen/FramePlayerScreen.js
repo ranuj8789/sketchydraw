@@ -18,24 +18,26 @@ function getScaledDesktopViewport(canvasViewport = {}, scale = 1, padX = 0, padY
 }
 
 export default function FramePlayerScreen({
-    open,
-    frame,
-    frameIndex = 0,
-    totalFrames = 1,
-    mode = "current",
-    advanceMode = "enter",
-    canvasSize,
-    canvasViewport,
-    canvasProps,
-    renderOptions = {},
-    playing,
-    timeMs = 0,
-    waitingForNext,
-    onClose,
-    onRestart,
-    onNext,
-    onAdvanceModeChange,
-}) {
+                                              open,
+                                              frame,
+                                              frameIndex = 0,
+                                              totalFrames = 1,
+                                              mode = "current",
+                                              advanceMode = "enter",
+                                              canvasSize,
+                                              canvasViewport,
+                                              canvasProps,
+                                              renderOptions = {},
+                                              playing,
+                                              timeMs = 0,
+                                              waitingForNext,
+                                              playbackSpeed = 1,
+                                              onPlaybackSpeedChange,
+                                              onClose,
+                                              onRestart,
+                                              onNext,
+                                              onAdvanceModeChange,
+                                          }) {
     const canvasRef = useRef(null);
     const [screenSize, setScreenSize] = useState({
         width: typeof window !== "undefined" ? window.innerWidth : 1200,
@@ -133,6 +135,21 @@ export default function FramePlayerScreen({
                         >
                             <option value="enter">Enter key</option>
                             <option value="auto">Auto</option>
+                        </select>
+                    </label>
+
+                    <label>
+                        Speed
+                        <select
+                            value={playbackSpeed}
+                            onChange={(event) => onPlaybackSpeedChange?.(Number(event.target.value) || 1)}
+                        >
+                            <option value={0.5}>0.5x slow</option>
+                            <option value={0.75}>0.75x</option>
+                            <option value={1}>1x normal</option>
+                            <option value={1.25}>1.25x</option>
+                            <option value={1.5}>1.5x</option>
+                            <option value={2}>2x fast</option>
                         </select>
                     </label>
 
