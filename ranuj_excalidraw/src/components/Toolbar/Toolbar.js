@@ -379,6 +379,8 @@ export default function Toolbar({
             pattern: "notebook",
             pageMode: true,
             pageCount: nextPageCount,
+            pageViewMode: "single",
+            currentPageIndex: nextPageCount - 1,
         });
 
         setShowGrid?.(false);
@@ -393,16 +395,39 @@ export default function Toolbar({
     };
 
     const removeNotebookPage = () => {
+        const currentPageCount = Number(
+            canvasProps?.pageCount || DEFAULT_NOTEBOOK_PAGE_COUNT
+        );
+        const nextPageCount = Math.max(
+            DEFAULT_NOTEBOOK_PAGE_COUNT,
+            currentPageCount - 1
+        );
+        const currentPageIndex = Math.max(
+            0,
+            Math.min(
+                nextPageCount - 1,
+                Number(canvasProps?.currentPageIndex || 0)
+            )
+        );
+
         updateCanvasProps?.({
             pattern: "notebook",
             pageMode: true,
-            pageCount: Math.max(
-                DEFAULT_NOTEBOOK_PAGE_COUNT,
-                Number(canvasProps?.pageCount || DEFAULT_NOTEBOOK_PAGE_COUNT) - 1
-            ),
+            pageCount: nextPageCount,
+            currentPageIndex,
         });
 
         setShowGrid?.(false);
+
+        window.dispatchEvent(
+            new CustomEvent("sketchydraw:notebook-page-focus", {
+                detail: {
+                    pageIndex: currentPageIndex,
+                    direction: "prev",
+                    zoom: 1,
+                },
+            })
+        );
     };
 
     const activePattern = canvasProps?.pattern || (showGrid ? "grid" : "blank");
@@ -608,8 +633,8 @@ export default function Toolbar({
 
                                 <button type="button" onClick={() => runExport(exportGIF)} disabled={gifExporting}>
                                     🎞️ {gifExporting
-                                        ? `Exporting GIF ${Math.round((gifExportProgress || 0) * 100)}%`
-                                        : "Export as GIF"}
+                                    ? `Exporting GIF ${Math.round((gifExportProgress || 0) * 100)}%`
+                                    : "Export as GIF"}
                                 </button>
 
                                 <div className="export-video-box">

@@ -32,12 +32,15 @@ function normalizeGroupName(groupName) {
 
 function normalizeCanvasProps(canvasProps = {}) {
     return {
+        ...(canvasProps || {}),
         backgroundColor: canvasProps.backgroundColor || "#ffffff",
         pattern: canvasProps.pattern || "blank",
         cornerRadius: canvasProps.cornerRadius ?? 16,
 
         pageMode: canvasProps.pageMode !== false,
-        pageCount: canvasProps.pageCount || 1,
+        pageCount: Math.max(1, Number(canvasProps.pageCount) || 1),
+        currentPageIndex: Math.max(0, Number(canvasProps.currentPageIndex) || 0),
+        pageViewMode: canvasProps.pageViewMode || "single",
     };
 }
 

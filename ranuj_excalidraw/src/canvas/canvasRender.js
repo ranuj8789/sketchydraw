@@ -5,9 +5,16 @@ import { drawNotebookPages } from "./notebook/notebookRenderer";
 
 function normalizeCanvasProps(canvasProps = {}) {
     return {
+        ...(canvasProps || {}),
         backgroundColor: canvasProps.backgroundColor || "#ffffff",
         pattern: canvasProps.pattern || "blank",
         cornerRadius: canvasProps.cornerRadius ?? 16,
+
+        // Keep notebook navigation state available to notebookRenderer.
+        pageMode: canvasProps.pageMode !== false,
+        pageCount: Math.max(1, Number(canvasProps.pageCount) || 1),
+        currentPageIndex: Math.max(0, Number(canvasProps.currentPageIndex) || 0),
+        pageViewMode: canvasProps.pageViewMode || "single",
     };
 }
 

@@ -67,10 +67,11 @@ import {
 import {screenToWorld} from "../../canvas/canvasViewport";
 import {
     NOTEBOOK_LINE_GAP,
-    NOTEBOOK_PAGE_GAP,
-    NOTEBOOK_PAGE_HEIGHT,
-    NOTEBOOK_PAGE_WIDTH,
 } from "../../canvas/notebook/notebookPageConstants";
+import {
+    getNotebookPageRect,
+    getNotebookPageSize,
+} from "../../canvas/notebook/notebookPages";
 import {
     getNotebookTextAlignedTopY,
     getNotebookTextStyle,
@@ -643,28 +644,41 @@ export default function CanvasBoard({
             : selectedIds;
 
     useEffect(() => {
-        const handleNotebookPageAdded = (event) => {
-            const pageIndex = Math.max(0, Number(event.detail?.pageIndex || 0));
-            const pageTop = pageIndex * (NOTEBOOK_PAGE_HEIGHT + NOTEBOOK_PAGE_GAP);
+        const focusNotebookPageInViewport = (event) => {
+            const pageIndex = Math.max(0, Number(event?.detail?.pageIndex || 0));
+            const requestedZoom = Number(event?.detail?.zoom);
+            const zoom = Number.isFinite(requestedZoom) && requestedZoom > 0
+                ? requestedZoom
+                : 1;
+            const pageRect = getNotebookPageRect(pageIndex, canvasPropsRef.current || {});
             const canvasWidth = canvasSizeRef.current?.width || 1200;
 
             setViewport({
-                zoom: 1,
-                offsetX: Math.max(30, (canvasWidth - NOTEBOOK_PAGE_WIDTH) / 2),
-                offsetY: 40 - pageTop,
+                zoom,
+                offsetX: Math.max(30, (canvasWidth - pageRect.w * zoom) / 2),
+                offsetY: 40 - pageRect.y * zoom,
             });
         };
 
-        window.addEventListener(
-            "sketchydraw:notebook-page-added",
-            handleNotebookPageAdded
-        );
+        const centerNotebookDocument = () => {
+            const pageSize = getNotebookPageSize(canvasPropsRef.current || {});
+            const canvasWidth = canvasSizeRef.current?.width || 1200;
+
+            setViewport((prev) => ({
+                ...prev,
+                offsetX: Math.max(30, (canvasWidth - pageSize.width * prev.zoom) / 2),
+                offsetY: 40,
+            }));
+        };
+
+        window.addEventListener("sketchydraw:notebook-page-added", focusNotebookPageInViewport);
+        window.addEventListener("sketchydraw:notebook-page-focus", focusNotebookPageInViewport);
+        window.addEventListener("sketchydraw:notebook-center", centerNotebookDocument);
 
         return () => {
-            window.removeEventListener(
-                "sketchydraw:notebook-page-added",
-                handleNotebookPageAdded
-            );
+            window.removeEventListener("sketchydraw:notebook-page-added", focusNotebookPageInViewport);
+            window.removeEventListener("sketchydraw:notebook-page-focus", focusNotebookPageInViewport);
+            window.removeEventListener("sketchydraw:notebook-center", centerNotebookDocument);
         };
     }, [setViewport]);
 
@@ -2934,6 +2948,7 @@ export default function CanvasBoard({
                 canvasSize={canvasSize}
                 showGrid={showGrid}
                 canvasProps={canvasProps}
+                setCanvasProps={setCanvasProps}
             />
 
             <SaveDrawingPopup
