@@ -747,7 +747,13 @@ export default function PropertiesPanel({
                     )}
 
                     <div className="property-section animation-property-section">
-                        <label>Object animation</label>
+                        <div className="animation-section-heading">
+                            <div>
+                                <label>Object animation</label>
+                                <small>Control exactly when this object enters the frame.</small>
+                            </div>
+                            <strong>{(animation.delayMs / 1000).toFixed(2)}s → {((animation.delayMs + animation.durationMs) / 1000).toFixed(2)}s</strong>
+                        </div>
 
                         <select
                             value={animation.type}
@@ -811,8 +817,46 @@ export default function PropertiesPanel({
                             </label>
                         </div>
 
+                        <div className="animation-settings-grid animation-exact-timing-grid">
+                            <label>
+                                <span>Exact duration (ms)</span>
+                                <input
+                                    type="number"
+                                    min="50"
+                                    step="50"
+                                    value={animation.durationMs}
+                                    onChange={(event) => {
+                                        const durationMs = Math.max(50, Number(event.target.value) || 50);
+                                        updateSelectedElementStyle?.({
+                                            animation: { ...animation, durationMs },
+                                        });
+                                    }}
+                                />
+                            </label>
+
+                            <label>
+                                <span>Exact delay (ms)</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="50"
+                                    value={animation.delayMs}
+                                    onChange={(event) => {
+                                        const delayMs = Math.max(0, Number(event.target.value) || 0);
+                                        updateSelectedElementStyle?.({
+                                            animation: { ...animation, delayMs },
+                                        });
+                                    }}
+                                />
+                            </label>
+                        </div>
+
+                        <div className="animation-timing-preview">
+                            <span style={{ width: `${Math.min(65, animation.delayMs / 80)}%` }} />
+                            <b style={{ width: `${Math.max(8, Math.min(80, animation.durationMs / 40))}%` }} />
+                        </div>
                         <p className="animation-helper-text">
-                            Play from Frames. This updates the selected frame, not undo history frames.
+                            Delay is the start time. Duration is how long the entrance takes. The end time above is used unchanged in preview and export.
                         </p>
                     </div>
 

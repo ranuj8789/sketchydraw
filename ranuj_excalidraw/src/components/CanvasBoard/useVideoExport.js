@@ -9,6 +9,8 @@ export function useVideoExport({ history, elements, timelineFrames, canvasSize, 
     const [videoExportStatus, setVideoExportStatus] = useState("");
 
     const videoExportingRef = useRef(false);
+    const lastProgressUpdateRef = useRef(0);
+    const latestStatusRef = useRef("");
 
     const downloadUndoRedoVideo = useCallback(async (options = {}) => {
         if (videoExportingRef.current) {
@@ -38,6 +40,8 @@ export function useVideoExport({ history, elements, timelineFrames, canvasSize, 
         setVideoExportProgress(0);
         const preparingMessage = `Preparing ${rangeLabel} (${exportTimelineFrames.length} frames)...`;
         setVideoExportStatus(preparingMessage);
+        latestStatusRef.current = preparingMessage;
+        lastProgressUpdateRef.current = 0;
         window.dispatchEvent(new CustomEvent("sketchydraw:video-export-state", {
             detail: { exporting: true, progress: 0, status: preparingMessage },
         }));
@@ -50,16 +54,22 @@ export function useVideoExport({ history, elements, timelineFrames, canvasSize, 
                 canvasSize,
                 canvasProps,
                 gapSeconds,
+                preAnimationDelaySeconds: options.preAnimationDelaySeconds,
                 mode: options.mode || "server",
                 fileName: options.fileName || `sketchydraw-frames-${frameFrom}-${frameTo}.${options.mode === "browser" ? "webm" : "mp4"}`,
                 onProgress: (progress) => {
-                    setVideoExportProgress(progress);
+                    const normalized = Math.max(0, Math.min(100, Math.round(Number(progress) || 0)));
+                    const now = performance.now();
+                    if (normalized < 100 && now - lastProgressUpdateRef.current < 250) return;
+                    lastProgressUpdateRef.current = now;
+                    setVideoExportProgress(normalized);
                     window.dispatchEvent(new CustomEvent("sketchydraw:video-export-state", {
-                        detail: { exporting: true, progress, status: videoExportStatus },
+                        detail: { exporting: true, progress: normalized, status: latestStatusRef.current },
                     }));
                 },
                 onStatus: (status) => {
                     const message = status?.message || status?.phase || "Exporting video...";
+                    latestStatusRef.current = message;
                     setVideoExportStatus(message);
                     window.dispatchEvent(new CustomEvent("sketchydraw:video-export-state", {
                         detail: { exporting: true, progress: status?.progress || 0, status: message },

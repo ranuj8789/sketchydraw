@@ -122,6 +122,30 @@ public class VideoExportService {
             state.updatedAt = Instant.now();
             log.info("[video-export:{}] FFmpeg conversion started. segments={}", exportId, inputs.size());
 
+            // The frontend now uploads one continuous recording. Convert it directly to final.mp4
+            // so there is no MP4 segment concatenation and therefore no boundary freeze.
+            if (inputs.size() == 1) {
+                state.message = "Converting continuous recording to MP4";
+                state.progress = 85;
+                state.updatedAt = Instant.now();
+                Path finalFile = dir.resolve("final.mp4");
+                run(exportId, "convert-continuous", List.of(
+                        ffmpegBinary, "-y", "-i", inputs.get(0).toString(),
+                        "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+                        "-profile:v", "high", "-pix_fmt", "yuv420p",
+                        "-movflags", "+faststart", finalFile.toString()
+                ), dir);
+
+                state.phase = "READY";
+                state.progress = 100;
+                state.message = "MP4 is ready for download";
+                state.updatedAt = Instant.now();
+                long bytes = Files.size(finalFile);
+                log.info("[video-export:{}] Continuous export completed successfully in {} ms. outputBytes={}, output={}",
+                        exportId, Duration.between(started, Instant.now()).toMillis(), bytes, finalFile);
+                return finalFile;
+            }
+
             Path convertedDir = dir.resolve("converted");
             Files.createDirectories(convertedDir);
             for (int i = 0; i < inputs.size(); i++) {
@@ -136,8 +160,9 @@ public class VideoExportService {
 
                 run(exportId, "convert-" + number, List.of(
                         ffmpegBinary, "-y", "-i", inputs.get(i).toString(),
-                        "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
-                        "-pix_fmt", "yuv420p", "-movflags", "+faststart", output.toString()
+                        "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+                        "-profile:v", "high", "-pix_fmt", "yuv420p",
+                        "-movflags", "+faststart", output.toString()
                 ), dir);
             }
 

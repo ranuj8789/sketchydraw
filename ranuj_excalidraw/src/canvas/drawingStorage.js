@@ -20,6 +20,8 @@ export function createDrawingJson({
                                       canvasSize = { width: 1200, height: 700 },
                                       canvasProps = DEFAULT_CANVAS_PROPS,
                                       name = "Untitled Drawing",
+                                      frames = [],
+                                      activeFrameIndex = 0,
                                   }) {
     const now = new Date().toISOString();
     const finalCanvasProps = normalizeCanvasProps(canvasProps);
@@ -42,6 +44,18 @@ export function createDrawingJson({
             offsetY: viewport.offsetY,
         },
         elements: elements.map(normalizeElementForSave),
+        frames: (Array.isArray(frames) ? frames : []).map((frame, index) => ({
+            id: frame?.id || `frame_${index + 1}`,
+            name: frame?.name || `Frame ${index + 1}`,
+            durationMs: Math.max(1000, Number(frame?.durationMs) || 10000),
+            hiddenElementIds: Array.isArray(frame?.hiddenElementIds)
+                ? [...frame.hiddenElementIds]
+                : [],
+            elements: (Array.isArray(frame?.elements) ? frame.elements : [])
+                .map(normalizeElementForSave),
+        })),
+        activeFrameIndex: Math.max(0, Number(activeFrameIndex) || 0),
+        currentFrameIndex: Math.max(0, Number(activeFrameIndex) || 0),
     };
 }
 
@@ -53,6 +67,11 @@ export function normalizeElementForSave(element) {
         fill: element.fill || "transparent",
         strokeWidth: element.strokeWidth || 2,
         strokeDash: element.strokeDash || "solid",
+        opacity: element.opacity ?? 1,
+        codeIllustrator: !!element.codeIllustrator,
+        animation: element.animation
+            ? { ...element.animation }
+            : undefined,
     };
 
     if (
@@ -134,8 +153,12 @@ export function validateDrawingJson(json) {
 
     const actualDrawing = json.data || json;
 
-    if (!Array.isArray(actualDrawing.elements)) {
-        throw new Error("Drawing JSON must contain elements array");
+    const hasElements = Array.isArray(actualDrawing.elements);
+    const hasFrames = Array.isArray(actualDrawing.frames) ||
+        Array.isArray(actualDrawing.timelineFrames);
+
+    if (!hasElements && !hasFrames) {
+        throw new Error("Drawing JSON must contain elements or frames");
     }
 
     return true;
@@ -147,7 +170,9 @@ export function loadDrawingJson(json) {
     const actualDrawing = json.data || json;
 
     return {
-        elements: actualDrawing.elements || [],
+        elements: Array.isArray(actualDrawing.elements)
+            ? actualDrawing.elements
+            : (actualDrawing.frames?.[0]?.elements || actualDrawing.timelineFrames?.[0]?.elements || []),
         viewport: actualDrawing.viewport || { zoom: 1, offsetX: 0, offsetY: 0 },
         canvasSize: {
             width: actualDrawing.canvas?.width || 1200,
@@ -162,6 +187,15 @@ export function loadDrawingJson(json) {
             json.title ||
             json.name ||
             "Untitled Drawing",
+        frames: Array.isArray(actualDrawing.frames)
+            ? actualDrawing.frames
+            : Array.isArray(actualDrawing.timelineFrames)
+                ? actualDrawing.timelineFrames
+                : [],
+        activeFrameIndex:
+            actualDrawing.activeFrameIndex ??
+            actualDrawing.currentFrameIndex ??
+            0,
     };
 }
 

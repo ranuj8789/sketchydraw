@@ -14,6 +14,7 @@ import {DEFAULT_TEXT_STYLE} from "../../canvas/textStyle";
 import {
     getElementBounds,
     getResizeHandleAtPoint,
+    getRectangleBorderResizeHandleAtPoint,
 } from "../../utils/elementBounds";
 import {resizeElement} from "../../utils/resize";
 import {
@@ -692,6 +693,7 @@ export default function CanvasBoard({
         const handleVideoExport = (event) => {
             downloadUndoRedoVideo({
                 gapSeconds: event.detail?.gapSeconds,
+                preAnimationDelaySeconds: event.detail?.preAnimationDelaySeconds,
                 timelineFrames: event.detail?.timelineFrames,
                 mode: event.detail?.mode || "server",
                 frameFrom: event.detail?.frameFrom,
@@ -1710,15 +1712,15 @@ export default function CanvasBoard({
         if (!target) return "default";
 
         const isAlreadySelected = currentSelectedIds.includes(target.id);
+        const zoom = viewportRef.current?.zoom || 1;
 
-        // Resize cursors are shown only for an already-selected object and only
-        // when the pointer is directly over one of its visible resize handles.
+        // Visible handles always resize an already-selected object.
         if (isAlreadySelected && currentSelectedIds.length === 1) {
             const handle = getResizeHandleAtPoint(
                 target,
                 point.x,
                 point.y,
-                viewportRef.current?.zoom || 1
+                zoom
             );
 
             if (handle && target.type !== "pencil") {
@@ -1726,15 +1728,19 @@ export default function CanvasBoard({
             }
         }
 
-        // Selected rectangle/container ke andar empty area:
-        // yahan marquee/multi-select start hoga, move cursor nahi.
-        if (
-            isAlreadySelected &&
-            isRectangleElement(target) &&
-            isContainerRectangle(target, currentElements) &&
-            hit?.kind === "fill"
-        ) {
-            return "crosshair";
+        // Only a real rectangle border acts as a resize area. The large fill
+        // area inside the rectangle never shows a resize cursor.
+        if (isRectangleElement(target)) {
+            const borderHandle = getRectangleBorderResizeHandleAtPoint(
+                target,
+                point.x,
+                point.y,
+                zoom
+            );
+
+            if (borderHandle) {
+                return getCursorForHandle(borderHandle);
+            }
         }
 
         if (target.type === "line" || target.type === "arrow") {
@@ -1805,45 +1811,39 @@ export default function CanvasBoard({
         }
 
         const isAlreadySelected = currentSelectedIds.includes(target.id);
+        const zoom = viewportRef.current?.zoom || 1;
 
-        // Clicking an unselected object always selects/moves it.
-        // Resize is deliberately available only after selection, through the
-        // visible resize handles handled above.
+        // A rectangle can resize directly only from its real visible border.
+        // Clicking anywhere else inside it never starts resize.
+        if (isRectangleElement(target)) {
+            const borderHandle = getRectangleBorderResizeHandleAtPoint(
+                target,
+                point.x,
+                point.y,
+                zoom
+            );
 
-        /**
-         * Important behavior:
-         *
-         * 1. Selected rectangle/container + inside empty fill drag
-         *    => marquee/multi-select.
-         *
-         * 2. Selected rectangle border/edge drag
-         *    => resize handled above.
-         *
-         * 3. Selected normal rectangle body drag
-         *    => move.
-         *
-         * 4. Child object inside rectangle
-         *    => child wins because findTopElementHitAtPoint picks smaller/top object.
-         */
-        if (
-            isAlreadySelected &&
-            isRectangleElement(target) &&
-            isContainerRectangle(target, currentElements) &&
-            hit?.kind === "fill"
-        ) {
-            startMarqueeSelection(point);
+            if (borderHandle) {
+                const nextSelectedIds = [target.id];
+                selectedIdsRef.current = nextSelectedIds;
+                setSelectedIds(nextSelectedIds);
+                startResize(target, borderHandle, point);
+                return;
+            }
+        }
+
+        // First click on any unselected object only selects it. It does not
+        // immediately move, which prevents accidental dragging of large boxes.
+        if (!isAlreadySelected) {
+            const nextSelectedIds = [target.id];
+            selectedIdsRef.current = nextSelectedIds;
+            setSelectedIds(nextSelectedIds);
             return;
         }
 
-        if (isAlreadySelected) {
-            startMove(target, point, currentSelectedIds);
-            return;
-        }
-
-        const nextSelectedIds = [target.id];
-        selectedIdsRef.current = nextSelectedIds;
-        setSelectedIds(nextSelectedIds);
-        startMove(target, point, nextSelectedIds);
+        // Once selected, dragging the object's actual body moves it. A smaller
+        // object inside a rectangle wins hit-testing, so it moves independently.
+        startMove(target, point, currentSelectedIds);
     };
 
     const handleDrawModeMouseDown = (point) => {

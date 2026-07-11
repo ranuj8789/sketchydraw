@@ -23,23 +23,27 @@ function getCurrentFrame(frames, currentFrameIndex) {
 }
 
 export default function GifToolbar({
-    frames = [],
-    currentFrameIndex = 0,
-    animationPlaying = false,
-    animationTimeMs = 0,
-    advanceMode = "enter",
-    onAdvanceModeChange,
-    onOpenFramesPanel,
-    onOpenPlayer,
-    onAddFrameAfter,
-    onToggleFrameAnimation,
-    onApplyFrameObjectOrderTiming,
-    onMergeFrameWithNext,
-    onMergeAllFrames,
-}) {
+                                       frames = [],
+                                       currentFrameIndex = 0,
+                                       animationPlaying = false,
+                                       animationTimeMs = 0,
+                                       advanceMode = "enter",
+                                       onAdvanceModeChange,
+                                       onOpenFramesPanel,
+                                       onOpenPlayer,
+                                       onAddFrameAfter,
+                                       onToggleFrameAnimation,
+                                       onApplyFrameObjectOrderTiming,
+                                       onMergeFrameWithNext,
+                                       onMergeAllFrames,
+                                   }) {
     const [collapsed, setCollapsed] = useState(false);
     const [fps, setFps] = useState(12);
+    const [timingMode, setTimingMode] = useState("sequence");
+    const [startDelayMs, setStartDelayMs] = useState(200);
     const [orderDelayStep, setOrderDelayStep] = useState(500);
+    const [gapMs, setGapMs] = useState(120);
+    const [overlapMs, setOverlapMs] = useState(250);
 
     const currentFrame = useMemo(
         () => getCurrentFrame(frames, currentFrameIndex),
@@ -54,7 +58,11 @@ export default function GifToolbar({
 
     const handleApplyOrderTiming = () => {
         onApplyFrameObjectOrderTiming?.(currentFrameIndex, {
+            mode: timingMode,
+            startDelayMs: Number(startDelayMs) || 0,
             delayStepMs: Number(orderDelayStep) || 500,
+            gapMs: Number(gapMs) || 0,
+            overlapMs: Number(overlapMs) || 0,
         });
     };
 
@@ -142,18 +150,42 @@ export default function GifToolbar({
                         </label>
 
                         <label>
-                            Order delay
-                            <select
-                                value={orderDelayStep}
-                                onChange={(event) => setOrderDelayStep(Number(event.target.value) || 500)}
-                            >
-                                {ORDER_DELAY_STEP_OPTIONS.map((value) => (
-                                    <option value={value} key={value}>
-                                        {value}ms
-                                    </option>
-                                ))}
+                            Timing style
+                            <select value={timingMode} onChange={(event) => setTimingMode(event.target.value)}>
+                                <option value="sequence">Natural sequence</option>
+                                <option value="stagger">Fixed stagger</option>
                             </select>
                         </label>
+
+                        <label>
+                            Start after
+                            <input type="number" min="0" step="50" value={startDelayMs}
+                                   onChange={(event) => setStartDelayMs(Number(event.target.value) || 0)} />
+                        </label>
+
+                        {timingMode === "stagger" ? (
+                            <label>
+                                Stagger
+                                <select value={orderDelayStep} onChange={(event) => setOrderDelayStep(Number(event.target.value) || 500)}>
+                                    {ORDER_DELAY_STEP_OPTIONS.map((value) => (
+                                        <option value={value} key={value}>{value}ms</option>
+                                    ))}
+                                </select>
+                            </label>
+                        ) : (
+                            <>
+                                <label>
+                                    Gap
+                                    <input type="number" min="0" step="50" value={gapMs}
+                                           onChange={(event) => setGapMs(Number(event.target.value) || 0)} />
+                                </label>
+                                <label>
+                                    Overlap
+                                    <input type="number" min="0" step="50" value={overlapMs}
+                                           onChange={(event) => setOverlapMs(Number(event.target.value) || 0)} />
+                                </label>
+                            </>
+                        )}
 
                         <button
                             type="button"
@@ -161,7 +193,7 @@ export default function GifToolbar({
                             disabled={!animatedCount}
                             title="Apply delays based on object order in selected frame"
                         >
-                            Apply order timing
+                            Apply smooth timing
                         </button>
 
                         <button

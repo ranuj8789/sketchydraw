@@ -796,23 +796,39 @@ function SketchyDrawPage() {
   }, [currentFrameIndex]);
 
   const applyFrameObjectOrderTiming = useCallback((frameIndex, options = {}) => {
+    const mode = options.mode || "sequence";
+    const startDelayMs = Math.max(0, Number(options.startDelayMs) || 0);
     const delayStepMs = Math.max(0, Number(options.delayStepMs) || OBJECT_ORDER_DELAY_STEP_MS);
+    const gapMs = Math.max(0, Number(options.gapMs) || 120);
+    const overlapMs = Math.max(0, Number(options.overlapMs) || 250);
+
     setTimelineFrames((prevFrames) => {
       return prevFrames.map((frame, index) => {
         if (index !== frameIndex) return frame;
 
-        const nextElements = cloneElements(frame.elements || []).map((element, objectIndex) => {
+        let animatedIndex = 0;
+        let sequenceCursorMs = startDelayMs;
+        const nextElements = cloneElements(frame.elements || []).map((element) => {
           const type = element?.animation?.type || "none";
 
-          if (type === "none") {
-            return element;
+          if (type === "none") return element;
+
+          const durationMs = Math.max(50, Number(element?.animation?.durationMs) || 1000);
+          const delayMs = mode === "stagger"
+              ? startDelayMs + animatedIndex * delayStepMs
+              : sequenceCursorMs;
+
+          animatedIndex += 1;
+          if (mode !== "stagger") {
+            sequenceCursorMs += Math.max(120, durationMs - overlapMs + gapMs);
           }
 
           return {
             ...element,
             animation: {
               ...element.animation,
-              delayMs: objectIndex * delayStepMs,
+              durationMs,
+              delayMs: Math.round(delayMs),
             },
           };
         });
@@ -849,6 +865,12 @@ function SketchyDrawPage() {
 
   const openAnimationPlayer = useCallback((mode = "current") => {
     const startIndex = mode === "all" ? 0 : currentFrameIndex;
+
+    // "Play all" should actually continue through every imported frame.
+    // A selected-frame preview remains manual/current-frame only.
+    if (mode === "all") {
+      setFrameAdvanceMode("auto");
+    }
     const safeIndex = Math.max(0, Math.min(startIndex, timelineFrames.length - 1));
 
     if (animationPlayerAdvanceTimeoutRef.current) {
@@ -1195,6 +1217,7 @@ function SketchyDrawPage() {
     exportJSON,
     importDrawingJson,
     openJsonPicker,
+    openImportPicker,
   } = useSketchyBoardActions({
     elements,
     viewport,
@@ -1207,6 +1230,9 @@ function SketchyDrawPage() {
     setCanvasSize,
     setCanvasProps,
     commitHistory,
+    timelineFrames,
+    currentFrameIndex,
+    onRestoreTimeline: restoreTimelineFrames,
   });
   const selectedElements = useMemo(() => {
     if (!selectedIds.length) return [];
@@ -1509,7 +1535,7 @@ function SketchyDrawPage() {
             <input
                 ref={jsonInputRef}
                 type="file"
-                accept="application/json"
+                accept=".json,.pptx,.xlsx,.xls,.csv,application/json,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
                 onChange={importDrawingJson}
                 style={{ display: "none" }}
             />
@@ -1531,6 +1557,7 @@ function SketchyDrawPage() {
                 canvasProps={canvasProps}
                 updateCanvasProps={updateCanvasProps}
                 openJsonPicker={openJsonPicker}
+                openImportPicker={openImportPicker}
                 drawingTitle={currentDrawingMeta.title}
                 onDrawingTitleChange={(title) =>
                     setCurrentDrawingMeta((prev) => ({
@@ -1632,7 +1659,6 @@ function SketchyDrawPage() {
               renderOptions={animationRenderOptions}
               animationPlaying={frameAnimationPlaying}
               animationTimeMs={frameAnimationTimeMs}
-              onOpenPlayer={openAnimationPlayer}
               onSelectFrame={selectTimelineFrame}
               onAddFrameAfter={addTimelineFrameAfterCurrent}
               onDeleteFrame={deleteTimelineFrame}
@@ -1641,6 +1667,7 @@ function SketchyDrawPage() {
               onApplyFrameObjectOrderTiming={applyFrameObjectOrderTiming}
               onMergeFrameWithNext={mergeCurrentFrameWithNext}
               onMergeAllFrames={mergeAllTimelineFrames}
+              onOpenPlayer={openAnimationPlayer}
           />
         </div>
       </div>

@@ -16,6 +16,11 @@ import {
 } from "../utils/exportBoard";
 
 import { requireProAccess } from "../utils/proAccess";
+import {
+    detectOfficeImportType,
+    importPowerPointFile,
+    importSpreadsheetFile,
+} from "../canvas/importOfficeDocument";
 
 export function useSketchyBoardActions({
                                            elements = [],
@@ -29,9 +34,13 @@ export function useSketchyBoardActions({
                                            setCanvasSize,
                                            setCanvasProps,
                                            commitHistory,
+                                           timelineFrames = [],
+                                           currentFrameIndex = 0,
+                                           onRestoreTimeline,
                                        }) {
     const canvasRef = useRef(null);
     const jsonInputRef = useRef(null);
+    const importTypeRef = useRef("json");
 
     const safeTitle = drawingTitle || "sketchydraw";
 
@@ -101,6 +110,8 @@ export function useSketchyBoardActions({
             canvasSize,
             canvasProps,
             name: drawingTitle || "Untitled Drawing",
+            frames: timelineFrames,
+            activeFrameIndex: currentFrameIndex,
         });
 
         downloadDrawingJson(
@@ -118,17 +129,61 @@ export function useSketchyBoardActions({
             return;
         }
 
-        const allowed = await requireProAccess("Import JSON");
-
-        if (!allowed) {
-            return;
-        }
+        const detectedType = detectOfficeImportType(file);
+        const requestedType = importTypeRef.current || detectedType;
+        const importType = detectedType !== "unknown" ? detectedType : requestedType;
+        const label = importType === "ppt" ? "Import PowerPoint" : importType === "excel" ? "Import Excel" : "Import JSON";
+        const allowed = await requireProAccess(label);
+        if (!allowed) return;
 
         try {
+            if (importType === "ppt" || importType === "excel") {
+                const frames = importType === "ppt"
+                    ? await importPowerPointFile(file, canvasSize)
+                    : await importSpreadsheetFile(file, canvasSize);
+                if (!frames.length) throw new Error("The selected file did not contain any importable slides or sheets.");
+                onRestoreTimeline?.(frames, 0);
+                setElements(frames[0].elements || []);
+                setSelectedIds([]);
+                commitHistory?.(frames[0].elements || []);
+                return;
+            }
+
             const json = await readDrawingJsonFile(file);
             const loaded = loadDrawingJson(json);
 
-            setElements(loaded.elements || []);
+            // Accept every JSON shape SketchyDraw has used:
+            // { data: { frames } }, { frames }, { timelineFrames }, or loaded.frames.
+            const actualDrawing = json?.data && typeof json.data === "object"
+                ? json.data
+                : json;
+            const importedFrames = [
+                loaded?.frames,
+                actualDrawing?.frames,
+                actualDrawing?.timelineFrames,
+                json?.frames,
+                json?.timelineFrames,
+            ].find((candidate) => Array.isArray(candidate) && candidate.length) || [];
+
+            const requestedFrameIndex = Number(
+                loaded?.activeFrameIndex ??
+                actualDrawing?.activeFrameIndex ??
+                actualDrawing?.currentFrameIndex ??
+                0
+            ) || 0;
+
+            if (importedFrames.length > 0 && typeof onRestoreTimeline === "function") {
+                // Restore the timeline as the source of truth. Do not first replace it
+                // with a one-frame canvas snapshot.
+                onRestoreTimeline(importedFrames, requestedFrameIndex);
+                console.info(`[SketchyDraw] Imported ${importedFrames.length} frames`);
+            } else {
+                const nextElements = loaded.elements || [];
+                setElements(nextElements);
+                commitHistory?.(nextElements);
+                console.info("[SketchyDraw] Imported single-frame drawing");
+            }
+
             setSelectedIds([]);
 
             if (loaded.viewport) {
@@ -143,22 +198,21 @@ export function useSketchyBoardActions({
                 setCanvasProps?.(loaded.canvasProps);
             }
 
-            commitHistory?.(loaded.elements || []);
         } catch (error) {
-            alert("Invalid SketchyDraw JSON file");
+            alert(error?.message || "Could not import this file.");
             console.error(error);
         }
     };
 
-    const openJsonPicker = async () => {
-        const allowed = await requireProAccess("Import JSON");
-
-        if (!allowed) {
-            return;
-        }
-
+    const openImportPicker = async (type = "json") => {
+        const label = type === "ppt" ? "Import PowerPoint" : type === "excel" ? "Import Excel" : "Import JSON";
+        const allowed = await requireProAccess(label);
+        if (!allowed) return;
+        importTypeRef.current = type;
         jsonInputRef.current?.click();
     };
+
+    const openJsonPicker = () => openImportPicker("json");
 
     return {
         canvasRef,
@@ -171,5 +225,6 @@ export function useSketchyBoardActions({
         exportJSON,
         importDrawingJson,
         openJsonPicker,
+        openImportPicker,
     };
 }

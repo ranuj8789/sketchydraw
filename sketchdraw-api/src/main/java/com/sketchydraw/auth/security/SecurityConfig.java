@@ -23,7 +23,10 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
         http
+                // Your API uses JWT and stateless sessions, so CSRF is disabled.
                 .csrf(AbstractHttpConfigurer::disable)
+
+                // Uses your existing CORS configuration bean/settings.
                 .cors(Customizer.withDefaults())
 
                 .sessionManagement(session ->
@@ -42,12 +45,21 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
 
+                        // Allow browser preflight requests.
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // Auth public APIs
-                        .requestMatchers(HttpMethod.GET, "/api/auth/me").authenticated()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/me").authenticated()
+                        // Authentication APIs that require an already logged-in user.
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/auth/me"
+                        ).authenticated()
 
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/auth/me"
+                        ).authenticated()
+
+                        // Public authentication APIs.
                         .requestMatchers(
                                 "/api/auth/register",
                                 "/api/auth/verify",
@@ -58,48 +70,70 @@ public class SecurityConfig {
                                 "/api/auth/resend-verification"
                         ).permitAll()
 
-                        // Public health
+                        // Public health APIs.
                         .requestMatchers(
                                 "/api/health/**",
                                 "/actuator/health"
                         ).permitAll()
 
-                        // Public announcements
+                        // Public announcements.
                         .requestMatchers(
                                 "/api/announcement/active"
                         ).permitAll()
 
-                        // Public plans for Subscribe popup
+                        // Public subscription plans.
                         .requestMatchers(
                                 "/api/plans",
                                 "/api/plans/**"
                         ).permitAll()
 
-                        // Payment webhook public
+                        // Public payment webhook.
                         .requestMatchers(
                                 "/api/payment/webhook"
                         ).permitAll()
 
-                        // Payment APIs need login
+                        /*
+                         * Video export APIs.
+                         *
+                         * These are permitted so the frontend export request is not
+                         * rejected with HTTP 403 before reaching VideoExportController.
+                         *
+                         * Keep this path exactly the same as your controller mapping:
+                         * /api/video-exports/**
+                         */
+                        .requestMatchers(
+                                "/api/video-exports/**"
+                        ).permitAll()
+
+                        // Payment APIs require login.
                         .requestMatchers(
                                 "/api/payment/**"
                         ).authenticated()
 
-                        // Drawing APIs need login
+                        // Drawing APIs require login.
                         .requestMatchers(
                                 "/api/drawings/**",
                                 "/api/drawing-groups/**"
                         ).authenticated()
 
-                        // Admin APIs need login
+                        // Admin APIs require login.
                         .requestMatchers(
                                 "/api/admin/**"
                         ).authenticated()
 
+                        // Everything else requires authentication.
                         .anyRequest().authenticated()
                 )
 
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                /*
+                 * Your JWT filter remains active for authenticated endpoints.
+                 * It must not reject permitted endpoints when no Authorization
+                 * header is present.
+                 */
+                .addFilterBefore(
+                        jwtAuthenticationFilter,
+                        UsernamePasswordAuthenticationFilter.class
+                );
 
         return http.build();
     }

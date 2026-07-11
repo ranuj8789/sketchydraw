@@ -107,27 +107,42 @@ export function getResizeHandleAtPoint(element, px, py, zoom = 1) {
         if (withinX && withinY) return key;
     }
 
-    // 2. Then allow resize from rectangle/shape edges also.
-    const edgeThreshold = 8 / safeZoom;
+    // Generic resize uses only the visible square handles.
+    return null;
+}
+
+export function getRectangleBorderResizeHandleAtPoint(element, px, py, zoom = 1) {
+    if (!element || (element.type !== "rect" && element.type !== "rectangle")) {
+        return null;
+    }
+
+    const bounds = getElementBounds(element);
+    if (!bounds) return null;
+
+    const safeZoom = Math.max(0.1, Number(zoom) || 1);
+    const threshold = 5 / safeZoom;
 
     const left = bounds.x;
     const right = bounds.x + bounds.w;
     const top = bounds.y;
     const bottom = bounds.y + bounds.h;
 
-    const withinHorizontalRange = px >= left && px <= right;
-    const withinVerticalRange = py >= top && py <= bottom;
+    // Do not use a large invisible hit area. The pointer must be on the real
+    // rectangle border, with only a small tolerance for usability.
+    const withinX = px >= left - threshold && px <= right + threshold;
+    const withinY = py >= top - threshold && py <= bottom + threshold;
 
-    const nearTop = Math.abs(py - top) <= edgeThreshold && withinHorizontalRange;
-    const nearBottom = Math.abs(py - bottom) <= edgeThreshold && withinHorizontalRange;
-    const nearLeft = Math.abs(px - left) <= edgeThreshold && withinVerticalRange;
-    const nearRight = Math.abs(px - right) <= edgeThreshold && withinVerticalRange;
+    if (!withinX || !withinY) return null;
+
+    const nearLeft = Math.abs(px - left) <= threshold;
+    const nearRight = Math.abs(px - right) <= threshold;
+    const nearTop = Math.abs(py - top) <= threshold;
+    const nearBottom = Math.abs(py - bottom) <= threshold;
 
     if (nearTop && nearLeft) return "nw";
     if (nearTop && nearRight) return "ne";
     if (nearBottom && nearLeft) return "sw";
     if (nearBottom && nearRight) return "se";
-
     if (nearTop) return "n";
     if (nearBottom) return "s";
     if (nearLeft) return "w";
@@ -135,3 +150,4 @@ export function getResizeHandleAtPoint(element, px, py, zoom = 1) {
 
     return null;
 }
+

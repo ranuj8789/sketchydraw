@@ -38,6 +38,7 @@ export default function Toolbar({
                                     printCanvas,
                                     exportJSON,
                                     openJsonPicker,
+                                    openImportPicker,
                                     createNewDrawing,
                                     drawingTitle,
                                     onDrawingTitleChange,
@@ -54,8 +55,10 @@ export default function Toolbar({
     const [alignOpen, setAlignOpen] = useState(false);
     const [saveOpen, setSaveOpen] = useState(false);
     const [exportOpen, setExportOpen] = useState(false);
+    const [importOpen, setImportOpen] = useState(false);
     const [gridOpen, setGridOpen] = useState(false);
-    const [videoGapSeconds, setVideoGapSeconds] = useState("0.5");
+    const [videoGapSeconds, setVideoGapSeconds] = useState("2");
+    const [videoPreAnimationDelaySeconds, setVideoPreAnimationDelaySeconds] = useState("10");
     const [videoFrameFrom, setVideoFrameFrom] = useState("1");
     const [videoFrameTo, setVideoFrameTo] = useState("1");
     const [videoExportMode, setVideoExportMode] = useState(() => localStorage.getItem("sketchydraw.videoExportMode") || "server");
@@ -83,6 +86,7 @@ export default function Toolbar({
     const alignRef = useRef(null);
     const saveRef = useRef(null);
     const exportRef = useRef(null);
+    const importRef = useRef(null);
     const gridRef = useRef(null);
     const legalRef = useRef(null);
 
@@ -155,6 +159,10 @@ export default function Toolbar({
                 setExportOpen(false);
             }
 
+            if (importRef.current && !importRef.current.contains(e.target)) {
+                setImportOpen(false);
+            }
+
             if (gridRef.current && !gridRef.current.contains(e.target)) {
                 setGridOpen(false);
             }
@@ -177,6 +185,7 @@ export default function Toolbar({
             setProfileOpen(false);
             setSaveOpen(false);
             setExportOpen(false);
+            setImportOpen(false);
             setGridOpen(false);
             setLegalOpen(false);
         };
@@ -186,6 +195,7 @@ export default function Toolbar({
             setProfileOpen(false);
             setSaveOpen(false);
             setExportOpen(false);
+            setImportOpen(false);
             setGridOpen(false);
             setLegalOpen(false);
         };
@@ -376,9 +386,17 @@ export default function Toolbar({
             return;
         }
 
+        const requestedGapSeconds = Number(videoGapSeconds);
         const gapSeconds = Math.max(
-            0.1,
-            Math.min(5, Number(videoGapSeconds) || 0.5)
+            0,
+            Math.min(120, Number.isFinite(requestedGapSeconds) ? requestedGapSeconds : 2)
+        );
+        const requestedPreAnimationDelaySeconds = Number(videoPreAnimationDelaySeconds);
+        const preAnimationDelaySeconds = Math.max(
+            0,
+            Math.min(120, Number.isFinite(requestedPreAnimationDelaySeconds)
+                ? requestedPreAnimationDelaySeconds
+                : 10)
         );
         const selectedFrames = timelineFrames.slice(frameFrom - 1, frameTo);
         const paddedFrom = String(frameFrom).padStart(2, "0");
@@ -388,6 +406,7 @@ export default function Toolbar({
             new CustomEvent("sketchydraw:export-video", {
                 detail: {
                     gapSeconds,
+                    preAnimationDelaySeconds,
                     timelineFrames: JSON.parse(JSON.stringify(selectedFrames)),
                     mode: videoExportMode,
                     frameFrom,
@@ -643,14 +662,30 @@ export default function Toolbar({
                         )}
                     </div>
 
-                    <button
-                        type="button"
-                        className="toolbar-dark-action"
-                        onClick={openJsonPicker}
-                        title="Import a SketchyDraw JSON file"
-                    >
-                        Import json
-                    </button>
+                    <div className="export-menu-wrap" ref={importRef}>
+                        <button
+                            type="button"
+                            className="toolbar-dark-action export-trigger-btn"
+                            onClick={() => setImportOpen((value) => !value)}
+                            title="Import JSON, PowerPoint, or Excel"
+                        >
+                            Import <span>⌄</span>
+                        </button>
+
+                        {importOpen && (
+                            <div className="export-dropdown">
+                                <button type="button" onClick={() => { (openImportPicker || openJsonPicker)?.("json"); setImportOpen(false); }}>
+                                    📄 Import JSON
+                                </button>
+                                <button type="button" onClick={() => { openImportPicker?.("ppt"); setImportOpen(false); }}>
+                                    📊 Import PowerPoint
+                                </button>
+                                <button type="button" onClick={() => { openImportPicker?.("excel"); setImportOpen(false); }}>
+                                    📈 Import Excel / CSV
+                                </button>
+                            </div>
+                        )}
+                    </div>
 
                     <div className="export-menu-wrap" ref={exportRef}>
                         <button
@@ -696,12 +731,24 @@ export default function Toolbar({
 
                                 <div className="export-video-box">
                                     <label>
-                                        Gap seconds
+                                        Delay before animation (seconds)
                                         <input
                                             type="number"
-                                            min="0.1"
-                                            max="5"
-                                            step="0.1"
+                                            min="0"
+                                            max="120"
+                                            step="0.5"
+                                            value={videoPreAnimationDelaySeconds}
+                                            onChange={(event) => setVideoPreAnimationDelaySeconds(event.target.value)}
+                                        />
+                                    </label>
+
+                                    <label>
+                                        Hold after animation before next slide (seconds)
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max="120"
+                                            step="0.5"
                                             value={videoGapSeconds}
                                             onChange={(event) => setVideoGapSeconds(event.target.value)}
                                         />

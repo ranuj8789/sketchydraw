@@ -139,6 +139,7 @@ function getCachedCanvasImage(src) {
     }
 
     const img = new Image();
+    img.crossOrigin = "anonymous";
 
     img.onload = () => {
         window.dispatchEvent(new Event("sketchydraw:image-loaded"));
@@ -148,6 +149,26 @@ function getCachedCanvasImage(src) {
     imageElementCache.set(src, img);
 
     return img;
+}
+
+export async function preloadDrawingImages(elements = []) {
+    const sources = Array.from(new Set(
+        (elements || [])
+            .filter((element) => element?.type === "image" && element.src)
+            .map((element) => element.src)
+    ));
+
+    await Promise.all(sources.map((src) => new Promise((resolve) => {
+        const image = getCachedCanvasImage(src);
+        if (!image || image.complete) {
+            resolve();
+            return;
+        }
+
+        const done = () => resolve();
+        image.addEventListener("load", done, { once: true });
+        image.addEventListener("error", done, { once: true });
+    })));
 }
 
 function normalizeImageBox(element) {
