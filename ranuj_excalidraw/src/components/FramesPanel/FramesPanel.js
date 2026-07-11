@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { renderCanvas } from "../../canvas/canvasRender";
+import { getFrameTimelineEndMs, resolveFrameAnimationTimings } from "../../canvas/animationTimeline";
 import "./FramesPanel.css";
 
 function getFrameLabel(frame, index) {
@@ -288,6 +289,8 @@ export default function FramesPanel({
                                         onToggleElementHidden,
                                         onMoveFrameElementOrder,
                                         onApplyFrameObjectOrderTiming,
+                                        onUpdateFrameElementAnimation,
+                                        onPreviewTimeChange,
                                         onOpenPlayer,
                                         onClosePlayer,
                                         onRestartPlayerFrame,
@@ -297,6 +300,8 @@ export default function FramesPanel({
                                         onMergeAllFrames,
                                     }) {
     const currentFrame = frames[currentIndex] || frames[0] || null;
+    const resolvedTimings = useMemo(() => resolveFrameAnimationTimings(currentFrame?.elements || []), [currentFrame]);
+    const timelineEndMs = useMemo(() => Math.max(1000, getFrameTimelineEndMs(currentFrame?.elements || [])), [currentFrame]);
 
     const animatedCount = useMemo(() => {
         return (currentFrame?.elements || []).filter(
@@ -386,95 +391,141 @@ export default function FramesPanel({
                     ))}
                 </div>
 
-                <div className="frame-object-list">
+                <div className="frame-object-list frame-sequence-editor">
                     <div className="frame-object-list-header">
                         <div>
-                            <h3>Object order / hide-show in this frame</h3>
-                            <p>Top object comes first. Use arrows to change play/render order.</p>
+                            <h3>Object visibility & dependency timeline</h3>
+                            <p>Choose what is visible while you explain, then start the next object after another object starts or finishes.</p>
                         </div>
-
-                        <button
-                            type="button"
-                            onClick={() => onApplyFrameObjectOrderTiming?.(currentIndex)}
-                            disabled={!currentFrame?.elements?.some?.(
-                                (element) => element?.animation?.type && element.animation.type !== "none"
-                            )}
-                            title="Set animation delays from top to bottom order"
-                        >
-                            Apply order timing
+                        <button type="button" onClick={() => onApplyFrameObjectOrderTiming?.(currentIndex)}>
+                            Auto sequence
                         </button>
                     </div>
 
-                    {!currentFrame?.elements?.length && (
-                        <p className="frame-empty-text">No objects in this frame yet.</p>
-                    )}
+                    <div className="frame-timeline-preview-card">
+                        <div className="frame-timeline-preview-head">
+                            <strong>Live frame preview</strong>
+                            <span>{(animationTimeMs / 1000).toFixed(1)}s / {(timelineEndMs / 1000).toFixed(1)}s</span>
+                        </div>
+                        <input
+                            className="frame-time-scrubber"
+                            type="range"
+                            min="0"
+                            max={timelineEndMs}
+                            step="50"
+                            value={Math.min(animationTimeMs, timelineEndMs)}
+                            onChange={(event) => onPreviewTimeChange?.(Number(event.target.value))}
+                        />
+                        <div className="frame-time-actions">
+                            <button type="button" onClick={() => onPreviewTimeChange?.(0)}>Start</button>
+                            <button type="button" className="frames-primary-btn" onClick={onToggleFrameAnimation}>
+                                {animationPlaying ? "Pause" : "Play frame"}
+                            </button>
+                            <button type="button" onClick={() => onPreviewTimeChange?.(timelineEndMs)}>Final state</button>
+                        </div>
+                    </div>
 
-                    {(currentFrame?.elements || []).map((element, index) => {
-                        const hiddenSet = new Set(currentFrame.hiddenElementIds || []);
-                        const visible = !hiddenSet.has(element.id);
-                        const animationType = element?.animation?.type || "none";
-                        const delayMs = Number(element?.animation?.delayMs) || 0;
+                    {!currentFrame?.elements?.length && <p className="frame-empty-text">No objects in this frame yet.</p>}
 
-                        return (
-                            <div className="frame-object-row" key={element.id || index}>
-                                <span className="frame-object-order-badge">#{index + 1}</span>
+                    <div className="frame-sequence-list">
+                        {(currentFrame?.elements || []).map((element, index) => {
+                            const hiddenSet = new Set(currentFrame.hiddenElementIds || []);
+                            const enabledInFrame = !hiddenSet.has(element.id);
+                            const animation = element?.animation || {};
+                            const animationType = animation.type || "none";
+                            const timing = resolvedTimings.get(element.id) || { startMs: 0, endMs: 0 };
+                            const dependencyCandidates = (currentFrame.elements || []).filter((candidate) => candidate.id !== element.id);
+                            const isVisibleNow = enabledInFrame && (
+                                animationType === "none"
+                                    ? animation.staticVisible !== false
+                                    : animationTimeMs < timing.startMs
+                                        ? (animation.beforeStart || "hidden") === "visible"
+                                        : animationTimeMs > timing.endMs
+                                            ? (animation.afterEnd || "visible") !== "hidden"
+                                            : true
+                            );
 
-                                <input
-                                    type="checkbox"
-                                    checked={visible}
-                                    onChange={() => onToggleElementHidden?.(currentIndex, element.id)}
-                                    title={visible ? "Visible in this frame" : "Hidden in this frame"}
-                                />
+                            return (
+                                <div className={`frame-sequence-row ${isVisibleNow ? "is-visible-now" : "is-hidden-now"}`} key={element.id || index}>
+                                    <div className="frame-sequence-row-head">
+                                        <span className="frame-object-order-badge">#{index + 1}</span>
+                                        <label className="frame-object-visible-toggle">
+                                            <input type="checkbox" checked={enabledInFrame} onChange={() => onToggleElementHidden?.(currentIndex, element.id)} />
+                                            <span>{enabledInFrame ? "In frame" : "Excluded"}</span>
+                                        </label>
+                                        <strong title={getElementLabel(element, index)}>{getElementLabel(element, index)}</strong>
+                                        <em>{isVisibleNow ? "VISIBLE NOW" : "HIDDEN NOW"}</em>
+                                    </div>
 
-                                <span title={getElementLabel(element, index)}>
-                                    {getElementLabel(element, index)}
-                                </span>
+                                    <div className="frame-sequence-controls">
+                                        <label>
+                                            Animation
+                                            <select value={animationType} onChange={(event) => onUpdateFrameElementAnimation?.(currentIndex, element.id, { type: event.target.value })}>
+                                                <option value="none">Static</option>
+                                                <option value="fadeIn">Fade in</option>
+                                                <option value="scaleIn">Scale in</option>
+                                                <option value="slideUp">Slide up</option>
+                                                <option value="draw">Draw</option>
+                                                <option value="typewriter">Typewriter</option>
+                                                <option value="pulseRing">Pulse ring</option>
+                                            </select>
+                                        </label>
 
-                                {animationType !== "none" ? (
-                                    <em title={`Delay: ${delayMs}ms`}>
-                                        {animationType}{delayMs ? ` · ${delayMs}ms` : ""}
-                                    </em>
-                                ) : (
-                                    <em className="frame-object-static-tag">static</em>
-                                )}
+                                        {animationType !== "none" && <>
+                                            <label>
+                                                Start rule
+                                                <select value={animation.dependencyMode || "absolute"} onChange={(event) => onUpdateFrameElementAnimation?.(currentIndex, element.id, { dependencyMode: event.target.value })}>
+                                                    <option value="absolute">At exact time</option>
+                                                    <option value="afterStart">After object starts</option>
+                                                    <option value="afterEnd">After object finishes</option>
+                                                </select>
+                                            </label>
 
-                                <div className="frame-object-order-actions">
-                                    <button
-                                        type="button"
-                                        onClick={() => onMoveFrameElementOrder?.(currentIndex, element.id, "first")}
-                                        disabled={index === 0}
-                                        title="Move first"
-                                    >
-                                        ⇤
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => onMoveFrameElementOrder?.(currentIndex, element.id, "up")}
-                                        disabled={index === 0}
-                                        title="Move up"
-                                    >
-                                        ↑
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => onMoveFrameElementOrder?.(currentIndex, element.id, "down")}
-                                        disabled={index === (currentFrame?.elements || []).length - 1}
-                                        title="Move down"
-                                    >
-                                        ↓
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => onMoveFrameElementOrder?.(currentIndex, element.id, "last")}
-                                        disabled={index === (currentFrame?.elements || []).length - 1}
-                                        title="Move last"
-                                    >
-                                        ⇥
-                                    </button>
+                                            {(animation.dependencyMode === "afterStart" || animation.dependencyMode === "afterEnd") && <label>
+                                                Depends on
+                                                <select value={animation.dependsOnId || ""} onChange={(event) => onUpdateFrameElementAnimation?.(currentIndex, element.id, { dependsOnId: event.target.value })}>
+                                                    <option value="">Choose object</option>
+                                                    {dependencyCandidates.map((candidate, candidateIndex) => <option key={candidate.id} value={candidate.id}>{getElementLabel(candidate, candidateIndex)}</option>)}
+                                                </select>
+                                            </label>}
+
+                                            <label>
+                                                {animation.dependencyMode === "absolute" || !animation.dependencyMode ? "Start at (ms)" : "Wait after dependency (ms)"}
+                                                <input type="number" min="0" step="100" value={animation.dependencyMode && animation.dependencyMode !== "absolute" ? (animation.dependencyOffsetMs || 0) : (animation.delayMs || 0)} onChange={(event) => onUpdateFrameElementAnimation?.(currentIndex, element.id, animation.dependencyMode && animation.dependencyMode !== "absolute" ? { dependencyOffsetMs: Number(event.target.value) } : { delayMs: Number(event.target.value) })} />
+                                            </label>
+
+                                            <label>
+                                                Duration (ms)
+                                                <input type="number" min="100" step="100" value={animation.durationMs || 1000} onChange={(event) => onUpdateFrameElementAnimation?.(currentIndex, element.id, { durationMs: Number(event.target.value) })} />
+                                            </label>
+
+                                            <label>
+                                                Before animation
+                                                <select value={animation.beforeStart || "hidden"} onChange={(event) => onUpdateFrameElementAnimation?.(currentIndex, element.id, { beforeStart: event.target.value })}>
+                                                    <option value="hidden">Hidden</option>
+                                                    <option value="visible">Visible while explaining</option>
+                                                </select>
+                                            </label>
+
+                                            <label>
+                                                After animation
+                                                <select value={animation.afterEnd || "visible"} onChange={(event) => onUpdateFrameElementAnimation?.(currentIndex, element.id, { afterEnd: event.target.value })}>
+                                                    <option value="visible">Keep visible</option>
+                                                    <option value="hidden">Hide again</option>
+                                                </select>
+                                            </label>
+                                        </>}
+                                    </div>
+
+                                    <div className="frame-object-mini-timeline">
+                                        <span style={{ width: `${Math.min(100, timing.startMs / timelineEndMs * 100)}%` }} />
+                                        <b style={{ width: `${Math.max(1, (timing.endMs - timing.startMs) / timelineEndMs * 100)}%` }} />
+                                        <small>{(timing.startMs / 1000).toFixed(1)}s → {(timing.endMs / 1000).toFixed(1)}s</small>
+                                    </div>
                                 </div>
-                            </div>
-                        );
-                    })}
+                            );
+                        })}
+                    </div>
                 </div>
             </aside>
 

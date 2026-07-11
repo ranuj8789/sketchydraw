@@ -848,6 +848,25 @@ function SketchyDrawPage() {
     setFrameAnimationTimeMs(0);
   }, [currentFrameIndex]);
 
+  const updateFrameElementAnimation = useCallback((frameIndex, elementId, patch = {}) => {
+    setTimelineFrames((prevFrames) => prevFrames.map((frame, index) => {
+      if (index !== frameIndex) return frame;
+      const nextElements = cloneElements(frame.elements || []).map((element) => {
+        if (element.id !== elementId) return element;
+        return {
+          ...element,
+          animation: {
+            ...(element.animation || {}),
+            ...patch,
+          },
+        };
+      });
+      if (index === currentFrameIndex) setElements(cloneElements(nextElements));
+      return { ...frame, elements: nextElements };
+    }));
+    setFrameAnimationPlaying(false);
+  }, [currentFrameIndex]);
+
   const toggleCurrentFrameAnimation = useCallback(() => {
     setFrameAnimationTimeMs(0);
     setFrameAnimationPlaying((value) => !value);
@@ -1523,6 +1542,9 @@ function SketchyDrawPage() {
               onAddFrameAfter={addTimelineFrameAfterCurrent}
               onToggleFrameAnimation={toggleCurrentFrameAnimation}
               onApplyFrameObjectOrderTiming={applyFrameObjectOrderTiming}
+              onUpdateFrameElementAnimation={updateFrameElementAnimation}
+              onPreviewTimeChange={(timeMs) => { setFrameAnimationPlaying(false); setFrameAnimationTimeMs(Math.max(0, Number(timeMs) || 0)); }}
+              onToggleFrameAnimation={toggleCurrentFrameAnimation}
               onMergeFrameWithNext={mergeCurrentFrameWithNext}
               onMergeAllFrames={mergeAllTimelineFrames}
               onInsertGifPrimitive={insertGifPrimitiveObject}
@@ -1623,6 +1645,8 @@ function SketchyDrawPage() {
                 onToggleElementHidden={toggleFrameElementHidden}
                 onMoveFrameElementOrder={moveFrameElementOrder}
                 onApplyFrameObjectOrderTiming={applyFrameObjectOrderTiming}
+                onUpdateFrameElementAnimation={updateFrameElementAnimation}
+                onPreviewTimeChange={(timeMs) => { setFrameAnimationPlaying(false); setFrameAnimationTimeMs(Math.max(0, Number(timeMs) || 0)); }}
                 onMergeFrameWithNext={mergeCurrentFrameWithNext}
                 onMergeAllFrames={mergeAllTimelineFrames}
             />
@@ -1668,6 +1692,17 @@ function SketchyDrawPage() {
               onMergeFrameWithNext={mergeCurrentFrameWithNext}
               onMergeAllFrames={mergeAllTimelineFrames}
               onOpenPlayer={openAnimationPlayer}
+              onUpdateFrameElementAnimation={updateFrameElementAnimation}
+              onPreviewTimeChange={(timeMs) => {
+                setFrameAnimationPlaying(false);
+                setFrameAnimationTimeMs(Math.max(0, Number(timeMs) || 0));
+              }}
+              onToggleFrameAnimation={toggleCurrentFrameAnimation}
+              selectedCanvasObjectId={selectedElement?.id || null}
+              onSelectCanvasObject={(elementId) => {
+                if (!elementId) return;
+                setSelectedIds([elementId]);
+              }}
           />
         </div>
       </div>

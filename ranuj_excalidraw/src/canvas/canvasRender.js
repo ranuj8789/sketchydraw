@@ -2,6 +2,7 @@ import { drawElement } from "../utils/drawing";
 import { drawCanvasGrid, drawCurveControls } from "./canvasHelpers";
 import { getElementBounds } from "../utils/elementBounds";
 import { drawNotebookPages } from "./notebook/notebookRenderer";
+import { isElementVisibleAtTime, resolveFrameAnimationTimings } from "./animationTimeline";
 
 function normalizeCanvasProps(canvasProps = {}) {
     return {
@@ -277,9 +278,14 @@ export function renderCanvas({
     const selectedSet = new Set(selectedIds || []);
     const hiddenSet = renderOptions?.hiddenElementIds || new Set();
     const visibleWorldRect = getVisibleWorldRect(canvasSize, viewport);
+    const resolvedAnimationTimings = renderOptions?.resolvedAnimationTimings || resolveFrameAnimationTimings(elements || []);
+    const finalRenderOptions = { ...renderOptions, resolvedAnimationTimings };
 
     (elements || []).forEach((element) => {
         if (hiddenSet?.has?.(element.id)) {
+            return;
+        }
+        if (finalRenderOptions.animationMode && !isElementVisibleAtTime(element, finalRenderOptions.animationTimeMs || 0, resolvedAnimationTimings.get(element.id))) {
             return;
         }
         if (!shouldDrawElement(element, visibleWorldRect, selectedSet, connectionHint)) {
@@ -292,7 +298,7 @@ export function renderCanvas({
             (guide) => guide.targetId === element.id
         );
 
-        drawElement(ctx, element, isSelected, renderOptions);
+        drawElement(ctx, element, isSelected, finalRenderOptions);
 
         if (isHighlighted || isSnapTarget) {
             const bounds = getElementBounds(element);

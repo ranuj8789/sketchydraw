@@ -320,8 +320,9 @@ function getAnimationProgress(element, renderOptions = {}) {
         };
     }
 
-    const durationMs = Math.max(1, Number(animation.durationMs) || 1000);
-    const delayMs = Math.max(0, Number(animation.delayMs) || 0);
+    const resolvedTiming = renderOptions?.resolvedAnimationTimings?.get?.(element.id);
+    const durationMs = Math.max(1, Number(resolvedTiming?.durationMs ?? animation.durationMs) || 1000);
+    const delayMs = Math.max(0, Number(resolvedTiming?.startMs ?? animation.delayMs) || 0);
     const loopPauseMs = Math.max(0, Number(renderOptions.loopPauseMs) || 0);
     const rawAnimationTimeMs = Math.max(0, Number(renderOptions.animationTimeMs) || 0);
     const loop = !!animation.loop || !!renderOptions.loopAnimation;

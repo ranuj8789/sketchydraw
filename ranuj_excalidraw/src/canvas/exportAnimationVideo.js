@@ -2,6 +2,7 @@ import { drawElement, preloadDrawingImages } from "../utils/drawing";
 import { getElementBounds } from "../utils/elementBounds";
 import { apiUrl } from "../config/api";
 import { authHeaders } from "../utils/auth";
+import { getFrameTimelineEndMs, isElementVisibleAtTime, resolveFrameAnimationTimings } from "./animationTimeline";
 
 const CONFIGURED_VIDEO_EXPORT_API_BASE = (
     process.env.REACT_APP_VIDEO_EXPORT_API_BASE ||
@@ -128,15 +129,7 @@ function getAnimatedElementIds(elements = []) {
 }
 
 function getFrameAnimationEndMs(frame) {
-    return (frame?.elements || []).reduce((max, element) => {
-        const animation = element?.animation || {};
-        if (!animation.type || animation.type === "none") return max;
-        return Math.max(
-            max,
-            Math.max(1, Number(animation.durationMs) || 1000)
-            + Math.max(0, Number(animation.delayMs) || 0)
-        );
-    }, 0);
+    return getFrameTimelineEndMs(frame?.elements || []);
 }
 
 function getFrameDurationMs(frame, holdAfterMs, preAnimationDelayMs = 0) {
@@ -166,17 +159,22 @@ function drawFrame(canvas, frame, canvasSize, transform, canvasProps = {}, anima
         (element) => !hiddenSet.has(element.id)
     );
 
+    const resolvedAnimationTimings = resolveFrameAnimationTimings(visibleElements);
     const renderOptions = {
         animationMode: true,
         animationTimeMs,
         activeAnimatedElementIds: getAnimatedElementIds(visibleElements),
         hiddenElementIds: hiddenSet,
+        resolvedAnimationTimings,
     };
 
     ctx.save();
     ctx.translate(transform.offsetX, transform.offsetY);
     ctx.scale(transform.scale, transform.scale);
-    visibleElements.forEach((element) => drawElement(ctx, element, false, renderOptions));
+    visibleElements.forEach((element) => {
+        if (!isElementVisibleAtTime(element, animationTimeMs, resolvedAnimationTimings.get(element.id))) return;
+        drawElement(ctx, element, false, renderOptions);
+    });
     ctx.restore();
 }
 
