@@ -1711,18 +1711,50 @@
     .topbar-auth.logged-out .login-btn:last-child { min-width: 92px; }
 }
 
-.toolbar-focus-action {
-    min-height: 38px;
-    padding: 0 13px;
-    border: 1px solid #d8dee9;
-    background: #ffffff;
-    color: #334155;
-    font-weight: 700;
-    white-space: nowrap;
-}
 
-.toolbar-focus-action:hover {
-    border-color: #c59a43;
-    background: #fffdf8;
-    color: #7c5a18;
+/* Export dropdown cleanup */
+.export-dropdown.export-dropdown-wide {
+    left: auto;
+    right: 0;
+    width: min(320px, calc(100vw - 24px));
+    max-height: min(72vh, 680px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 10px;
 }
+.export-dropdown-section-title {
+    padding: 6px 10px 8px;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #8b6b2a;
+}
+.export-dropdown-divider {
+    height: 1px;
+    margin: 8px 6px;
+    background: #edf0f4;
+}
+.export-print-btn {
+    border: 1px solid #d8b66a !important;
+    background: #fffaf0 !important;
+    color: #6f561f !important;
+}
+.export-advanced-section {
+    margin-top: 8px;
+    border-top: 1px solid #edf0f4;
+    padding-top: 8px;
+}
+.export-advanced-section > summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 850;
+    color: #334155;
+}
+.export-advanced-section > summary::-webkit-details-marker { display: none; }
+.export-advanced-section > summary:hover { background: #f8fafc; }
+.export-advanced-section[open] > summary { background: #fffaf0; color:#6f561f; }
+.export-dropdown .export-video-box { margin-top: 8px; }

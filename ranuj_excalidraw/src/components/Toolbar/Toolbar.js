@@ -55,7 +55,6 @@ export default function Toolbar({
                                     gifExportProgress = 0,
                                     socialCreatorPreset = null,
                                     setSocialCreatorPreset,
-                                    onToggleFocusMode,
                                 }) {
     const [loginOpen, setLoginOpen] = useState(false);
     const [subscriptionOpen, setSubscriptionOpen] = useState(false);
@@ -639,15 +638,6 @@ export default function Toolbar({
                         Clear
                     </button>
 
-                    <button
-                        type="button"
-                        className="toolbar-focus-action"
-                        onClick={onToggleFocusMode}
-                        title="Focus mode: show only the canvas"
-                    >
-                        ⛶ Focus
-                    </button>
-
                     <span className="topbar-separator" />
 
                     <div className="save-menu-wrap" title="Save this drawing" ref={saveRef}>
@@ -757,137 +747,137 @@ export default function Toolbar({
                         </button>
 
                         {exportOpen && (
-                            <div className="export-dropdown">
+                            <div className="export-dropdown export-dropdown-wide">
+                                <div className="export-dropdown-section-title">Quick export</div>
                                 <button type="button" onClick={() => runExport(exportPNG)}>
                                     🖼️ Export as PNG
                                 </button>
-
-                                <button type="button" onClick={() => runExport(() => exportInstagram?.("portrait"))}>
-                                    📱 Instagram Portrait (1080×1350)
-                                </button>
-
-                                <button type="button" onClick={() => runExport(() => exportInstagram?.("story"))}>
-                                    📲 Instagram Story (1080×1920)
-                                </button>
-
-                                <button type="button" onClick={() => runExport(() => exportInstagram?.("status"))}>
-                                    💬 WhatsApp Status (1080×1920)
-                                </button>
-
-                                <button type="button" onClick={() => runExport(() => exportInstagram?.("post"))}>
-                                    ⬜ Instagram Post (1080×1080)
-                                </button>
-
                                 <button type="button" onClick={() => runExport(exportJPEG)}>
                                     🖼️ Export as JPEG
                                 </button>
-
                                 <button type="button" onClick={() => runExport(exportSVG)}>
                                     🧩 Export as SVG
                                 </button>
-
                                 <button type="button" onClick={() => runExport(exportPDF)}>
                                     📕 Export as PDF
                                 </button>
-
-                                <button type="button" onClick={() => runExport(printCanvas)}>
+                                <button type="button" className="export-print-btn" onClick={() => runExport(printCanvas)}>
                                     🖨️ Print Canvas
                                 </button>
-
                                 <button type="button" onClick={() => runExport(exportJSON)}>
                                     📄 Export as JSON
                                 </button>
 
+                                <div className="export-dropdown-divider" />
+                                <div className="export-dropdown-section-title">Social sizes</div>
+                                <button type="button" onClick={() => runExport(() => exportInstagram?.("portrait"))}>
+                                    📱 Instagram Portrait (1080×1350)
+                                </button>
+                                <button type="button" onClick={() => runExport(() => exportInstagram?.("story"))}>
+                                    📲 Instagram Story (1080×1920)
+                                </button>
+                                <button type="button" onClick={() => runExport(() => exportInstagram?.("status"))}>
+                                    💬 WhatsApp Status (1080×1920)
+                                </button>
+                                <button type="button" onClick={() => runExport(() => exportInstagram?.("post"))}>
+                                    ⬜ Instagram Post (1080×1080)
+                                </button>
+
+                                <div className="export-dropdown-divider" />
+                                <div className="export-dropdown-section-title">Animation</div>
                                 <button type="button" onClick={() => runExport(exportGIF)} disabled={gifExporting}>
                                     🎞️ {gifExporting
                                     ? `Exporting GIF ${Math.round((gifExportProgress || 0) * 100)}%`
                                     : "Export as GIF"}
                                 </button>
 
-                                <div className="export-video-box">
-                                    <label>
-                                        Delay before animation (seconds)
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            max="120"
-                                            step="0.5"
-                                            value={videoPreAnimationDelaySeconds}
-                                            onChange={(event) => setVideoPreAnimationDelaySeconds(event.target.value)}
-                                        />
-                                    </label>
-
-                                    <label>
-                                        Hold after animation before next slide (seconds)
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            max="120"
-                                            step="0.5"
-                                            value={videoGapSeconds}
-                                            onChange={(event) => setVideoGapSeconds(event.target.value)}
-                                        />
-                                    </label>
-
-                                    <div className="video-frame-range">
+                                <details className="export-advanced-section">
+                                    <summary>🎬 Export video</summary>
+                                    <div className="export-video-box">
                                         <label>
-                                            From frame
+                                            Delay before animation (seconds)
                                             <input
                                                 type="number"
-                                                min="1"
-                                                max={Math.max(1, timelineFrames.length)}
-                                                step="1"
-                                                value={videoFrameFrom}
-                                                onChange={(event) => setVideoFrameFrom(event.target.value)}
-                                                disabled={videoExportState.exporting || timelineFrames.length === 0}
+                                                min="0"
+                                                max="120"
+                                                step="0.5"
+                                                value={videoPreAnimationDelaySeconds}
+                                                onChange={(event) => setVideoPreAnimationDelaySeconds(event.target.value)}
                                             />
                                         </label>
 
                                         <label>
-                                            To frame
+                                            Hold after animation before next slide (seconds)
                                             <input
                                                 type="number"
-                                                min="1"
-                                                max={Math.max(1, timelineFrames.length)}
-                                                step="1"
-                                                value={videoFrameTo}
-                                                onChange={(event) => setVideoFrameTo(event.target.value)}
-                                                disabled={videoExportState.exporting || timelineFrames.length === 0}
+                                                min="0"
+                                                max="120"
+                                                step="0.5"
+                                                value={videoGapSeconds}
+                                                onChange={(event) => setVideoGapSeconds(event.target.value)}
                                             />
                                         </label>
-                                    </div>
 
-                                    <div className="video-range-hint">
-                                        Exporting {Math.max(0, Math.min(timelineFrames.length, Number(videoFrameTo) || 0) - Math.max(1, Number(videoFrameFrom) || 1) + 1)} of {timelineFrames.length} frames
-                                    </div>
+                                        <div className="video-frame-range">
+                                            <label>
+                                                From frame
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    max={Math.max(1, timelineFrames.length)}
+                                                    step="1"
+                                                    value={videoFrameFrom}
+                                                    onChange={(event) => setVideoFrameFrom(event.target.value)}
+                                                    disabled={videoExportState.exporting || timelineFrames.length === 0}
+                                                />
+                                            </label>
 
-                                    <label>
-                                        Export using
-                                        <select
-                                            value={videoExportMode}
-                                            onChange={(event) => {
-                                                const value = event.target.value;
-                                                setVideoExportMode(value);
-                                                localStorage.setItem("sketchydraw.videoExportMode", value);
-                                            }}
-                                        >
-                                            <option value="server">Server MP4 (recommended)</option>
-                                            <option value="browser">Browser WebM</option>
-                                        </select>
-                                    </label>
-
-                                    <button type="button" onClick={runVideoExport} disabled={videoExportState.exporting}>
-                                        {videoExportState.exporting
-                                            ? `⏳ ${Math.round(videoExportState.progress || 0)}%`
-                                            : (videoExportMode === "server" ? "🎬 Export MP4 on server" : "🎬 Export WebM in browser")}
-                                    </button>
-                                    {videoExportState.exporting && (
-                                        <div className="video-export-progress" role="status" aria-live="polite">
-                                            <progress max="100" value={Math.round(videoExportState.progress || 0)} />
-                                            <span>{videoExportState.status || "Exporting video..."}</span>
+                                            <label>
+                                                To frame
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    max={Math.max(1, timelineFrames.length)}
+                                                    step="1"
+                                                    value={videoFrameTo}
+                                                    onChange={(event) => setVideoFrameTo(event.target.value)}
+                                                    disabled={videoExportState.exporting || timelineFrames.length === 0}
+                                                />
+                                            </label>
                                         </div>
-                                    )}
-                                </div>
+
+                                        <div className="video-range-hint">
+                                            Exporting {Math.max(0, Math.min(timelineFrames.length, Number(videoFrameTo) || 0) - Math.max(1, Number(videoFrameFrom) || 1) + 1)} of {timelineFrames.length} frames
+                                        </div>
+
+                                        <label>
+                                            Export using
+                                            <select
+                                                value={videoExportMode}
+                                                onChange={(event) => {
+                                                    const value = event.target.value;
+                                                    setVideoExportMode(value);
+                                                    localStorage.setItem("sketchydraw.videoExportMode", value);
+                                                }}
+                                            >
+                                                <option value="server">Server MP4 (recommended)</option>
+                                                <option value="browser">Browser WebM</option>
+                                            </select>
+                                        </label>
+
+                                        <button type="button" onClick={runVideoExport} disabled={videoExportState.exporting}>
+                                            {videoExportState.exporting
+                                                ? `⏳ ${Math.round(videoExportState.progress || 0)}%`
+                                                : (videoExportMode === "server" ? "🎬 Export MP4 on server" : "🎬 Export WebM in browser")}
+                                        </button>
+                                        {videoExportState.exporting && (
+                                            <div className="video-export-progress" role="status" aria-live="polite">
+                                                <progress max="100" value={Math.round(videoExportState.progress || 0)} />
+                                                <span>{videoExportState.status || "Exporting video..."}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </details>
                             </div>
                         )}
                     </div>
