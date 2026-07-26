@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import "./StoryboardBar.css";
+import { hasProAccess, requestProUpgrade } from "../../utils/proFeatureGate";
 
 function frameName(frame, index) {
   return frame?.name || `Frame ${index + 1}`;
@@ -17,6 +18,14 @@ export default function StoryboardBar({
                                       }) {
   const [expanded, setExpanded] = useState(true);
   const [dragIndex, setDragIndex] = useState(null);
+  const proUser = hasProAccess();
+  const proAction = (feature, action) => {
+    if (!proUser) {
+      requestProUpgrade(feature);
+      return;
+    }
+    action?.();
+  };
   const [autoHidden, setAutoHidden] = useState(false);
   const [pinned, setPinned] = useState(() => localStorage.getItem("sketchydraw.storyboardPinned") === "true");
   const hideTimerRef = useRef(null);
@@ -68,7 +77,7 @@ export default function StoryboardBar({
 
   return (
       <section
-          className={`storyboard-bar ${expanded ? "expanded" : "collapsed"} ${autoHidden ? "peek" : ""} ${pinned ? "pinned" : ""}`}
+          className={`storyboard-bar ${expanded ? "expanded" : "collapsed"} ${autoHidden ? "peek" : ""} ${pinned ? "pinned" : ""} ${!proUser ? "pro-locked" : ""}`}
           onMouseEnter={handlePointerEnter}
           onMouseLeave={handlePointerLeave}
           onFocusCapture={handlePointerEnter}
@@ -88,7 +97,7 @@ export default function StoryboardBar({
             {expanded ? "⌄" : "⌃"}
           </button>
           <div className="storyboard-title">
-            <strong>Storyboard</strong>
+            <strong>Storyboard {!proUser && <small className="storyboard-pro-badge">PRO</small>}</strong>
             <span>{frames.length || 1} frames</span>
           </div>
           <button
@@ -101,9 +110,9 @@ export default function StoryboardBar({
             {pinned ? "📌 Pinned" : "📍 Pin"}
           </button>
           <div className="storyboard-actions">
-            <button type="button" onClick={onPlayCurrent}>▶ Play frame</button>
-            <button type="button" className="storyboard-present" onClick={onPresent}>▶ Play all</button>
-            <button type="button" onClick={onOpenManager}>Manage</button>
+            <button type="button" onClick={() => proAction("Frame playback", onPlayCurrent)}>▶ Play frame</button>
+            <button type="button" className="storyboard-present" onClick={() => proAction("Presentation and frame playback", onPresent)}>▶ Play all</button>
+            <button type="button" onClick={() => proAction("Frames", onOpenManager)}>Manage</button>
           </div>
         </div>
 
@@ -113,10 +122,10 @@ export default function StoryboardBar({
                   <React.Fragment key={frame.id || index}>
                     <button
                         type="button"
-                        draggable
                         className={`storyboard-frame ${index === currentIndex ? "active" : ""}`}
-                        onClick={() => onSelectFrame?.(index)}
-                        onDragStart={() => setDragIndex(index)}
+                        onClick={() => proAction("Frames", () => onSelectFrame?.(index))}
+                        draggable={proUser}
+                        onDragStart={() => proUser && setDragIndex(index)}
                         onDragOver={(event) => event.preventDefault()}
                         onDrop={() => {
                           if (dragIndex !== null && dragIndex !== index) {
@@ -140,7 +149,7 @@ export default function StoryboardBar({
                     )}
                   </React.Fragment>
               ))}
-              <button type="button" className="storyboard-add" onClick={onAddFrame}>＋ Add frame</button>
+              <button type="button" className="storyboard-add" onClick={() => proAction("Frames", onAddFrame)}>＋ Add frame</button>
             </div>
         )}
       </section>

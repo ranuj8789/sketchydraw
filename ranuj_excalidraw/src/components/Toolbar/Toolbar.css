@@ -1758,3 +1758,168 @@
 .export-advanced-section > summary:hover { background: #f8fafc; }
 .export-advanced-section[open] > summary { background: #fffaf0; color:#6f561f; }
 .export-dropdown .export-video-box { margin-top: 8px; }
+
+/* Elegant logged-out account actions */
+.topbar {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.topbar-actions {
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: visible;
+    scrollbar-width: none;
+}
+
+.topbar-actions::-webkit-scrollbar {
+    display: none;
+}
+
+.topbar-auth.logged-out {
+    position: relative;
+    z-index: 6;
+    flex: none;
+    min-width: auto;
+    gap: 7px;
+    padding-left: 10px;
+    background: rgba(255,255,255,.96);
+}
+
+.topbar-auth.logged-out .login-btn {
+    min-width: 76px;
+    height: 40px;
+    padding: 0 15px;
+    border: 1px solid #d9e1eb;
+    border-radius: 11px;
+    background: #ffffff;
+    color: #263247;
+    box-shadow: none;
+    font-size: 12px;
+    font-weight: 850;
+}
+
+.topbar-auth.logged-out .login-btn:hover {
+    border-color: #c8a85d;
+    background: #fffdf8;
+    color: #654f24;
+}
+
+.topbar-auth.logged-out .login-btn:last-child {
+    min-width: 96px;
+    border-color: #c8a85d;
+    background: #fff8e9;
+    color: #6d531e;
+    box-shadow: 0 8px 18px rgba(137, 103, 28, .10);
+}
+
+.topbar-auth.logged-out .login-btn:last-child:hover {
+    background: #f8edd4;
+    border-color: #b99542;
+}
+
+@media (max-width: 1320px) {
+    .topbar-auth.logged-out .login-btn:first-child {
+        display: none;
+    }
+    .topbar-auth.logged-out .login-btn:last-child {
+        min-width: 88px;
+    }
+}
+
+@media (max-width: 1120px) {
+    .topbar-auth.logged-out {
+        display: inline-flex !important;
+    }
+}
+
+
+/* Reliable export menu and cleaner action spacing */
+.export-menu-wrap {
+    position: relative;
+    z-index: 10020;
+}
+.export-dropdown.export-dropdown-wide {
+    position: fixed !important;
+    top: 78px !important;
+    right: 84px !important;
+    left: auto !important;
+    z-index: 1000000 !important;
+    pointer-events: auto !important;
+    width: min(330px, calc(100vw - 24px));
+    max-height: calc(100vh - 94px);
+}
+.export-dropdown.export-dropdown-wide button,
+.export-dropdown.export-dropdown-wide input,
+.export-dropdown.export-dropdown-wide select,
+.export-dropdown.export-dropdown-wide summary {
+    pointer-events: auto;
+}
+@media (max-width: 900px) {
+    .export-dropdown.export-dropdown-wide {
+        right: 12px !important;
+        top: 72px !important;
+    }
+}
+
+
+/* Fix Save / Import / Grid dropdowns being clipped by the toolbar */
+.topbar,
+.topbar-actions {
+    overflow: visible !important;
+}
+
+.topbar-actions {
+    position: relative;
+}
+
+.save-menu-wrap,
+.export-menu-wrap,
+.grid-menu-wrap,
+.topbar-actions .export-menu-wrap {
+    position: relative;
+    z-index: 10030;
+}
+
+.save-dropdown,
+.grid-dropdown,
+.topbar-actions .export-dropdown {
+    z-index: 1000001 !important;
+    pointer-events: auto !important;
+}
+
+.save-dropdown {
+    left: 0;
+    right: auto;
+}
+
+.grid-dropdown {
+    left: auto;
+    right: 0;
+}
+
+.save-dropdown button,
+.grid-dropdown button,
+.save-dropdown input,
+.grid-dropdown input,
+.grid-dropdown select {
+    pointer-events: auto !important;
+}
+
+/* Import uses the shared export dropdown class, keep it attached to Import */
+.topbar-actions .export-menu-wrap .export-dropdown:not(.export-dropdown-wide) {
+    position: absolute;
+    top: 46px;
+    left: 0;
+    right: auto;
+    max-height: min(70vh, 560px);
+    overflow-y: auto;
+}
+
+/* Keep the toolbar usable without a horizontal layer intercepting clicks */
+@media (min-width: 1101px) {
+    .topbar-actions {
+        overflow-x: visible !important;
+        overflow-y: visible !important;
+    }
+}

@@ -17,3 +17,8 @@
 .inspector-play { height:38px; border-color:#d7b76c; background:#fffaf0; color:#674d18; font-weight:900; }
 .inspector-help { margin:0; color:#7b8492; font-size:10px; line-height:1.45; }
 @media (max-width: 1180px) { .context-inspector { width:250px; right:10px; } }
+
+.pro-locked-inspector {
+    border-color: #ead7aa;
+    background: #fffdf8;
+}

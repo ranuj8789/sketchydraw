@@ -1,0 +1,267 @@
+.sub-popup-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000000;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: rgba(15, 23, 42, 0.38);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.sub-popup {
+    position: relative;
+    width: min(760px, calc(100vw - 32px));
+    max-height: min(88vh, 820px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    box-sizing: border-box;
+    padding: 30px;
+    border: 1px solid #e7e1d6;
+    border-radius: 24px;
+    background: #fffefa;
+    color: #172033;
+    box-shadow: 0 30px 90px rgba(15, 23, 42, 0.24);
+}
+
+.sub-popup-close {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 1px solid #dde3eb;
+    border-radius: 50%;
+    background: #ffffff;
+    color: #344054;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.sub-popup-close:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+}
+
+.sub-popup-badge {
+    width: fit-content;
+    margin-bottom: 12px;
+    padding: 6px 10px;
+    border: 1px solid #ddc486;
+    border-radius: 999px;
+    background: #fff8e8;
+    color: #765817;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: .08em;
+}
+
+.sub-popup-badge.active {
+    border-color: #a7d7b5;
+    background: #effbf2;
+    color: #18733a;
+}
+
+.sub-popup h2 {
+    margin: 0;
+    max-width: 620px;
+    font-size: clamp(26px, 3vw, 38px);
+    line-height: 1.08;
+    letter-spacing: -0.04em;
+    color: #111827;
+}
+
+.sub-popup-subtitle {
+    margin: 12px 0 22px;
+    max-width: 620px;
+    color: #667085;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.sub-plan-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin: 18px 0;
+}
+
+.sub-plan-card {
+    min-height: 104px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px;
+    border: 1px solid #e2e7ee;
+    border-radius: 16px;
+    background: #ffffff;
+    color: #172033;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.sub-plan-card:hover:not(:disabled) {
+    transform: translateY(-1px);
+    border-color: #d7ba72;
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.07);
+}
+
+.sub-plan-card.active {
+    border-color: #c7a454;
+    background: #fffaf0;
+    box-shadow: 0 0 0 2px rgba(199, 164, 84, 0.14);
+}
+
+.sub-plan-card > div:first-child {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.sub-plan-card strong {
+    font-size: 14px;
+    color: #111827;
+}
+
+.sub-plan-card span {
+    color: #667085;
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.sub-plan-price {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 3px;
+}
+
+.sub-plan-price b {
+    color: #111827;
+    font-size: 18px;
+    white-space: nowrap;
+}
+
+.sub-plan-price em {
+    color: #8a6b28;
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.sub-popup-features {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px 18px;
+    margin: 20px 0;
+    padding: 18px;
+    border: 1px solid #ebe6dc;
+    border-radius: 16px;
+    background: #fbfaf7;
+    color: #344054;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.sub-popup-message,
+.sub-popup-active-card {
+    margin: 14px 0;
+    padding: 13px 15px;
+    border-radius: 13px;
+    border: 1px solid #dde5ef;
+    background: #f8fafc;
+    color: #475467;
+    font-size: 13px;
+}
+
+.sub-popup-active-card {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    border-color: #b9dfc3;
+    background: #f1fbf4;
+    color: #176b35;
+}
+
+.sub-popup-active-card em {
+    font-style: normal;
+    font-weight: 800;
+}
+
+.sub-popup-primary,
+.sub-popup-secondary {
+    height: 46px;
+    border-radius: 13px;
+    padding: 0 18px;
+    font-size: 14px;
+    font-weight: 850;
+    cursor: pointer;
+}
+
+.sub-popup-primary {
+    min-width: 180px;
+    border: 1px solid #c6a557;
+    background: #c6a557;
+    color: #ffffff;
+    box-shadow: 0 10px 22px rgba(148, 111, 31, 0.18);
+}
+
+.sub-popup-primary:hover:not(:disabled) {
+    background: #b69343;
+    border-color: #b69343;
+}
+
+.sub-popup-primary:disabled {
+    opacity: .55;
+    cursor: not-allowed;
+}
+
+.sub-popup-secondary {
+    margin-left: 8px;
+    border: 1px solid #dbe2ea;
+    background: #ffffff;
+    color: #344054;
+}
+
+.sub-popup-secondary:hover {
+    background: #f8fafc;
+}
+
+@media (max-width: 720px) {
+    .sub-popup-backdrop {
+        align-items: end;
+        padding: 12px;
+    }
+
+    .sub-popup {
+        width: 100%;
+        max-height: 92vh;
+        padding: 24px 18px 20px;
+        border-radius: 22px 22px 16px 16px;
+    }
+
+    .sub-plan-list,
+    .sub-popup-features {
+        grid-template-columns: 1fr;
+    }
+
+    .sub-plan-card {
+        min-height: 92px;
+    }
+
+    .sub-popup-primary,
+    .sub-popup-secondary {
+        width: 100%;
+        margin: 8px 0 0;
+    }
+}

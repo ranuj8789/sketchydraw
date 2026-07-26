@@ -27,6 +27,7 @@ import { DEFAULT_TEXT_STYLE } from "./canvas/textStyle";
 import { createAnimationConfig } from "./canvas/animationRegistry";
 import { buildCodeIllustrationFrames, parseCodeIllustratorNumbers } from "./canvas/codeIllustrator";
 import { exportTimelineGif } from "./utils/exportGif";
+import { hasProAccess, requestProUpgrade } from "./utils/proFeatureGate";
 import {
   normalizeTextStyle,
   pickTextStylePatch,
@@ -275,6 +276,15 @@ function saveCurrentTextStyle(style) {
   }
 }
 function SketchyDrawPage() {
+  const proUser = hasProAccess();
+  const requirePro = useCallback((feature, action) => {
+    if (!hasProAccess()) {
+      requestProUpgrade(feature);
+      return false;
+    }
+    action?.();
+    return true;
+  }, []);
   const [showGrid, setShowGrid] = useState(false);
   const [socialCreatorPreset, setSocialCreatorPreset] = useState(null);
   const [tool, setTool] = useState("select");
@@ -1647,7 +1657,7 @@ function SketchyDrawPage() {
               onInsertEmoji={insertEmojiObject}
               onInsertRichText={insertRichTextObject}
               onGenerateCodeIllustration={generateCodeIllustration}
-              onSelectFrame={selectTimelineFrame}
+              onSelectFrame={(index) => requirePro("Frames", () => selectTimelineFrame(index))}
               onDeleteFrame={deleteTimelineFrame}
               onOpenFramesPanel={() => setFramesPanelOpen(true)}
           />}
@@ -1690,10 +1700,10 @@ function SketchyDrawPage() {
                 createNewDrawing={createNewDrawing}
                 timelineFrames={timelineFrames}
                 currentFrameIndex={currentFrameIndex}
-                onPresentFrames={() => openAnimationPlayer("all")}
-                onPreviousFrame={() => selectTimelineFrame(Math.max(0, currentFrameIndex - 1))}
-                onNextFrame={() => selectTimelineFrame(Math.min(timelineFrames.length - 1, currentFrameIndex + 1))}
-                openFramesPanel={() => setFramesPanelOpen(true)}
+                onPresentFrames={() => requirePro("Presentation and frame playback", () => openAnimationPlayer("all"))}
+                onPreviousFrame={() => requirePro("Frames", () => selectTimelineFrame(Math.max(0, currentFrameIndex - 1)))}
+                onNextFrame={() => requirePro("Frames", () => selectTimelineFrame(Math.min(timelineFrames.length - 1, currentFrameIndex + 1)))}
+                openFramesPanel={() => requirePro("Frames", () => setFramesPanelOpen(true))}
                 exportGIF={exportGif}
                 gifExporting={gifExporting}
                 gifExportProgress={gifExportProgress}
@@ -1740,10 +1750,10 @@ function SketchyDrawPage() {
                 frames={timelineFrames}
                 currentIndex={currentFrameIndex}
                 onSelectFrame={selectTimelineFrame}
-                onAddFrame={addTimelineFrameAfterCurrent}
-                onOpenManager={() => setFramesPanelOpen(true)}
-                onPresent={() => openAnimationPlayer("all")}
-                onPlayCurrent={() => openAnimationPlayer("current")}
+                onAddFrame={() => requirePro("Frames", addTimelineFrameAfterCurrent)}
+                onOpenManager={() => requirePro("Frames", () => setFramesPanelOpen(true))}
+                onPresent={() => requirePro("Presentation and frame playback", () => openAnimationPlayer("all"))}
+                onPlayCurrent={() => requirePro("Frame playback", () => openAnimationPlayer("current"))}
                 onReorderFrames={reorderTimelineFrames}
             />}
 
@@ -1758,7 +1768,7 @@ function SketchyDrawPage() {
                 </button>
             )}
 
-            <FramesPanel
+            {proUser && <FramesPanel
                 open={framesPanelOpen}
                 frames={timelineFrames}
                 currentIndex={currentFrameIndex}
@@ -1783,9 +1793,9 @@ function SketchyDrawPage() {
                 onPreviewTimeChange={(timeMs) => { setFrameAnimationPlaying(false); setFrameAnimationTimeMs(Math.max(0, Number(timeMs) || 0)); }}
                 onMergeFrameWithNext={mergeFrameWithNextAt}
                 onMergeAllFrames={mergeAllTimelineFrames}
-            />
+            />}
 
-            <FramePlayerScreen
+            {proUser && <FramePlayerScreen
                 open={animationPlayerOpen}
                 frame={animationPlayerFrame}
                 frameIndex={animationPlayerFrameIndex}
@@ -1805,7 +1815,7 @@ function SketchyDrawPage() {
                 onRestart={restartAnimationPlayerFrame}
                 onNext={advanceAnimationPlayerFrame}
                 onAdvanceModeChange={setFrameAdvanceMode}
-            />
+            />}
           </div>
 
         </div>

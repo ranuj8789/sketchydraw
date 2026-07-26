@@ -172,6 +172,16 @@ function loadGoogleFont(fontName) {
     document.head.appendChild(link);
 }
 
+function alignSelected(type) {
+    if (typeof window === "undefined") return;
+
+    window.dispatchEvent(
+        new CustomEvent("sketchydraw:align-selected", {
+            detail: { type },
+        })
+    );
+}
+
 export default function PropertiesPanel({
                                             selectedElement,
                                             colors,
@@ -348,6 +358,42 @@ export default function PropertiesPanel({
 
             {selectedElement && (
                 <>
+                    <div className="property-section property-card property-align-section">
+                        <div className="property-section-heading">
+                            <div>
+                                <label>Align on canvas</label>
+                                <small>Position the selected object precisely.</small>
+                            </div>
+                        </div>
+
+                        <div className="property-align-grid">
+                            <button type="button" onClick={() => alignSelected("left")} title="Align left">
+                                <span className="align-symbol">↤</span>
+                                <small>Left</small>
+                            </button>
+                            <button type="button" onClick={() => alignSelected("center")} title="Align horizontal centre">
+                                <span className="align-symbol">↔</span>
+                                <small>Centre</small>
+                            </button>
+                            <button type="button" onClick={() => alignSelected("right")} title="Align right">
+                                <span className="align-symbol">↦</span>
+                                <small>Right</small>
+                            </button>
+                            <button type="button" onClick={() => alignSelected("top")} title="Align top">
+                                <span className="align-symbol">↥</span>
+                                <small>Top</small>
+                            </button>
+                            <button type="button" onClick={() => alignSelected("middle")} title="Align vertical middle">
+                                <span className="align-symbol">↕</span>
+                                <small>Middle</small>
+                            </button>
+                            <button type="button" onClick={() => alignSelected("bottom")} title="Align bottom">
+                                <span className="align-symbol">↧</span>
+                                <small>Bottom</small>
+                            </button>
+                        </div>
+                    </div>
+
                     <div className="property-section">
                         <label>{isText ? "Text color" : "Stroke color"}</label>
 

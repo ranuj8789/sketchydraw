@@ -17,6 +17,7 @@ import {
 import PropertiesPanel from "../PropertiesPanel/PropertiesPanel";
 import { getAnimationLabel } from "../../canvas/animationRegistry";
 import "./Sidebar.css";
+import { hasProAccess, requestProUpgrade } from "../../utils/proFeatureGate";
 
 const TOOLS = [
     { id: "select", label: "Select", icon: MousePointer2 },
@@ -1009,6 +1010,14 @@ export default function Sidebar({
                                     onOpenFramesPanel,
                                 }) {
     const [activeTab, setActiveTab] = useState("draw");
+    const proUser = hasProAccess();
+    const chooseTab = (tab, feature) => {
+        if (!proUser && feature) {
+            requestProUpgrade(feature);
+            return;
+        }
+        setActiveTab(tab);
+    };
 
     return (
         <div className="sidebar">
@@ -1030,16 +1039,16 @@ export default function Sidebar({
                 <button
                     type="button"
                     className={activeTab === "gif" ? "active" : ""}
-                    onClick={() => setActiveTab("gif")}
+                    onClick={() => chooseTab("gif", "GIF tools") }
                 >
-                    GIF
+                    GIF {!proUser && <small className="tab-pro-badge">PRO</small>}
                 </button>
                 <button
                     type="button"
                     className={activeTab === "frames" ? "active" : ""}
-                    onClick={() => setActiveTab("frames")}
+                    onClick={() => chooseTab("frames", "Frames") }
                 >
-                    Frames
+                    Frames {!proUser && <small className="tab-pro-badge">PRO</small>}
                 </button>
                 <button
                     type="button"
@@ -1058,9 +1067,9 @@ export default function Sidebar({
                 <button
                     type="button"
                     className={activeTab === "rich" ? "active" : ""}
-                    onClick={() => setActiveTab("rich")}
+                    onClick={() => chooseTab("rich", "Rich text tools") }
                 >
-                    Rich
+                    Rich {!proUser && <small className="tab-pro-badge">PRO</small>}
                 </button>
             </div>
 
