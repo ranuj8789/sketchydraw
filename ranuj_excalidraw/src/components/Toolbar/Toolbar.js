@@ -46,12 +46,16 @@ export default function Toolbar({
                                     onDrawingTitleChange,
                                     timelineFrames = [],
                                     currentFrameIndex = 0,
+                                    onPresentFrames,
+                                    onPreviousFrame,
+                                    onNextFrame,
                                     openFramesPanel,
                                     exportGIF,
                                     gifExporting = false,
                                     gifExportProgress = 0,
                                     socialCreatorPreset = null,
                                     setSocialCreatorPreset,
+                                    onToggleFocusMode,
                                 }) {
     const [loginOpen, setLoginOpen] = useState(false);
     const [subscriptionOpen, setSubscriptionOpen] = useState(false);
@@ -591,12 +595,57 @@ export default function Toolbar({
                         Redo
                     </button>
 
-                    <span className="history-stack-counter" title="Current frame">
-                        Frame {Math.min(currentFrameIndex + 1, timelineFrames.length || 1)}/{timelineFrames.length || 1}
-                    </span>
+                    <div className="presentation-cluster" aria-label="Frame presentation controls">
+                        <button
+                            type="button"
+                            className="presentation-step"
+                            onClick={onPreviousFrame}
+                            disabled={currentFrameIndex <= 0}
+                            title="Previous frame"
+                        >
+                            ‹
+                        </button>
+                        <button
+                            type="button"
+                            className="presentation-play"
+                            onClick={onPresentFrames}
+                            title="Play all frames as a slideshow"
+                        >
+                            <span className="presentation-play-icon">▶</span>
+                            <span>Present</span>
+                        </button>
+                        <button
+                            type="button"
+                            className="presentation-step"
+                            onClick={onNextFrame}
+                            disabled={currentFrameIndex >= Math.max(0, (timelineFrames.length || 1) - 1)}
+                            title="Next frame"
+                        >
+                            ›
+                        </button>
+                        <button
+                            type="button"
+                            className="presentation-count"
+                            onClick={openFramesPanel}
+                            title="Open frames"
+                        >
+                            {Math.min(currentFrameIndex + 1, timelineFrames.length || 1)}
+                            <span>/</span>
+                            {timelineFrames.length || 1}
+                        </button>
+                    </div>
 
-                    <button type="button" onClick={clearCanvas} className="danger" title="Clear current canvas">
+                    <button type="button" onClick={clearCanvas} className="toolbar-clear-action" title="Clear current canvas">
                         Clear
+                    </button>
+
+                    <button
+                        type="button"
+                        className="toolbar-focus-action"
+                        onClick={onToggleFocusMode}
+                        title="Focus mode: show only the canvas"
+                    >
+                        ⛶ Focus
                     </button>
 
                     <span className="topbar-separator" />
@@ -947,7 +996,7 @@ export default function Toolbar({
                     )}
                 </div>
 
-                <div className="topbar-auth">
+                <div className={`topbar-auth ${!loggedIn ? "logged-out" : "logged-in"}`}>
                     {!loggedIn ? (
                         <>
                             <button

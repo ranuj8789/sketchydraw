@@ -6,6 +6,7 @@ import Sidebar from "./components/Sidebar/Sidebar";
 import CanvasBoard from "./components/CanvasBoard/CanvasBoard";
 import FramesPanel from "./components/FramesPanel/FramesPanel";
 import FramePlayerScreen from "./components/FramePlayerScreen/FramePlayerScreen";
+import StoryboardBar from "./components/StoryboardBar/StoryboardBar";
 import SketchyAlert from "./components/SketchyAlert";
 import { verifyEmail, resetPassword } from "./api/authApi";
 import { measureTextBox } from "./canvas/textMetrics";
@@ -118,6 +119,9 @@ function createTimelineFrame(elements = [], index = 0, patch = {}) {
     name: `Frame ${index + 1}`,
     elements: cloneElements(elements),
     hiddenElementIds: [],
+    durationMs: 1300,
+    gapAfterMs: 500,
+    transition: "none",
     ...patch,
   };
 }
@@ -306,6 +310,7 @@ function SketchyDrawPage() {
   ]);
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
   const [framesPanelOpen, setFramesPanelOpen] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
   const [frameAnimationPlaying, setFrameAnimationPlaying] = useState(false);
   const [frameAnimationTimeMs, setFrameAnimationTimeMs] = useState(0);
 
@@ -437,7 +442,7 @@ function SketchyDrawPage() {
             setAnimationPlayerWaitingForNext(false);
             animationPlayerAdvanceTimeoutRef.current = window.setTimeout(() => {
               advanceAnimationPlayerFrame();
-            }, Math.max(120, 650 / speed));
+            }, Math.max(0, (Number(animationPlayerFrame?.gapAfterMs) || 650) / speed));
           } else {
             setAnimationPlayerWaitingForNext(true);
           }
@@ -867,6 +872,52 @@ function SketchyDrawPage() {
     setFrameAnimationPlaying(false);
   }, [currentFrameIndex]);
 
+  const updateTimelineFrameMeta = useCallback((frameIndex, patch = {}) => {
+    setTimelineFrames((prevFrames) => prevFrames.map((frame, index) =>
+        index === frameIndex ? { ...frame, ...patch } : frame
+    ));
+  }, []);
+
+  const reorderTimelineFrames = useCallback((fromIndex, toIndex) => {
+    setTimelineFrames((prevFrames) => {
+      if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= prevFrames.length || toIndex >= prevFrames.length) return prevFrames;
+      const next = [...prevFrames];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      const renamed = renameTimelineFrames(next);
+      const activeId = prevFrames[currentFrameIndex]?.id;
+      const nextActiveIndex = Math.max(0, renamed.findIndex((frame) => frame.id === activeId));
+      setCurrentFrameIndex(nextActiveIndex);
+      return renamed;
+    });
+  }, [currentFrameIndex]);
+
+  const mergeFrameWithNextAt = useCallback((frameIndex) => {
+    setTimelineFrames((prevFrames) => {
+      if (frameIndex < 0 || frameIndex >= prevFrames.length - 1) return prevFrames;
+      const currentFrame = prevFrames[frameIndex];
+      const nextFrame = prevFrames[frameIndex + 1];
+      const mergedFrame = {
+        ...currentFrame,
+        elements: mergeFrameElements(currentFrame.elements, nextFrame.elements),
+        hiddenElementIds: [],
+        durationMs: Math.max(1000, Number(currentFrame.durationMs) || 1300) + Math.max(1000, Number(nextFrame.durationMs) || 1300),
+        gapAfterMs: Number(nextFrame.gapAfterMs) || 0,
+      };
+      const next = renameTimelineFrames([
+        ...prevFrames.slice(0, frameIndex),
+        mergedFrame,
+        ...prevFrames.slice(frameIndex + 2),
+      ]);
+      setCurrentFrameIndex(frameIndex);
+      setElements(cloneElements(mergedFrame.elements));
+      setSelectedIds([]);
+      return next;
+    });
+    setFrameAnimationPlaying(false);
+    setFrameAnimationTimeMs(0);
+  }, []);
+
   const toggleCurrentFrameAnimation = useCallback(() => {
     setFrameAnimationTimeMs(0);
     setFrameAnimationPlaying((value) => !value);
@@ -967,7 +1018,7 @@ function SketchyDrawPage() {
       showSketchyAlert({
         icon: "⚠️",
         title: "GIF export failed",
-        message: "GIF encoder could not load or export failed. Check internet/CDN access and try again.",
+        message: error?.message || "GIF export could not be completed. Please try again.",
       });
     } finally {
       setGifExporting(false);
@@ -1433,6 +1484,49 @@ function SketchyDrawPage() {
     });
   };
 
+  const enterFocusMode = async () => {
+    setFocusMode(true);
+    try {
+      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen();
+      }
+    } catch (_) {
+      // Focus mode still works even when the browser blocks fullscreen.
+    }
+  };
+
+  const exitFocusMode = async () => {
+    setFocusMode(false);
+    try {
+      if (document.fullscreenElement && document.exitFullscreen) {
+        await document.exitFullscreen();
+      }
+    } catch (_) {
+      // The editor has already returned to its normal layout.
+    }
+  };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) setFocusMode(false);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
+  useEffect(() => {
+    if (!focusMode) return undefined;
+
+    const handleFocusModeKeyDown = (event) => {
+      if (event.key === "Escape") {
+        exitFocusMode();
+      }
+    };
+
+    window.addEventListener("keydown", handleFocusModeKeyDown);
+    return () => window.removeEventListener("keydown", handleFocusModeKeyDown);
+  }, [focusMode]);
+
   const deleteSelected = () => {
     if (selectedIds.length === 0) return;
 
@@ -1514,7 +1608,7 @@ function SketchyDrawPage() {
   };
 
   return (
-      <div className="app-shell">
+      <div className={`app-shell ${focusMode ? "focus-mode" : ""}`}>
         <SketchyAlert
             alert={sketchyAlert}
             onClose={closeSketchyAlert}
@@ -1522,7 +1616,7 @@ function SketchyDrawPage() {
         />
 
         <div className="layout">
-          <Sidebar
+          {!focusMode && <Sidebar
               tool={tool}
               setTool={setTool}
               stroke={stroke}
@@ -1556,7 +1650,7 @@ function SketchyDrawPage() {
               onSelectFrame={selectTimelineFrame}
               onDeleteFrame={deleteTimelineFrame}
               onOpenFramesPanel={() => setFramesPanelOpen(true)}
-          />
+          />}
 
           <div className="work-area">
             <input
@@ -1567,7 +1661,7 @@ function SketchyDrawPage() {
                 style={{ display: "none" }}
             />
 
-            <Toolbar
+            {!focusMode && <Toolbar
                 undo={undo}
                 redo={redo}
                 clearCanvas={clearCanvas}
@@ -1596,13 +1690,17 @@ function SketchyDrawPage() {
                 createNewDrawing={createNewDrawing}
                 timelineFrames={timelineFrames}
                 currentFrameIndex={currentFrameIndex}
+                onPresentFrames={() => openAnimationPlayer("all")}
+                onPreviousFrame={() => selectTimelineFrame(Math.max(0, currentFrameIndex - 1))}
+                onNextFrame={() => selectTimelineFrame(Math.min(timelineFrames.length - 1, currentFrameIndex + 1))}
                 openFramesPanel={() => setFramesPanelOpen(true)}
                 exportGIF={exportGif}
                 gifExporting={gifExporting}
                 gifExportProgress={gifExportProgress}
                 socialCreatorPreset={socialCreatorPreset}
                 setSocialCreatorPreset={setSocialCreatorPreset}
-            />
+                onToggleFocusMode={enterFocusMode}
+            />}
 
             <CanvasBoard
                 tool={tool}
@@ -1635,7 +1733,30 @@ function SketchyDrawPage() {
                 onRestoreTimeline={restoreTimelineFrames}
                 onStartAnimationPreview={startCurrentFrameAnimationPreview}
                 socialCreatorPreset={socialCreatorPreset}
+                focusMode={focusMode}
             />
+
+            {!focusMode && <StoryboardBar
+                frames={timelineFrames}
+                currentIndex={currentFrameIndex}
+                onSelectFrame={selectTimelineFrame}
+                onAddFrame={addTimelineFrameAfterCurrent}
+                onOpenManager={() => setFramesPanelOpen(true)}
+                onPresent={() => openAnimationPlayer("all")}
+                onPlayCurrent={() => openAnimationPlayer("current")}
+                onReorderFrames={reorderTimelineFrames}
+            />}
+
+            {focusMode && (
+                <button
+                    type="button"
+                    className="focus-mode-exit"
+                    onClick={exitFocusMode}
+                    title="Exit focus mode (Esc)"
+                >
+                  Exit focus mode
+                </button>
+            )}
 
             <FramesPanel
                 open={framesPanelOpen}
@@ -1651,12 +1772,16 @@ function SketchyDrawPage() {
                 onSelectFrame={selectTimelineFrame}
                 onAddFrameAfter={addTimelineFrameAfterCurrent}
                 onDeleteFrame={deleteTimelineFrame}
+                onReorderFrames={reorderTimelineFrames}
+                onUpdateFrame={updateTimelineFrameMeta}
+                onPlayCurrent={() => openAnimationPlayer("current")}
+                onPlayAll={() => openAnimationPlayer("all")}
                 onToggleElementHidden={toggleFrameElementHidden}
                 onMoveFrameElementOrder={moveFrameElementOrder}
                 onApplyFrameObjectOrderTiming={applyFrameObjectOrderTiming}
                 onUpdateFrameElementAnimation={updateFrameElementAnimation}
                 onPreviewTimeChange={(timeMs) => { setFrameAnimationPlaying(false); setFrameAnimationTimeMs(Math.max(0, Number(timeMs) || 0)); }}
-                onMergeFrameWithNext={mergeCurrentFrameWithNext}
+                onMergeFrameWithNext={mergeFrameWithNextAt}
                 onMergeAllFrames={mergeAllTimelineFrames}
             />
 

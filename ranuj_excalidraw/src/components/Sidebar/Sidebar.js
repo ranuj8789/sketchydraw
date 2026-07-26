@@ -1108,42 +1108,16 @@ export default function Sidebar({
                             <span>Switch, add or remove frames without using the right side of the canvas.</span>
                         </div>
 
-                        <div className="left-frames-list">
-                            {(frames || []).map((frame, index) => (
-                                <div
-                                    key={frame?.id || index}
-                                    className={`left-frame-row ${index === currentFrameIndex ? "active" : ""}`}
-                                >
-                                    <button
-                                        type="button"
-                                        className="left-frame-select"
-                                        onClick={() => onSelectFrame?.(index)}
-                                    >
-                                        <span className="left-frame-number">{index + 1}</span>
-                                        <span className="left-frame-meta">
-                                            <strong>{frame?.name || `Frame ${index + 1}`}</strong>
-                                            <small>{frame?.elements?.length || 0} objects</small>
-                                        </span>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        className="left-frame-delete"
-                                        onClick={() => onDeleteFrame?.(index)}
-                                        disabled={(frames || []).length <= 1}
-                                        title="Delete frame"
-                                    >
-                                        ×
-                                    </button>
-                                </div>
-                            ))}
+                        <div className="frames-summary-block">
+                            <strong>{(frames || []).length || 1} frames</strong>
+                            <span>Manage frames and animation timing in one clean dialog.</span>
                         </div>
 
-                        <button type="button" className="left-primary-btn wide" onClick={onAddFrameAfter}>
-                            + Add frame
+                        <button type="button" className="left-primary-btn wide" onClick={onOpenFramesPanel}>
+                            Manage frames
                         </button>
-                        <button type="button" className="left-full-btn" onClick={onOpenFramesPanel}>
-                            Open detailed timeline
+                        <button type="button" className="left-full-btn" onClick={onToggleFrameAnimation}>
+                            {animationPlaying ? "Pause presentation" : "Present slideshow"}
                         </button>
                     </div>
                 </div>

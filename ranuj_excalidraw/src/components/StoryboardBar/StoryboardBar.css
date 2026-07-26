@@ -1,0 +1,30 @@
+.storyboard-bar {
+  flex: 0 0 auto;
+  margin-top: -4px;
+  border: 1px solid #e4e7ec;
+  border-radius: 16px 16px 0 0;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 -10px 28px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
+}
+.storyboard-head { min-height: 44px; display:flex; align-items:center; gap:10px; padding:6px 10px; }
+.storyboard-collapse { width:30px; height:30px; padding:0; border-radius:9px; }
+.storyboard-title { display:flex; align-items:baseline; gap:8px; min-width:150px; }
+.storyboard-title strong { font-size:13px; }
+.storyboard-title span { color:#667085; font-size:11px; font-weight:700; }
+.storyboard-actions { margin-left:auto; display:flex; gap:7px; }
+.storyboard-actions button { height:32px; padding:0 11px; font-size:11px; font-weight:800; }
+.storyboard-actions .storyboard-present { border-color:#d8b66a; background:#fffaf0; color:#694f1d; }
+.storyboard-track { display:flex; align-items:center; gap:7px; padding:8px 12px 12px; overflow-x:auto; border-top:1px solid #f0f1f3; }
+.storyboard-frame { flex:0 0 150px; height:58px; padding:7px 9px; display:flex; align-items:center; gap:9px; text-align:left; border:1px solid #e1e5eb; border-radius:12px; background:#fff; }
+.storyboard-frame:hover { border-color:#c8a85d; background:#fffdf8; }
+.storyboard-frame.active { border-color:#c8a85d; box-shadow:0 0 0 2px rgba(200,168,93,.16); background:#fffdf8; }
+.storyboard-frame-number { width:26px; height:26px; display:grid; place-items:center; border-radius:8px; background:#f4f1ea; color:#715821; font-size:11px; font-weight:900; }
+.storyboard-frame-copy { min-width:0; display:flex; flex-direction:column; gap:3px; }
+.storyboard-frame-copy strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; }
+.storyboard-frame-copy small { color:#7a8493; font-size:10px; font-weight:800; }
+.storyboard-gap { flex:0 0 30px; display:flex; flex-direction:column; align-items:center; color:#a58a4a; font-weight:900; }
+.storyboard-gap small { color:#8b95a5; font-size:9px; }
+.storyboard-add { flex:0 0 116px; height:58px; border-style:dashed; color:#5c6573; font-size:11px; font-weight:800; }
+.storyboard-bar.collapsed .storyboard-head { min-height:42px; }
+@media (max-width: 1100px) { .storyboard-title { display:none; } .storyboard-frame { flex-basis:132px; } }

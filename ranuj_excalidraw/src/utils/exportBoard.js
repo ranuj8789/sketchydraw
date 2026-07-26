@@ -5,52 +5,79 @@ import { getNotebookPageCount, getNotebookPageSize, getNotebookPageTop } from ".
 import { getElementBounds } from "./elementBounds";
 import { getSocialMediaPreset } from "./socialMediaPresets";
 
-const WATERMARK_TEXT = "SketchyDraw";
+const WATERMARK_TEXT = "madebysketchydraw.com";
 
-function shouldWatermark(options = {}) {
+function shouldUseFullWatermark(options = {}) {
     if (options.watermark === true) return true;
     if (options.watermark === false) return false;
 
     return !isPaidUser();
 }
 
-function drawWatermark(ctx, canvas) {
-    const text = WATERMARK_TEXT;
-
-    const fontSize = Math.max(
-        18,
-        Math.round(Math.min(canvas.width, canvas.height) * 0.035)
-    );
+function drawRepeatedWatermark(ctx, canvas) {
+    const fontSize = Math.max(12, Math.round(Math.min(canvas.width, canvas.height) * 0.018));
 
     ctx.save();
-
-    ctx.globalAlpha = 0.18;
+    ctx.globalAlpha = 0.085;
     ctx.translate(canvas.width / 2, canvas.height / 2);
-    ctx.rotate(-Math.PI / 7);
-
-    ctx.font = `900 ${fontSize}px Arial, sans-serif`;
+    ctx.rotate(-Math.PI / 8);
+    ctx.font = `600 ${fontSize}px Arial, sans-serif`;
     ctx.fillStyle = "#111827";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
-    const stepX = Math.max(260, fontSize * 8);
-    const stepY = Math.max(150, fontSize * 5);
+    const stepX = Math.max(230, fontSize * 13);
+    const stepY = Math.max(130, fontSize * 7);
 
-    for (let y = -canvas.height; y <= canvas.height; y += stepY) {
-        for (let x = -canvas.width; x <= canvas.width; x += stepX) {
-            ctx.fillText(text, x, y);
+    for (let y = -canvas.height * 1.5; y <= canvas.height * 1.5; y += stepY) {
+        for (let x = -canvas.width * 1.5; x <= canvas.width * 1.5; x += stepX) {
+            ctx.fillText(WATERMARK_TEXT, x, y);
         }
     }
 
     ctx.restore();
 }
 
+function drawPaidBranding(ctx, canvas) {
+    const fontSize = Math.max(11, Math.round(Math.min(canvas.width, canvas.height) * 0.014));
+    const padX = Math.max(14, Math.round(fontSize * 1.15));
+    const padY = Math.max(10, Math.round(fontSize * 0.85));
+
+    ctx.save();
+    ctx.font = `600 ${fontSize}px Arial, sans-serif`;
+    ctx.textAlign = "right";
+    ctx.textBaseline = "bottom";
+
+    const textWidth = ctx.measureText(WATERMARK_TEXT).width;
+    const boxWidth = textWidth + padX * 1.25;
+    const boxHeight = fontSize + padY * 1.15;
+    const x = canvas.width - Math.max(10, Math.round(fontSize * 0.8));
+    const y = canvas.height - Math.max(9, Math.round(fontSize * 0.65));
+
+    ctx.globalAlpha = 0.72;
+    ctx.fillStyle = "rgba(255, 255, 255, 0.88)";
+    ctx.fillRect(x - boxWidth, y - boxHeight, boxWidth, boxHeight);
+
+    ctx.globalAlpha = 0.78;
+    ctx.fillStyle = "#475569";
+    ctx.fillText(WATERMARK_TEXT, x - padX * 0.45, y - padY * 0.28);
+    ctx.restore();
+}
+
+export function drawExportBranding(ctx, canvas, options = {}) {
+    if (!ctx || !canvas) return;
+
+    if (shouldUseFullWatermark(options)) {
+        drawRepeatedWatermark(ctx, canvas);
+        return;
+    }
+
+    // Paid exports remain clean, but carry a small unobtrusive creator credit.
+    drawPaidBranding(ctx, canvas);
+}
+
 export function createCanvasForExport(canvas, options = {}) {
     if (!canvas) return null;
-
-    if (!shouldWatermark(options)) {
-        return canvas;
-    }
 
     const out = document.createElement("canvas");
     out.width = canvas.width;
@@ -58,8 +85,7 @@ export function createCanvasForExport(canvas, options = {}) {
 
     const ctx = out.getContext("2d");
     ctx.drawImage(canvas, 0, 0);
-
-    drawWatermark(ctx, out);
+    drawExportBranding(ctx, out, options);
 
     return out;
 }
@@ -214,9 +240,7 @@ export async function exportCanvasForInstagram(
     ctx.fillRect(0, 0, out.width, out.height);
     ctx.drawImage(renderedCanvas, 0, 0, out.width, out.height);
 
-    if (shouldWatermark(options)) {
-        drawWatermark(ctx, out);
-    }
+    drawExportBranding(ctx, out, options);
 
     const blob = await canvasToBlob(out, "image/png");
     const file = new File([blob], fileName, { type: "image/png" });
@@ -796,20 +820,36 @@ function buildSVGText(
         }
     });
 
-    if (shouldWatermark(options)) {
+    if (shouldUseFullWatermark(options)) {
+        const markSize = Math.max(12, Math.round(Math.min(canvasWidth, canvasHeight) * 0.018));
+        const stepX = Math.max(230, markSize * 13);
+        const stepY = Math.max(130, markSize * 7);
+        const marks = [];
+
+        for (let y = -canvasHeight; y <= canvasHeight * 2; y += stepY) {
+            for (let x = -canvasWidth; x <= canvasWidth * 2; x += stepX) {
+                marks.push(`<text x="${x}" y="${y}" font-size="${markSize}" font-family="Arial, sans-serif" font-weight="600" fill="#111827">${escapeXml(WATERMARK_TEXT)}</text>`);
+            }
+        }
+
         svgParts.push(`
-  <g opacity="0.18" transform="translate(${canvasWidth / 2} ${canvasHeight / 2}) rotate(-25)">
-    <text
-      x="0"
-      y="0"
-      text-anchor="middle"
-      dominant-baseline="middle"
-      font-family="Arial, sans-serif"
-      font-size="${Math.max(24, Math.round(Math.min(canvasWidth, canvasHeight) * 0.04))}"
-      font-weight="900"
-      fill="#111827"
-    >${escapeXml(WATERMARK_TEXT)}</text>
+  <g opacity="0.085" transform="rotate(-22 ${canvasWidth / 2} ${canvasHeight / 2})">
+    ${marks.join("\n    ")}
   </g>
+`);
+    } else {
+        const markSize = Math.max(11, Math.round(Math.min(canvasWidth, canvasHeight) * 0.014));
+        svgParts.push(`
+  <text
+    x="${canvasWidth - 14}"
+    y="${canvasHeight - 12}"
+    text-anchor="end"
+    font-family="Arial, sans-serif"
+    font-size="${markSize}"
+    font-weight="600"
+    fill="#475569"
+    opacity="0.78"
+  >${escapeXml(WATERMARK_TEXT)}</text>
 `);
     }
 

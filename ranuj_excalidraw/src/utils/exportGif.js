@@ -1,7 +1,14 @@
 import { renderCanvas } from "../canvas/canvasRender";
+import { drawExportBranding } from "./exportBoard";
 
-const GIF_JS_URL = "https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js";
-const GIF_WORKER_URL = "https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js";
+const GIF_JS_URLS = [
+    "https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js",
+    "https://unpkg.com/gif.js@0.2.0/dist/gif.js",
+];
+const GIF_WORKER_URLS = [
+    "https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js",
+    "https://unpkg.com/gif.js@0.2.0/dist/gif.worker.js",
+];
 const DEFAULT_FPS = 12;
 const MAX_EXPORT_WIDTH = 900;
 const MAX_EXPORT_HEIGHT = 700;
@@ -11,30 +18,72 @@ function loadScript(src) {
         const existing = document.querySelector(`script[src="${src}"]`);
 
         if (existing) {
-            if (window.GIF) resolve();
-            else existing.addEventListener("load", resolve, { once: true });
+            if (window.GIF) {
+                resolve();
+                return;
+            }
+
+            existing.addEventListener("load", resolve, { once: true });
+            existing.addEventListener("error", reject, { once: true });
             return;
         }
 
         const script = document.createElement("script");
         script.src = src;
         script.async = true;
+        script.crossOrigin = "anonymous";
         script.onload = () => resolve();
         script.onerror = () => reject(new Error(`Unable to load ${src}`));
         document.head.appendChild(script);
     });
 }
 
+async function loadFirstAvailableScript() {
+    let lastError = null;
+
+    for (const src of GIF_JS_URLS) {
+        try {
+            await loadScript(src);
+            if (window.GIF) return window.GIF;
+        } catch (error) {
+            lastError = error;
+        }
+    }
+
+    throw lastError || new Error("GIF encoder could not be loaded.");
+}
+
+async function createWorkerScriptUrl() {
+    let lastError = null;
+
+    for (const workerUrl of GIF_WORKER_URLS) {
+        try {
+            const response = await fetch(workerUrl, { mode: "cors", cache: "force-cache" });
+            if (!response.ok) {
+                throw new Error(`GIF worker returned ${response.status}`);
+            }
+
+            const workerSource = await response.text();
+            return URL.createObjectURL(
+                new Blob([workerSource], { type: "text/javascript" })
+            );
+        } catch (error) {
+            lastError = error;
+        }
+    }
+
+    throw lastError || new Error("GIF worker could not be loaded.");
+}
+
 async function ensureGifEncoder() {
-    if (window.GIF) return window.GIF;
+    const GIF = window.GIF || await loadFirstAvailableScript();
 
-    await loadScript(GIF_JS_URL);
-
-    if (!window.GIF) {
+    if (!GIF) {
         throw new Error("GIF encoder was not available after loading gif.js.");
     }
 
-    return window.GIF;
+    const workerScript = await createWorkerScriptUrl();
+    return { GIF, workerScript };
 }
 
 function cloneElements(elements) {
@@ -123,6 +172,9 @@ function renderGifFrame({
             loopAnimation: false,
         },
     });
+
+    const ctx = canvas.getContext("2d");
+    drawExportBranding(ctx, canvas);
 }
 
 function downloadBlob(blob, fileName) {
@@ -148,7 +200,7 @@ export async function exportTimelineGif({
     const safeFrames = frames.length ? frames : [{ elements: [] }];
     const safeFps = Math.max(4, Math.min(30, Number(fps) || DEFAULT_FPS));
     const frameDelayMs = Math.round(1000 / safeFps);
-    const GIF = await ensureGifEncoder();
+    const { GIF, workerScript } = await ensureGifEncoder();
     const sizing = getExportSizing(canvasSize, viewport);
     const canvas = document.createElement("canvas");
 
@@ -168,7 +220,7 @@ export async function exportTimelineGif({
         repeat: 0,
         width: canvas.width,
         height: canvas.height,
-        workerScript: GIF_WORKER_URL,
+        workerScript,
     });
 
     safeFrames.forEach((frame) => {
@@ -204,19 +256,37 @@ export async function exportTimelineGif({
     });
 
     return new Promise((resolve, reject) => {
+        let settled = false;
+        const cleanup = () => {
+            if (workerScript?.startsWith("blob:")) {
+                URL.revokeObjectURL(workerScript);
+            }
+        };
+        const fail = (error) => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            reject(error instanceof Error ? error : new Error(String(error || "GIF export failed.")));
+        };
+
         gif.on("progress", (progress) => {
             onProgress?.(progress);
         });
 
         gif.on("finished", (blob) => {
+            if (settled) return;
+            settled = true;
+            cleanup();
             downloadBlob(blob, fileName);
             resolve(blob);
         });
 
+        gif.on("abort", () => fail(new Error("GIF export was aborted.")));
+
         try {
             gif.render();
         } catch (error) {
-            reject(error);
+            fail(error);
         }
     });
 }

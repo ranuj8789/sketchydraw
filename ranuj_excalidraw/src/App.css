@@ -284,3 +284,39 @@ button.danger {
 .work-area {
   width: 100%;
 }
+
+/* Storyboard workspace */
+.work-area { position: relative; }
+.work-area > .canvas-wrap { border-radius: 16px; }
+
+/* Focus mode keeps only the drawing surface visible. */
+.app-shell.focus-mode .layout {
+  padding: 0;
+  gap: 0;
+}
+
+.app-shell.focus-mode .work-area {
+  gap: 0;
+}
+
+.app-shell.focus-mode .canvas-wrap,
+.app-shell.focus-mode .canvas-stage,
+.app-shell.focus-mode .board-canvas {
+  border-radius: 0;
+}
+
+.focus-mode-exit {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 5000;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #0f172a;
+  font-weight: 700;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
+  backdrop-filter: blur(12px);
+}

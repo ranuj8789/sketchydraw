@@ -495,6 +495,7 @@ export default function CanvasBoard({
                                         onRestoreTimeline,
                                         onStartAnimationPreview,
                                         socialCreatorPreset = null,
+                                        focusMode = false,
                                     }) {
     const wrapRef = useRef(null);
     const localDraftIdRef = useRef(null);
@@ -867,6 +868,8 @@ export default function CanvasBoard({
     }, [showGrid]);
 
     useEffect(() => {
+        // Selecting or creating an object must not open animation controls.
+        // The user opens them explicitly with the lightning button.
         setAnimationMenuOpen(false);
     }, [selectedIds.join("|")]);
 
@@ -2953,7 +2956,8 @@ export default function CanvasBoard({
                     />
                 )}
 
-                {tool === "select" &&
+                {!focusMode &&
+                    tool === "select" &&
                     !editor &&
                     !dragState &&
                     selectedAnimationAnchor &&
@@ -3053,7 +3057,7 @@ export default function CanvasBoard({
                 />
             </div>
 
-            <CanvasBoardActions
+            {!focusMode && <CanvasBoardActions
                 viewport={viewport}
                 setViewport={setViewport}
                 onExport={onExport}
@@ -3075,7 +3079,7 @@ export default function CanvasBoard({
                 showGrid={showGrid}
                 canvasProps={canvasProps}
                 setCanvasProps={setCanvasProps}
-            />
+            />}
 
             <SaveDrawingPopup
                 open={savePopupOpen}

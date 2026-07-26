@@ -240,3 +240,30 @@
         line-height: 1.25;
     }
 }
+
+/* Elegant selected-object animation inspector */
+.object-animation-popover {
+    width: min(360px, calc(100vw - 32px));
+    max-height: min(520px, calc(100vh - 120px));
+    overflow: auto;
+    border: 1px solid #e6e1d8;
+    border-radius: 18px;
+    background: #fffdfa;
+    box-shadow: 0 22px 60px rgba(31, 41, 55, .18);
+    padding: 14px;
+}
+.object-animation-popover-head {
+    padding-bottom: 11px;
+    border-bottom: 1px solid #eee9df;
+}
+.object-animation-preset-grid button {
+    border-color: #e7e3dc;
+    border-radius: 13px;
+    background: #fff;
+}
+.object-animation-preset-grid button:hover,
+.object-animation-preset-grid button.active {
+    border-color: #d5ad60;
+    background: #fff8e8;
+    color: #5f4318;
+}
