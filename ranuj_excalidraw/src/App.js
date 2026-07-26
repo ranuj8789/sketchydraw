@@ -1229,6 +1229,7 @@ function SketchyDrawPage() {
     canvasRef,
     jsonInputRef,
     exportPNG,
+    exportInstagram,
     exportJPEG,
     exportSVG,
     exportPDF,
@@ -1571,6 +1572,7 @@ function SketchyDrawPage() {
                 showGrid={showGrid}
                 setShowGrid={setShowGrid}
                 exportPNG={exportPNG}
+                exportInstagram={exportInstagram}
                 exportJPEG={exportJPEG}
                 exportSVG={exportSVG}
                 exportPDF={exportPDF}

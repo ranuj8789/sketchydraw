@@ -2,6 +2,7 @@ import { jsPDF } from "jspdf";
 import { isPaidUser } from "./auth";
 import { renderCanvas } from "../canvas/canvasRender";
 import { getNotebookPageCount, getNotebookPageSize, getNotebookPageTop } from "../canvas/notebook/notebookPages";
+import { getElementBounds } from "./elementBounds";
 
 const WATERMARK_TEXT = "SketchyDraw";
 
@@ -62,20 +63,194 @@ export function createCanvasForExport(canvas, options = {}) {
     return out;
 }
 
-export function exportCanvasToPNG(
+function canvasToBlob(canvas, type = "image/png", quality) {
+    return new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error("Could not create image file."));
+        }, type, quality);
+    });
+}
+
+function downloadBlob(blob, fileName) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.download = fileName;
+    link.href = url;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+function createHighResolutionCanvas(sourceCanvas, options = {}) {
+    const scale = Math.max(1, Math.min(4, Number(options.scale) || 2));
+    const out = document.createElement("canvas");
+    out.width = Math.max(1, Math.round(sourceCanvas.width * scale));
+    out.height = Math.max(1, Math.round(sourceCanvas.height * scale));
+
+    const ctx = out.getContext("2d", { alpha: true });
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+
+    if (options.background !== false) {
+        ctx.fillStyle = options.background || "#ffffff";
+        ctx.fillRect(0, 0, out.width, out.height);
+    }
+
+    ctx.drawImage(sourceCanvas, 0, 0, out.width, out.height);
+    return out;
+}
+
+export async function exportCanvasToPNG(
     canvas,
     fileName = "sketchy-board.png",
     options = {}
 ) {
     if (!canvas) return;
 
-    const exportCanvas = createCanvasForExport(canvas, options);
-    if (!exportCanvas) return;
+    const watermarkedCanvas = createCanvasForExport(canvas, options);
+    if (!watermarkedCanvas) return;
 
-    const link = document.createElement("a");
-    link.download = fileName;
-    link.href = exportCanvas.toDataURL("image/png");
-    link.click();
+    const exportCanvas = createHighResolutionCanvas(watermarkedCanvas, {
+        scale: options.scale ?? 2,
+        background: options.background ?? "#ffffff",
+    });
+
+    const blob = await canvasToBlob(exportCanvas, "image/png");
+    downloadBlob(blob, fileName);
+}
+
+function getInstagramSceneBounds(elements = []) {
+    const visibleElements = (elements || []).filter((element) => !element?.isDeleted);
+    const bounds = visibleElements
+        .map((element) => getElementBounds(element))
+        .filter(Boolean);
+
+    if (bounds.length === 0) {
+        return null;
+    }
+
+    const minX = Math.min(...bounds.map((bound) => bound.x));
+    const minY = Math.min(...bounds.map((bound) => bound.y));
+    const maxX = Math.max(...bounds.map((bound) => bound.x + bound.w));
+    const maxY = Math.max(...bounds.map((bound) => bound.y + bound.h));
+
+    return {
+        x: minX,
+        y: minY,
+        width: Math.max(1, maxX - minX),
+        height: Math.max(1, maxY - minY),
+    };
+}
+
+export async function exportCanvasForInstagram(
+    scene,
+    fileName = "sketchydraw-instagram.png",
+    options = {}
+) {
+    const presets = {
+        post: { width: 1080, height: 1080 },
+        portrait: { width: 1080, height: 1350 },
+        story: { width: 1080, height: 1920 },
+    };
+
+    const preset = presets[options.preset] || presets.portrait;
+    const elements = (scene?.elements || []).filter((element) => !element?.isDeleted);
+    const canvasProps = scene?.canvasProps || {};
+    const bounds = getInstagramSceneBounds(elements);
+
+    if (!bounds) {
+        throw new Error("There is nothing to export.");
+    }
+
+    const padding = Math.max(24, Number(options.padding ?? 72));
+    const availableWidth = Math.max(1, preset.width - padding * 2);
+    const availableHeight = Math.max(1, preset.height - padding * 2);
+    const zoom = Math.min(
+        availableWidth / bounds.width,
+        availableHeight / bounds.height
+    );
+
+    const renderedWidth = bounds.width * zoom;
+    const renderedHeight = bounds.height * zoom;
+    const offsetX = (preset.width - renderedWidth) / 2 - bounds.x * zoom;
+    const offsetY = (preset.height - renderedHeight) / 2 - bounds.y * zoom;
+
+    // renderCanvas uses devicePixelRatio internally. Render the clean scene first,
+    // then copy it to a canvas with the exact Instagram pixel dimensions.
+    const renderedCanvas = document.createElement("canvas");
+    renderCanvas({
+        canvas: renderedCanvas,
+        canvasSize: { width: preset.width, height: preset.height },
+        elements,
+        selectedIds: [],
+        connectionHint: null,
+        alignmentGuides: [],
+        viewport: {
+            zoom,
+            offsetX,
+            offsetY,
+        },
+        showGrid: options.showGrid === true,
+        canvasProps: {
+            ...canvasProps,
+            backgroundColor:
+                options.background || canvasProps.backgroundColor || "#ffffff",
+        },
+        renderOptions: {
+            exportMode: true,
+        },
+    });
+
+    const out = document.createElement("canvas");
+    out.width = preset.width;
+    out.height = preset.height;
+
+    const ctx = out.getContext("2d", { alpha: false });
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.fillStyle = options.background || canvasProps.backgroundColor || "#ffffff";
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.drawImage(renderedCanvas, 0, 0, out.width, out.height);
+
+    if (shouldWatermark(options)) {
+        drawWatermark(ctx, out);
+    }
+
+    const blob = await canvasToBlob(out, "image/png");
+    const file = new File([blob], fileName, { type: "image/png" });
+
+    const userAgent = navigator.userAgent || "";
+    const isTouchMac =
+        navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+    const isMobileDevice =
+        navigator.userAgentData?.mobile === true ||
+        /Android|iPhone|iPod|IEMobile|Opera Mini/i.test(userAgent) ||
+        /iPad/i.test(userAgent) ||
+        isTouchMac;
+
+    const canShareFile =
+        isMobileDevice &&
+        typeof navigator.share === "function" &&
+        typeof navigator.canShare === "function" &&
+        navigator.canShare({ files: [file] });
+
+    if (canShareFile) {
+        try {
+            await navigator.share({
+                files: [file],
+                title: "SketchyDraw Instagram Export",
+                text: "Created with SketchyDraw",
+            });
+            return;
+        } catch (error) {
+            if (error?.name === "AbortError") return;
+            console.warn("Instagram share failed; downloading PNG instead.", error);
+        }
+    }
+
+    downloadBlob(blob, fileName);
 }
 
 export function exportCanvasToJPEG(
@@ -111,11 +286,11 @@ function getPageFilteredElements(elements = [], pageIndex = 0) {
 }
 
 function createNotebookPageCanvas({
-    elements = [],
-    canvasProps = {},
-    pageIndex = 0,
-    options = {},
-}) {
+                                      elements = [],
+                                      canvasProps = {},
+                                      pageIndex = 0,
+                                      options = {},
+                                  }) {
     const pageSize = getNotebookPageSize(canvasProps);
     const pageTop = getNotebookPageTop(pageIndex, canvasProps);
 
@@ -210,11 +385,11 @@ function canvasToExportImage(canvas, options = {}) {
 }
 
 export function exportNotebookToPDF({
-    elements = [],
-    canvasProps = {},
-    fileName = "sketchy-notebook.pdf",
-    options = {},
-} = {}) {
+                                        elements = [],
+                                        canvasProps = {},
+                                        fileName = "sketchy-notebook.pdf",
+                                        options = {},
+                                    } = {}) {
     const pageCount = getNotebookPageCount(canvasProps);
     let pdf = null;
     let firstLayout = null;
@@ -785,19 +960,3 @@ function makeCanvasForType(canvas, type, options = {}) {
     return outputCanvas;
 }
 
-function canvasToBlob(canvas, type = "image/png") {
-    return new Promise((resolve, reject) => {
-        canvas.toBlob(
-            (blob) => {
-                if (!blob) {
-                    reject(new Error("Unable to create image blob"));
-                    return;
-                }
-
-                resolve(blob);
-            },
-            type,
-            0.95
-        );
-    });
-}

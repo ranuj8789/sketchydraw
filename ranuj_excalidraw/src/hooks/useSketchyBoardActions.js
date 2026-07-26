@@ -9,6 +9,7 @@ import {
 import {
     exportCanvasToPNG,
     exportCanvasToJPEG,
+    exportCanvasForInstagram,
     exportCanvasToSVG,
     exportCanvasToPDF,
     exportNotebookToPDF,
@@ -52,6 +53,27 @@ export function useSketchyBoardActions({
             canvas,
             `${safeTitle}.png`
         );
+    };
+
+    const exportInstagram = async (preset = "portrait") => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        try {
+            await exportCanvasForInstagram(
+                {
+                    elements,
+                    canvasProps,
+                },
+                `${safeTitle}-instagram-${preset}.png`,
+                { preset }
+            );
+        } catch (error) {
+            if (error?.name !== "AbortError") {
+                console.error(error);
+                alert(error?.message || "Could not export for Instagram.");
+            }
+        }
     };
 
     const exportJPEG = () => {
@@ -218,6 +240,7 @@ export function useSketchyBoardActions({
         canvasRef,
         jsonInputRef,
         exportPNG,
+        exportInstagram,
         exportJPEG,
         exportSVG,
         exportPDF,

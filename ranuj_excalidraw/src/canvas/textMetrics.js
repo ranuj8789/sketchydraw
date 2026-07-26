@@ -59,3 +59,77 @@ export function measureTextBox(text, style = {}) {
         fontFamily: normalized.fontFamily,
     };
 }
+
+export function wrapTextLines(ctx, text, maxWidth) {
+    const paragraphs = String(text ?? "").split("\n");
+    const width = Math.max(1, Number(maxWidth) || 1);
+    const output = [];
+
+    paragraphs.forEach((paragraph) => {
+        if (!paragraph) {
+            output.push("");
+            return;
+        }
+
+        const words = paragraph.split(/\s+/);
+        let line = "";
+
+        words.forEach((word) => {
+            const candidate = line ? `${line} ${word}` : word;
+            if (ctx.measureText(candidate).width <= width) {
+                line = candidate;
+                return;
+            }
+
+            if (line) output.push(line);
+
+            // Break very long words so text never escapes a narrow box.
+            if (ctx.measureText(word).width > width) {
+                let chunk = "";
+                for (const char of word) {
+                    const next = chunk + char;
+                    if (chunk && ctx.measureText(next).width > width) {
+                        output.push(chunk);
+                        chunk = char;
+                    } else {
+                        chunk = next;
+                    }
+                }
+                line = chunk;
+            } else {
+                line = word;
+            }
+        });
+
+        output.push(line);
+    });
+
+    return output.length ? output : [""];
+}
+
+export function measureWrappedTextBox(text, style = {}, maxWidth = TEXT_MIN_WIDTH) {
+    const normalized = normalizeTextStyle(style);
+    const safeWidth = Math.max(TEXT_MIN_WIDTH, Number(maxWidth) || TEXT_MIN_WIDTH);
+
+    if (typeof document === "undefined") {
+        return {
+            w: safeWidth,
+            h: Math.max(TEXT_MIN_HEIGHT, normalized.lineHeight),
+            lines: String(text || "").split("\n"),
+        };
+    }
+
+    if (!measureCanvas) measureCanvas = document.createElement("canvas");
+    const ctx = measureCanvas.getContext("2d");
+    ctx.font = buildTextCanvasFont(normalized);
+    const lines = wrapTextLines(ctx, text || " ", Math.max(1, safeWidth - 8));
+
+    return {
+        w: safeWidth,
+        h: Math.max(TEXT_MIN_HEIGHT, Math.ceil(lines.length * normalized.lineHeight)),
+        lines,
+        fontSize: normalized.fontSize,
+        lineHeight: normalized.lineHeight,
+        fontFamily: normalized.fontFamily,
+    };
+}

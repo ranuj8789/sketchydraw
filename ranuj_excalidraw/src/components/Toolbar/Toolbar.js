@@ -32,6 +32,7 @@ export default function Toolbar({
                                     canvasProps,
                                     updateCanvasProps,
                                     exportPNG,
+                                    exportInstagram,
                                     exportJPEG,
                                     exportSVG,
                                     exportPDF,
@@ -701,6 +702,18 @@ export default function Toolbar({
                             <div className="export-dropdown">
                                 <button type="button" onClick={() => runExport(exportPNG)}>
                                     🖼️ Export as PNG
+                                </button>
+
+                                <button type="button" onClick={() => runExport(() => exportInstagram?.("portrait"))}>
+                                    📱 Instagram Portrait (1080×1350)
+                                </button>
+
+                                <button type="button" onClick={() => runExport(() => exportInstagram?.("story"))}>
+                                    📲 Instagram Story (1080×1920)
+                                </button>
+
+                                <button type="button" onClick={() => runExport(() => exportInstagram?.("post"))}>
+                                    ⬜ Instagram Post (1080×1080)
                                 </button>
 
                                 <button type="button" onClick={() => runExport(exportJPEG)}>

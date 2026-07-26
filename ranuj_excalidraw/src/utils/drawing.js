@@ -5,6 +5,7 @@ import {
     normalizeTextStyle,
 } from "../canvas/textRenderStyle";
 import { isSystemDesignType } from "../canvas/canvasConstants";
+import { wrapTextLines } from "../canvas/textMetrics";
 
 const SELECTION_COLOR = "#6965db";
 const SELECTION_PADDING = 6;
@@ -484,15 +485,15 @@ function drawPulseRing(ctx, element, animationState, stroke) {
     ctx.restore();
 }
 
-function getAnimatedTextLines(text, animationState) {
+function getAnimatedTextLines(text, animationState, ctx, maxWidth) {
     const fullText = String(text || "");
 
     if (!animationState.active || animationState.type !== "typewriter") {
-        return fullText.split("\n");
+        return wrapTextLines(ctx, fullText, maxWidth);
     }
 
     const visibleChars = Math.ceil(fullText.length * animationState.progress);
-    return fullText.slice(0, visibleChars).split("\n");
+    return wrapTextLines(ctx, fullText.slice(0, visibleChars), maxWidth);
 }
 
 export function hitTest(element, x, y) {
@@ -1085,7 +1086,12 @@ export function drawElement(ctx, element, selected = false, renderOptions = {}) 
         ctx.textBaseline = "top";
         ctx.textAlign = style.textAlign;
 
-        const lines = getAnimatedTextLines(element.text, animationState);
+        const lines = getAnimatedTextLines(
+            element.text,
+            animationState,
+            ctx,
+            Math.max(1, (element.w || 120) - 8)
+        );
 
         lines.forEach((line, index) => {
             const textX = getTextAnchorX(element, style);

@@ -1,4 +1,5 @@
 import { isSystemDesignType } from "../canvas/canvasConstants";
+import { measureWrappedTextBox } from "../canvas/textMetrics";
 
 function resizeBox({
                        dragState,
@@ -87,12 +88,14 @@ export function resizeElement(element, dragState, point) {
             minH: 32,
         });
 
+        const measured = measureWrappedTextBox(element.text || " ", element, box.w);
+
         return {
             ...element,
             x: box.x,
             y: box.y,
             w: box.w,
-            h: box.h,
+            h: Math.max(box.h, measured.h),
         };
     }
 
