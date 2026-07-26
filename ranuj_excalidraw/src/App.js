@@ -5,7 +5,6 @@ import Toolbar from "./components/Toolbar/Toolbar";
 import Sidebar from "./components/Sidebar/Sidebar";
 import CanvasBoard from "./components/CanvasBoard/CanvasBoard";
 import FramesPanel from "./components/FramesPanel/FramesPanel";
-import RightToolTabs from "./components/RightToolTabs/RightToolTabs";
 import FramePlayerScreen from "./components/FramePlayerScreen/FramePlayerScreen";
 import SketchyAlert from "./components/SketchyAlert";
 import { verifyEmail, resetPassword } from "./api/authApi";
@@ -1554,6 +1553,9 @@ function SketchyDrawPage() {
               onInsertEmoji={insertEmojiObject}
               onInsertRichText={insertRichTextObject}
               onGenerateCodeIllustration={generateCodeIllustration}
+              onSelectFrame={selectTimelineFrame}
+              onDeleteFrame={deleteTimelineFrame}
+              onOpenFramesPanel={() => setFramesPanelOpen(true)}
           />
 
           <div className="work-area">
@@ -1681,36 +1683,6 @@ function SketchyDrawPage() {
             />
           </div>
 
-          <RightToolTabs
-              frames={timelineFrames}
-              currentFrameIndex={currentFrameIndex}
-              canvasSize={canvasSize}
-              canvasViewport={viewport}
-              canvasProps={canvasProps}
-              renderOptions={animationRenderOptions}
-              animationPlaying={frameAnimationPlaying}
-              animationTimeMs={frameAnimationTimeMs}
-              onSelectFrame={selectTimelineFrame}
-              onAddFrameAfter={addTimelineFrameAfterCurrent}
-              onDeleteFrame={deleteTimelineFrame}
-              onToggleElementHidden={toggleFrameElementHidden}
-              onMoveFrameElementOrder={moveFrameElementOrder}
-              onApplyFrameObjectOrderTiming={applyFrameObjectOrderTiming}
-              onMergeFrameWithNext={mergeCurrentFrameWithNext}
-              onMergeAllFrames={mergeAllTimelineFrames}
-              onOpenPlayer={openAnimationPlayer}
-              onUpdateFrameElementAnimation={updateFrameElementAnimation}
-              onPreviewTimeChange={(timeMs) => {
-                setFrameAnimationPlaying(false);
-                setFrameAnimationTimeMs(Math.max(0, Number(timeMs) || 0));
-              }}
-              onToggleFrameAnimation={toggleCurrentFrameAnimation}
-              selectedCanvasObjectId={selectedElement?.id || null}
-              onSelectCanvasObject={(elementId) => {
-                if (!elementId) return;
-                setSelectedIds([elementId]);
-              }}
-          />
         </div>
       </div>
   );

@@ -428,3 +428,111 @@
 .left-system-btn.active span {
     color: #2563eb;
 }
+
+/* Frames now live in the left workspace sidebar. */
+.left-toolbar-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.frames-left-card {
+    padding-bottom: 12px;
+}
+
+.left-frames-list {
+    display: grid;
+    gap: 7px;
+    max-height: 360px;
+    overflow-y: auto;
+    padding-right: 2px;
+}
+
+.left-frame-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 30px;
+    gap: 5px;
+    align-items: stretch;
+    border: 1px solid #e2e8f0;
+    border-radius: 11px;
+    background: #f8fafc;
+    padding: 4px;
+}
+
+.left-frame-row.active {
+    border-color: #2563eb;
+    background: #eff6ff;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
+}
+
+.left-frame-select {
+    min-width: 0;
+    min-height: 46px !important;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    border: 0 !important;
+    background: transparent !important;
+    padding: 4px 6px !important;
+    text-align: left;
+}
+
+.left-frame-number {
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: #ffffff;
+    border: 1px solid #dbe3ee;
+    color: #334155;
+    font-size: 12px;
+    font-weight: 950;
+}
+
+.left-frame-row.active .left-frame-number {
+    background: #2563eb;
+    color: #ffffff;
+    border-color: #2563eb;
+}
+
+.left-frame-meta {
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+}
+
+.left-frame-meta strong,
+.left-frame-meta small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.left-frame-meta strong {
+    color: #0f172a;
+    font-size: 12px;
+}
+
+.left-frame-meta small {
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 750;
+}
+
+.left-frame-delete {
+    width: 30px;
+    min-height: 30px !important;
+    align-self: center;
+    border: 0 !important;
+    border-radius: 8px !important;
+    background: transparent !important;
+    color: #94a3b8 !important;
+    font-size: 20px !important;
+    padding: 0 !important;
+}
+
+.left-frame-delete:hover:not(:disabled) {
+    background: #fee2e2 !important;
+    color: #dc2626 !important;
+}

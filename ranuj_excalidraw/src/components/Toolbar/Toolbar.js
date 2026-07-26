@@ -591,19 +591,9 @@ export default function Toolbar({
                         Redo
                     </button>
 
-                    <span className="history-stack-counter">
-                        <span>Frame {Math.min(currentFrameIndex + 1, timelineFrames.length || 1)}/{timelineFrames.length || 1}</span>
-                        <span>Undo {canUndo ? "on" : "off"}</span>
+                    <span className="history-stack-counter" title="Current frame">
+                        Frame {Math.min(currentFrameIndex + 1, timelineFrames.length || 1)}/{timelineFrames.length || 1}
                     </span>
-
-                    <button
-                        type="button"
-                        className="frames-toolbar-btn"
-                        onClick={openFramesPanel}
-                        title="Open frames timeline"
-                    >
-                        Frames
-                    </button>
 
                     <button type="button" onClick={clearCanvas} className="danger" title="Clear current canvas">
                         Clear
@@ -618,7 +608,7 @@ export default function Toolbar({
                             onClick={() => setSaveOpen((v) => !v)}
                             title="Save this drawing"
                         >
-                            Save as <span title="Save this drawing">⌄</span>
+                            Save <span title="Save this drawing">⌄</span>
                         </button>
 
                         {saveOpen && (
@@ -714,7 +704,7 @@ export default function Toolbar({
                             onClick={() => setExportOpen((v) => !v)}
                             title="Export this drawing"
                         >
-                            Export as <span>⌄</span>
+                            Export <span>⌄</span>
                         </button>
 
                         {exportOpen && (

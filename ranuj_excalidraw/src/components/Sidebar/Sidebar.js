@@ -1004,6 +1004,9 @@ export default function Sidebar({
                                     onInsertEmoji,
                                     onInsertRichText,
                                     onGenerateCodeIllustration,
+                                    onSelectFrame,
+                                    onDeleteFrame,
+                                    onOpenFramesPanel,
                                 }) {
     const [activeTab, setActiveTab] = useState("draw");
 
@@ -1030,6 +1033,13 @@ export default function Sidebar({
                     onClick={() => setActiveTab("gif")}
                 >
                     GIF
+                </button>
+                <button
+                    type="button"
+                    className={activeTab === "frames" ? "active" : ""}
+                    onClick={() => setActiveTab("frames")}
+                >
+                    Frames
                 </button>
                 <button
                     type="button"
@@ -1088,6 +1098,55 @@ export default function Sidebar({
                         updateCanvasProps={updateCanvasProps}
                     />
                 </>
+            )}
+
+            {activeTab === "frames" && (
+                <div className="left-tab-panel">
+                    <div className="left-tool-card frames-left-card">
+                        <div className="left-card-heading">
+                            <strong>Frames</strong>
+                            <span>Switch, add or remove frames without using the right side of the canvas.</span>
+                        </div>
+
+                        <div className="left-frames-list">
+                            {(frames || []).map((frame, index) => (
+                                <div
+                                    key={frame?.id || index}
+                                    className={`left-frame-row ${index === currentFrameIndex ? "active" : ""}`}
+                                >
+                                    <button
+                                        type="button"
+                                        className="left-frame-select"
+                                        onClick={() => onSelectFrame?.(index)}
+                                    >
+                                        <span className="left-frame-number">{index + 1}</span>
+                                        <span className="left-frame-meta">
+                                            <strong>{frame?.name || `Frame ${index + 1}`}</strong>
+                                            <small>{frame?.elements?.length || 0} objects</small>
+                                        </span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        className="left-frame-delete"
+                                        onClick={() => onDeleteFrame?.(index)}
+                                        disabled={(frames || []).length <= 1}
+                                        title="Delete frame"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+
+                        <button type="button" className="left-primary-btn wide" onClick={onAddFrameAfter}>
+                            + Add frame
+                        </button>
+                        <button type="button" className="left-full-btn" onClick={onOpenFramesPanel}>
+                            Open detailed timeline
+                        </button>
+                    </div>
+                </div>
             )}
 
             {activeTab === "gif" && (

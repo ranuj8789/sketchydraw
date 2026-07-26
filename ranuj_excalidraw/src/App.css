@@ -275,3 +275,12 @@ button.danger {
     overflow: auto;
   }
 }
+/* Full-width canvas after moving frames to the left sidebar. */
+.layout {
+  gap: 10px;
+  padding-right: 8px;
+}
+
+.work-area {
+  width: 100%;
+}
