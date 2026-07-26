@@ -38,6 +38,7 @@ export function useSketchyBoardActions({
                                            timelineFrames = [],
                                            currentFrameIndex = 0,
                                            onRestoreTimeline,
+                                           socialCreatorPreset = null,
                                        }) {
     const canvasRef = useRef(null);
     const jsonInputRef = useRef(null);
@@ -55,7 +56,7 @@ export function useSketchyBoardActions({
         );
     };
 
-    const exportInstagram = async (preset = "portrait") => {
+    const exportInstagram = async (preset = socialCreatorPreset || "portrait") => {
         const canvas = canvasRef.current;
         if (!canvas) return;
 

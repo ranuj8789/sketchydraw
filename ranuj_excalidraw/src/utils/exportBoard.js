@@ -3,6 +3,7 @@ import { isPaidUser } from "./auth";
 import { renderCanvas } from "../canvas/canvasRender";
 import { getNotebookPageCount, getNotebookPageSize, getNotebookPageTop } from "../canvas/notebook/notebookPages";
 import { getElementBounds } from "./elementBounds";
+import { getSocialMediaPreset } from "./socialMediaPresets";
 
 const WATERMARK_TEXT = "SketchyDraw";
 
@@ -149,13 +150,7 @@ export async function exportCanvasForInstagram(
     fileName = "sketchydraw-instagram.png",
     options = {}
 ) {
-    const presets = {
-        post: { width: 1080, height: 1080 },
-        portrait: { width: 1080, height: 1350 },
-        story: { width: 1080, height: 1920 },
-    };
-
-    const preset = presets[options.preset] || presets.portrait;
+    const preset = getSocialMediaPreset(options.preset) || getSocialMediaPreset("portrait");
     const elements = (scene?.elements || []).filter((element) => !element?.isDeleted);
     const canvasProps = scene?.canvasProps || {};
     const bounds = getInstagramSceneBounds(elements);
@@ -164,9 +159,14 @@ export async function exportCanvasForInstagram(
         throw new Error("There is nothing to export.");
     }
 
-    const padding = Math.max(24, Number(options.padding ?? 72));
-    const availableWidth = Math.max(1, preset.width - padding * 2);
-    const availableHeight = Math.max(1, preset.height - padding * 2);
+    const safe = preset.safe || { top: 72, right: 72, bottom: 72, left: 72 };
+    const extraSafety = Math.max(12, Number(options.extraSafety ?? 24));
+    const safeLeft = safe.left + extraSafety;
+    const safeRight = safe.right + extraSafety;
+    const safeTop = safe.top + extraSafety;
+    const safeBottom = safe.bottom + extraSafety;
+    const availableWidth = Math.max(1, preset.width - safeLeft - safeRight);
+    const availableHeight = Math.max(1, preset.height - safeTop - safeBottom);
     const zoom = Math.min(
         availableWidth / bounds.width,
         availableHeight / bounds.height
@@ -174,8 +174,8 @@ export async function exportCanvasForInstagram(
 
     const renderedWidth = bounds.width * zoom;
     const renderedHeight = bounds.height * zoom;
-    const offsetX = (preset.width - renderedWidth) / 2 - bounds.x * zoom;
-    const offsetY = (preset.height - renderedHeight) / 2 - bounds.y * zoom;
+    const offsetX = safeLeft + (availableWidth - renderedWidth) / 2 - bounds.x * zoom;
+    const offsetY = safeTop + (availableHeight - renderedHeight) / 2 - bounds.y * zoom;
 
     // renderCanvas uses devicePixelRatio internally. Render the clean scene first,
     // then copy it to a canvas with the exact Instagram pixel dimensions.

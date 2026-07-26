@@ -1,5 +1,6 @@
-import React, {useEffect, useRef, useState} from "react";
+import React, {useEffect, useMemo, useRef, useState} from "react";
 import {normalizeTextStyle} from "../../canvas/textRenderStyle";
+import {getSocialMediaPreset} from "../../utils/socialMediaPresets";
 import MyDrawingsPopup from "../MyDrawingsPopup/MyDrawingsPopup";
 import {isPaidUser} from "../../utils/auth";
 import "./CanvasBoard.css";
@@ -493,6 +494,7 @@ export default function CanvasBoard({
                                         onReplaceTimeline,
                                         onRestoreTimeline,
                                         onStartAnimationPreview,
+                                        socialCreatorPreset = null,
                                     }) {
     const wrapRef = useRef(null);
     const localDraftIdRef = useRef(null);
@@ -533,6 +535,54 @@ export default function CanvasBoard({
     const [isSpacePressed, setIsSpacePressed] = useState(false);
     const [myDrawingsOpen, setMyDrawingsOpen] = useState(false);
     const [animationMenuOpen, setAnimationMenuOpen] = useState(false);
+
+    const socialGuide = useMemo(() => {
+        const preset = getSocialMediaPreset(socialCreatorPreset);
+        if (!preset || !canvasSize?.width || !canvasSize?.height) return null;
+
+        const margin = 38;
+        const maxWidth = Math.max(120, canvasSize.width - margin * 2);
+        const maxHeight = Math.max(160, canvasSize.height - margin * 2);
+        const ratio = preset.width / preset.height;
+
+        let width = Math.min(maxWidth, maxHeight * ratio);
+        let height = width / ratio;
+        if (height > maxHeight) {
+            height = maxHeight;
+            width = height * ratio;
+        }
+
+        const left = (canvasSize.width - width) / 2;
+        const top = (canvasSize.height - height) / 2;
+        const scaleX = width / preset.width;
+        const scaleY = height / preset.height;
+        const safe = {
+            left: left + preset.safe.left * scaleX,
+            top: top + preset.safe.top * scaleY,
+            width: width - (preset.safe.left + preset.safe.right) * scaleX,
+            height: height - (preset.safe.top + preset.safe.bottom) * scaleY,
+        };
+
+        const outsideElements = (elements || []).filter((element) => {
+            if (!element || element.isDeleted) return false;
+            const bounds = getElementBounds(element);
+            if (!bounds) return false;
+            const screenBounds = {
+                left: bounds.x * viewport.zoom + viewport.offsetX,
+                top: bounds.y * viewport.zoom + viewport.offsetY,
+                right: (bounds.x + bounds.w) * viewport.zoom + viewport.offsetX,
+                bottom: (bounds.y + bounds.h) * viewport.zoom + viewport.offsetY,
+            };
+            return (
+                screenBounds.left < safe.left ||
+                screenBounds.top < safe.top ||
+                screenBounds.right > safe.left + safe.width ||
+                screenBounds.bottom > safe.top + safe.height
+            );
+        });
+
+        return { preset, left, top, width, height, safe, outsideCount: outsideElements.length };
+    }, [socialCreatorPreset, canvasSize, elements, viewport]);
 
     const {
         isSavingDrawing,
@@ -2853,6 +2903,43 @@ export default function CanvasBoard({
                     onContextMenu={handleBoardRightClick}
                     className="board-canvas"
                 />
+
+                {socialGuide && (
+                    <div className="social-guide-layer" aria-hidden="true">
+                        <div
+                            className={`social-guide-frame ${socialGuide.outsideCount ? "has-overflow" : ""}`}
+                            style={{
+                                left: socialGuide.left,
+                                top: socialGuide.top,
+                                width: socialGuide.width,
+                                height: socialGuide.height,
+                            }}
+                        >
+                            <div className="social-guide-thirds vertical first" />
+                            <div className="social-guide-thirds vertical second" />
+                            <div className="social-guide-thirds horizontal first" />
+                            <div className="social-guide-thirds horizontal second" />
+                            <div
+                                className="social-guide-safe"
+                                style={{
+                                    left: socialGuide.safe.left - socialGuide.left,
+                                    top: socialGuide.safe.top - socialGuide.top,
+                                    width: socialGuide.safe.width,
+                                    height: socialGuide.safe.height,
+                                }}
+                            />
+                            <div className="social-guide-title">
+                                <strong>{socialGuide.preset.label}</strong>
+                                <span>{socialGuide.preset.width}×{socialGuide.preset.height}</span>
+                            </div>
+                            <div className={`social-guide-status ${socialGuide.outsideCount ? "warning" : "ready"}`}>
+                                {socialGuide.outsideCount
+                                    ? `${socialGuide.outsideCount} object${socialGuide.outsideCount === 1 ? "" : "s"} outside safe area · export will auto-fit`
+                                    : "Everything is inside the safe area"}
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {selectionBox && (
                     <div

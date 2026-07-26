@@ -273,6 +273,7 @@ function saveCurrentTextStyle(style) {
 }
 function SketchyDrawPage() {
   const [showGrid, setShowGrid] = useState(false);
+  const [socialCreatorPreset, setSocialCreatorPreset] = useState(null);
   const [tool, setTool] = useState("select");
   const [stroke, setStroke] = useState("#111827");
   const [currentTextStyle, setCurrentTextStyle] = useState(loadCurrentTextStyle);
@@ -1253,6 +1254,7 @@ function SketchyDrawPage() {
     timelineFrames,
     currentFrameIndex,
     onRestoreTimeline: restoreTimelineFrames,
+    socialCreatorPreset,
   });
   const selectedElements = useMemo(() => {
     if (!selectedIds.length) return [];
@@ -1596,6 +1598,8 @@ function SketchyDrawPage() {
                 exportGIF={exportGif}
                 gifExporting={gifExporting}
                 gifExportProgress={gifExportProgress}
+                socialCreatorPreset={socialCreatorPreset}
+                setSocialCreatorPreset={setSocialCreatorPreset}
             />
 
             <CanvasBoard
@@ -1628,6 +1632,7 @@ function SketchyDrawPage() {
                 onReplaceTimeline={replaceTimelineWithElements}
                 onRestoreTimeline={restoreTimelineFrames}
                 onStartAnimationPreview={startCurrentFrameAnimationPreview}
+                socialCreatorPreset={socialCreatorPreset}
             />
 
             <FramesPanel

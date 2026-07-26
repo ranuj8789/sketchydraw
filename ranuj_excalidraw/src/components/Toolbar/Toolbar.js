@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import "./Toolbar.css";
+import { SOCIAL_MEDIA_PRESETS } from "../../utils/socialMediaPresets";
 
 import {
     getUser,
@@ -49,6 +50,8 @@ export default function Toolbar({
                                     exportGIF,
                                     gifExporting = false,
                                     gifExportProgress = 0,
+                                    socialCreatorPreset = null,
+                                    setSocialCreatorPreset,
                                 }) {
     const [loginOpen, setLoginOpen] = useState(false);
     const [subscriptionOpen, setSubscriptionOpen] = useState(false);
@@ -688,6 +691,22 @@ export default function Toolbar({
                         )}
                     </div>
 
+                    <div className="social-creator-control">
+                        <span className="social-creator-label">Creator canvas</span>
+                        <select
+                            value={socialCreatorPreset || ""}
+                            onChange={(event) => setSocialCreatorPreset?.(event.target.value || null)}
+                            title="Show Instagram or WhatsApp composition guides"
+                        >
+                            <option value="">Off / Free canvas</option>
+                            {Object.values(SOCIAL_MEDIA_PRESETS).map((preset) => (
+                                <option key={preset.id} value={preset.id}>
+                                    {preset.shortLabel} · {preset.width}×{preset.height}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
                     <div className="export-menu-wrap" ref={exportRef}>
                         <button
                             type="button"
@@ -710,6 +729,10 @@ export default function Toolbar({
 
                                 <button type="button" onClick={() => runExport(() => exportInstagram?.("story"))}>
                                     📲 Instagram Story (1080×1920)
+                                </button>
+
+                                <button type="button" onClick={() => runExport(() => exportInstagram?.("status"))}>
+                                    💬 WhatsApp Status (1080×1920)
                                 </button>
 
                                 <button type="button" onClick={() => runExport(() => exportInstagram?.("post"))}>
