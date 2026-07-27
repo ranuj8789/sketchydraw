@@ -863,119 +863,6 @@ function SystemDesignTab({ tool, setTool }) {
     );
 }
 
-function RichTextTab({ onInsertEmoji, onInsertRichText }) {
-    const [emojiValue, setEmojiValue] = useState("🔥");
-    const [plainText, setPlainText] = useState("Rich text box");
-    const [fontSize, setFontSize] = useState(22);
-    const [stroke, setStroke] = useState("#111827");
-    const [bold, setBold] = useState(true);
-    const [italic, setItalic] = useState(false);
-    const [underline, setUnderline] = useState(false);
-
-    const insertEmoji = (value = emojiValue) => {
-        onInsertEmoji?.(value);
-    };
-
-    const insertRichText = () => {
-        const safeText = String(plainText || "Rich text box").trim() || "Rich text box";
-
-        onInsertRichText?.({
-            plainText: safeText,
-            html: safeText,
-            fontSize,
-            stroke,
-            bold,
-            italic,
-            underline,
-        });
-    };
-
-    return (
-        <div className="left-tab-panel">
-            <div className="left-tool-card">
-                <div className="left-card-heading">
-                    <strong>Emoji</strong>
-                    <span>Insert emoji as editable text object.</span>
-                </div>
-
-                <div className="emoji-grid">
-                    {QUICK_EMOJIS.map((emoji) => (
-                        <button
-                            type="button"
-                            key={emoji}
-                            className={emojiValue === emoji ? "active" : ""}
-                            onClick={() => {
-                                setEmojiValue(emoji);
-                                insertEmoji(emoji);
-                            }}
-                        >
-                            {emoji}
-                        </button>
-                    ))}
-                </div>
-
-                <div className="left-tool-grid two">
-                    <input
-                        className="emoji-input"
-                        value={emojiValue}
-                        onChange={(event) => setEmojiValue(event.target.value)}
-                        maxLength={4}
-                    />
-                    <button type="button" onClick={() => insertEmoji()}>Insert emoji</button>
-                </div>
-            </div>
-
-            <div className="left-tool-card">
-                <div className="left-card-heading">
-                    <strong>Rich text toolbar</strong>
-                    <span>Creates a separate rich text object without changing old text logic.</span>
-                </div>
-
-                <label className="left-field">
-                    Text
-                    <textarea
-                        value={plainText}
-                        onChange={(event) => setPlainText(event.target.value)}
-                        rows={4}
-                    />
-                </label>
-
-                <div className="left-tool-grid two">
-                    <label className="left-field compact">
-                        Size
-                        <input
-                            type="number"
-                            min="8"
-                            max="96"
-                            value={fontSize}
-                            onChange={(event) => setFontSize(Number(event.target.value) || 22)}
-                        />
-                    </label>
-
-                    <label className="left-field compact">
-                        Color
-                        <input
-                            type="color"
-                            value={stroke}
-                            onChange={(event) => setStroke(event.target.value)}
-                        />
-                    </label>
-                </div>
-
-                <div className="rich-toggle-row">
-                    <button type="button" className={bold ? "active" : ""} onClick={() => setBold((value) => !value)}>B</button>
-                    <button type="button" className={italic ? "active" : ""} onClick={() => setItalic((value) => !value)}>I</button>
-                    <button type="button" className={underline ? "active" : ""} onClick={() => setUnderline((value) => !value)}>U</button>
-                </div>
-
-                <button type="button" className="left-primary-btn wide" onClick={insertRichText}>
-                    Insert rich text
-                </button>
-            </div>
-        </div>
-    );
-}
-
 export default function Sidebar({
                                     tool,
                                     setTool,
@@ -1003,7 +890,6 @@ export default function Sidebar({
                                     onMergeAllFrames,
                                     onInsertGifPrimitive,
                                     onInsertEmoji,
-                                    onInsertRichText,
                                     onGenerateCodeIllustration,
                                     onSelectFrame,
                                     onDeleteFrame,
@@ -1045,13 +931,6 @@ export default function Sidebar({
                 </button>
                 <button
                     type="button"
-                    className={activeTab === "frames" ? "active" : ""}
-                    onClick={() => chooseTab("frames", "Frames") }
-                >
-                    Frames {!proUser && <small className="tab-pro-badge">PRO</small>}
-                </button>
-                <button
-                    type="button"
                     className={activeTab === "code" ? "active" : ""}
                     onClick={() => setActiveTab("code")}
                 >
@@ -1063,13 +942,6 @@ export default function Sidebar({
                     onClick={() => setActiveTab("system")}
                 >
                     System
-                </button>
-                <button
-                    type="button"
-                    className={activeTab === "rich" ? "active" : ""}
-                    onClick={() => chooseTab("rich", "Rich text tools") }
-                >
-                    Rich {!proUser && <small className="tab-pro-badge">PRO</small>}
                 </button>
             </div>
 
@@ -1105,32 +977,13 @@ export default function Sidebar({
                         toggleSelectedLineCurve={toggleSelectedLineCurve}
                         canvasProps={canvasProps}
                         updateCanvasProps={updateCanvasProps}
+                        frames={frames}
+                        currentFrameIndex={currentFrameIndex}
                     />
                 </>
             )}
 
-            {activeTab === "frames" && (
-                <div className="left-tab-panel">
-                    <div className="left-tool-card frames-left-card">
-                        <div className="left-card-heading">
-                            <strong>Frames</strong>
-                            <span>Switch, add or remove frames without using the right side of the canvas.</span>
-                        </div>
 
-                        <div className="frames-summary-block">
-                            <strong>{(frames || []).length || 1} frames</strong>
-                            <span>Manage frames and animation timing in one clean dialog.</span>
-                        </div>
-
-                        <button type="button" className="left-primary-btn wide" onClick={onOpenFramesPanel}>
-                            Manage frames
-                        </button>
-                        <button type="button" className="left-full-btn" onClick={onToggleFrameAnimation}>
-                            {animationPlaying ? "Pause presentation" : "Present slideshow"}
-                        </button>
-                    </div>
-                </div>
-            )}
 
             {activeTab === "gif" && (
                 <GifToolsTab
@@ -1159,12 +1012,7 @@ export default function Sidebar({
                 <SystemDesignTab tool={tool} setTool={setTool} />
             )}
 
-            {activeTab === "rich" && (
-                <RichTextTab
-                    onInsertEmoji={onInsertEmoji}
-                    onInsertRichText={onInsertRichText}
-                />
-            )}
+
         </div>
     );
 }

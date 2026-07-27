@@ -260,10 +260,8 @@ function findContainedElementIds(elements, containerElement, containerBounds) {
         .map((el) => el.id);
 }
 
-const getIdleCanvasCursor = (tool) => {
-    // Panning is available only when the user explicitly chooses Hand.
-    // Select must always remain the normal canvas interaction.
-    if (tool === "hand") return "grab";
+const getIdleCanvasCursor = (tool, isSpacePressed = false) => {
+    if (isSpacePressed || tool === "hand") return "grab";
     if (tool === "eraser") return "crosshair";
     if (tool === "select") return "default";
     return "crosshair";
@@ -675,6 +673,7 @@ export default function CanvasBoard({
                 baseElement?.textAlign ||
                 DEFAULT_TEXT_STYLE.textAlign ||
                 "left",
+            richText: activeEditor.richText || baseElement?.richText || [],
 
             __textEditorPreview: true,
         };
@@ -1142,12 +1141,16 @@ export default function CanvasBoard({
             }
         };
 
+        const onWindowBlur = () => setIsSpacePressed(false);
+
         window.addEventListener("keydown", onKeyDown);
         window.addEventListener("keyup", onKeyUp);
+        window.addEventListener("blur", onWindowBlur);
 
         return () => {
             window.removeEventListener("keydown", onKeyDown);
             window.removeEventListener("keyup", onKeyUp);
+            window.removeEventListener("blur", onWindowBlur);
         };
     }, []);
 
@@ -1160,8 +1163,7 @@ export default function CanvasBoard({
 
             const canvas = canvasRef.current;
             if (canvas) {
-                canvas.style.cursor =
-                    tool === "hand" ? "grab" : tool === "select" ? "default" : "crosshair";
+                canvas.style.cursor = getIdleCanvasCursor(tool, isSpacePressed);
             }
 
             setSelectionBox(null);
@@ -1499,6 +1501,7 @@ export default function CanvasBoard({
                                    italic,
                                    underline,
                                    textAlign,
+                                   richText,
                                }) => {
         textCommitLockRef.current = Date.now() + 250;
 
@@ -1527,6 +1530,7 @@ export default function CanvasBoard({
             italic,
             underline,
             textAlign,
+            richText,
         });
 
         dragBaseElementsRef.current = null;
@@ -2015,7 +2019,7 @@ export default function CanvasBoard({
             return;
         }
 
-        if (tool === "hand" && event.button === 0) {
+        if ((tool === "hand" || isSpacePressed) && event.button === 0) {
             event.preventDefault();
 
             setDragState({
@@ -2099,8 +2103,9 @@ export default function CanvasBoard({
             return;
         }
 
-        if (!dragState && tool === "hand") {
+        if (!dragState && (tool === "hand" || isSpacePressed)) {
             canvas.style.cursor = "grab";
+            return;
         }
 
         if (!dragState && tool === "select") {
@@ -2747,6 +2752,7 @@ export default function CanvasBoard({
                 italic: !!target.italic,
                 underline: !!target.underline,
                 textAlign: target.textAlign || DEFAULT_TEXT_STYLE.textAlign || "left",
+                richText: Array.isArray(target.richText) ? target.richText : [],
             });
 
             return;

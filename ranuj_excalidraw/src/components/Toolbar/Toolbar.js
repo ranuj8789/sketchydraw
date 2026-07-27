@@ -40,6 +40,9 @@ export default function Toolbar({
                                     exportPDF,
                                     printCanvas,
                                     exportJSON,
+                                    exportPPT,
+                                    exportExcel,
+                                    exportCSV,
                                     openJsonPicker,
                                     openImportPicker,
                                     createNewDrawing,
@@ -56,6 +59,7 @@ export default function Toolbar({
                                     gifExportProgress = 0,
                                     socialCreatorPreset = null,
                                     setSocialCreatorPreset,
+                                    onToggleFocusMode,
                                 }) {
     const [loginOpen, setLoginOpen] = useState(false);
     const [subscriptionOpen, setSubscriptionOpen] = useState(false);
@@ -64,6 +68,8 @@ export default function Toolbar({
     const [exportOpen, setExportOpen] = useState(false);
     const [importOpen, setImportOpen] = useState(false);
     const [gridOpen, setGridOpen] = useState(false);
+    const [fileOpen, setFileOpen] = useState(false);
+    const [newOpen, setNewOpen] = useState(false);
     const [videoGapSeconds, setVideoGapSeconds] = useState("2");
     const [videoPreAnimationDelaySeconds, setVideoPreAnimationDelaySeconds] = useState("10");
     const [videoFrameFrom, setVideoFrameFrom] = useState("1");
@@ -95,6 +101,8 @@ export default function Toolbar({
     const importRef = useRef(null);
     const gridRef = useRef(null);
     const legalRef = useRef(null);
+    const fileRef = useRef(null);
+    const newRef = useRef(null);
 
     useEffect(() => {
         const totalFrames = Math.max(1, timelineFrames.length || 1);
@@ -186,6 +194,14 @@ export default function Toolbar({
 
             if (legalRef.current && !legalRef.current.contains(e.target)) {
                 setLegalOpen(false);
+            }
+
+            if (fileRef.current && !fileRef.current.contains(e.target)) {
+                setFileOpen(false);
+            }
+
+            if (newRef.current && !newRef.current.contains(e.target)) {
+                setNewOpen(false);
             }
         };
 
@@ -640,7 +656,126 @@ export default function Toolbar({
 
                     <span className="topbar-separator" />
 
-                    <div className="save-menu-wrap" title="Save this drawing" ref={saveRef}>
+                    <div className="file-native-menu-wrap" ref={fileRef}>
+                        <button
+                            type="button"
+                            className="native-menu-trigger"
+                            onClick={() => { setFileOpen((value) => !value); setNewOpen(false); }}
+                        >
+                            File <span>⌄</span>
+                        </button>
+
+                        {fileOpen && (
+                            <div className="native-file-menu">
+                                <button type="button" onClick={() => { createNewDrawing?.(); setFileOpen(false); }}>
+                                    <span>New drawing</span><kbd>⌘N</kbd>
+                                </button>
+                                <div className="native-menu-divider" />
+
+                                <div className="native-submenu-row">
+                                    <button type="button"><span>Save</span><span className="submenu-arrow">›</span></button>
+                                    <div className="native-submenu">
+                                        <button type="button" onClick={() => { triggerSaveExisting?.(); setFileOpen(false); }}>Save</button>
+                                        <button type="button" onClick={() => { triggerSaveAsNew?.(); setFileOpen(false); }}>Save as…</button>
+                                        <button type="button" onClick={() => { window.dispatchEvent(new Event("sketchydraw:open-my-drawings")); setFileOpen(false); }}>My drawings</button>
+                                    </div>
+                                </div>
+
+                                <div className="native-submenu-row">
+                                    <button type="button"><span>Import</span><span className="submenu-arrow">›</span></button>
+                                    <div className="native-submenu">
+                                        <button type="button" onClick={() => { (openImportPicker || openJsonPicker)?.("json"); setFileOpen(false); }}>JSON…</button>
+                                        <button type="button" onClick={() => { openImportPicker?.("ppt"); setFileOpen(false); }}>PowerPoint…</button>
+                                        <button type="button" onClick={() => { openImportPicker?.("excel"); setFileOpen(false); }}>Excel / CSV…</button>
+                                    </div>
+                                </div>
+
+                                <div className="native-submenu-row">
+                                    <button type="button"><span>Export</span><span className="submenu-arrow">›</span></button>
+                                    <div className="native-submenu native-export-submenu">
+                                        <button type="button" onClick={() => { runExport(exportPNG); setFileOpen(false); }}>PNG…</button>
+                                        <button type="button" onClick={() => { runExport(exportJPEG); setFileOpen(false); }}>JPEG…</button>
+                                        <button type="button" onClick={() => { runExport(exportSVG); setFileOpen(false); }}>SVG…</button>
+                                        <button type="button" onClick={() => { runExport(exportPDF); setFileOpen(false); }}>PDF…</button>
+                                        <button type="button" onClick={() => { runExport(exportJSON); setFileOpen(false); }}>JSON…</button>
+                                        <div className="native-menu-divider" />
+                                        <button type="button" onClick={() => { runProOnly("PowerPoint export", () => runExport(exportPPT)); setFileOpen(false); }}>PowerPoint… <span className="native-pro-badge">PRO</span></button>
+                                        <button type="button" onClick={() => { runProOnly("Excel export", () => runExport(exportExcel)); setFileOpen(false); }}>Excel… <span className="native-pro-badge">PRO</span></button>
+                                        <button type="button" onClick={() => { runProOnly("CSV export", () => runExport(exportCSV)); setFileOpen(false); }}>CSV… <span className="native-pro-badge">PRO</span></button>
+                                        <div className="native-menu-divider" />
+                                        <button type="button" onClick={() => { runExport(() => exportInstagram?.("post")); setFileOpen(false); }}>Instagram Post…</button>
+                                        <button type="button" onClick={() => { runExport(() => exportInstagram?.("portrait")); setFileOpen(false); }}>Instagram Portrait…</button>
+                                        <button type="button" onClick={() => { runExport(() => exportInstagram?.("story")); setFileOpen(false); }}>Instagram Story…</button>
+                                        <button type="button" onClick={() => { runExport(() => exportInstagram?.("status")); setFileOpen(false); }}>WhatsApp Status…</button>
+                                        <div className="native-menu-divider" />
+                                        <button type="button" onClick={() => { runProOnly("GIF export", () => runExport(exportGIF)); setFileOpen(false); }}>GIF… <span className="native-pro-badge">PRO</span></button>
+                                    </div>
+                                </div>
+
+                                <div className="native-menu-divider" />
+                                <button type="button" onClick={() => { runExport(printCanvas); setFileOpen(false); }}>
+                                    <span>Print…</span><kbd>⌘P</kbd>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="new-native-menu-wrap" ref={newRef}>
+                        <button
+                            type="button"
+                            className="native-menu-trigger native-new-trigger"
+                            onClick={() => { setNewOpen((value) => !value); setFileOpen(false); }}
+                        >
+                            New <span>⌄</span>
+                        </button>
+                        {newOpen && (
+                            <div className="native-file-menu native-new-menu">
+                                <button type="button" onClick={() => { createNewDrawing?.(); setNewOpen(false); }}>New drawing</button>
+                                <div className="native-menu-divider" />
+                                <button type="button" onClick={() => { applyCanvasPattern("blank"); setNewOpen(false); }}>Blank canvas</button>
+                                <button type="button" onClick={() => { applyCanvasPattern("grid"); setNewOpen(false); }}>Grid canvas</button>
+                                <button type="button" onClick={() => { applyCanvasPattern("notebook"); setNewOpen(false); }}>Notebook</button>
+                                <button type="button" onClick={() => { applyCanvasPattern("dots"); setNewOpen(false); }}>Dot grid</button>
+                                <button type="button" onClick={() => { applyCanvasPattern("blocks"); setNewOpen(false); }}>Blocks</button>
+                                <div className="native-menu-divider" />
+                                <button type="button" onClick={() => { setSocialCreatorPreset?.(null); setNewOpen(false); }}>Free canvas</button>
+                                <button type="button" onClick={() => { setSocialCreatorPreset?.("instagram-post"); setNewOpen(false); }}>Instagram Post</button>
+                                <button type="button" onClick={() => { setSocialCreatorPreset?.("instagram-portrait"); setNewOpen(false); }}>Instagram Portrait</button>
+                                <button type="button" onClick={() => { setSocialCreatorPreset?.("instagram-story"); setNewOpen(false); }}>Instagram Story</button>
+                                <button type="button" onClick={() => { setSocialCreatorPreset?.("whatsapp-status"); setNewOpen(false); }}>WhatsApp Status</button>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className={`creator-toolbar-control ${socialCreatorPreset ? "active" : ""}`}>
+                        <span className="creator-toolbar-icon" aria-hidden="true">✦</span>
+                        <select
+                            value={socialCreatorPreset || ""}
+                            onChange={(event) => setSocialCreatorPreset?.(event.target.value || null)}
+                            title="Choose a creator canvas size"
+                            aria-label="Creator mode"
+                        >
+                            <option value="">Creator mode</option>
+                            {Object.values(SOCIAL_MEDIA_PRESETS).map((preset) => (
+                                <option key={preset.id} value={preset.id}>
+                                    {preset.shortLabel} · {preset.width}×{preset.height}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <button
+                        type="button"
+                        className="toolbar-focus-button"
+                        onClick={onToggleFocusMode}
+                        title="Open full-screen canvas"
+                        aria-label="Open full-screen canvas"
+                    >
+                        <span aria-hidden="true">⛶</span>
+                        <span>Full screen</span>
+                    </button>
+
+                    <div className="save-menu-wrap legacy-toolbar-menu" title="Save this drawing" ref={saveRef}>
                         <button
                             type="button"
                             className="toolbar-primary-action save-trigger-btn"
@@ -695,7 +830,7 @@ export default function Toolbar({
                         )}
                     </div>
 
-                    <div className="export-menu-wrap" ref={importRef}>
+                    <div className="export-menu-wrap legacy-toolbar-menu" ref={importRef}>
                         <button
                             type="button"
                             className="toolbar-dark-action export-trigger-btn"
@@ -720,7 +855,7 @@ export default function Toolbar({
                         )}
                     </div>
 
-                    <div className="social-creator-control">
+                    <div className="social-creator-control legacy-toolbar-menu">
                         <span className="social-creator-label">Creator canvas</span>
                         <select
                             value={socialCreatorPreset || ""}
@@ -736,7 +871,7 @@ export default function Toolbar({
                         </select>
                     </div>
 
-                    <div className="export-menu-wrap" ref={exportRef}>
+                    <div className="export-menu-wrap legacy-toolbar-menu" ref={exportRef}>
                         <button
                             type="button"
                             className="toolbar-dark-action export-trigger-btn"
@@ -766,6 +901,15 @@ export default function Toolbar({
                                 </button>
                                 <button type="button" onClick={() => runExport(exportJSON)}>
                                     📄 Export as JSON
+                                </button>
+                                <button type="button" onClick={() => runProOnly("PowerPoint export", () => runExport(exportPPT))}>
+                                    📊 Export as PowerPoint
+                                </button>
+                                <button type="button" onClick={() => runProOnly("Excel export", () => runExport(exportExcel))}>
+                                    📗 Export as Excel
+                                </button>
+                                <button type="button" onClick={() => runProOnly("CSV export", () => runExport(exportCSV))}>
+                                    🧾 Export as CSV
                                 </button>
 
                                 <div className="export-dropdown-divider" />
@@ -888,7 +1032,7 @@ export default function Toolbar({
                         )}
                     </div>
 
-                    <div className="grid-menu-wrap" ref={gridRef}>
+                    <div className="grid-menu-wrap legacy-toolbar-menu" ref={gridRef}>
                         <button
                             type="button"
                             className="toolbar-dark-action grid-trigger-btn"

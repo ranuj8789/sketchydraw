@@ -1923,3 +1923,160 @@
         overflow-y: visible !important;
     }
 }
+
+/* Native desktop-style File / New menus */
+.legacy-toolbar-menu { display: none !important; }
+.file-native-menu-wrap,
+.new-native-menu-wrap { position: relative; flex: 0 0 auto; }
+.native-menu-trigger {
+    height: 40px;
+    min-width: 68px;
+    padding: 0 14px;
+    border: 1px solid #d7b56a;
+    border-radius: 11px;
+    background: #fffaf0;
+    color: #5f491d;
+    font-weight: 850;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+.native-new-trigger { background:#fff; border-color:#d8e0ea; color:#1f2937; }
+.native-file-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    z-index: 1000002;
+    width: 250px;
+    padding: 7px;
+    border: 1px solid #dfe4eb;
+    border-radius: 12px;
+    background: rgba(255,255,255,.99);
+    box-shadow: 0 22px 55px rgba(15,23,42,.18);
+}
+.native-file-menu button {
+    width:100%;
+    min-height:36px;
+    padding: 7px 10px;
+    border:0;
+    border-radius:8px;
+    background:transparent;
+    color:#1f2937;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:16px;
+    text-align:left;
+    font-size:13px;
+    font-weight:700;
+    white-space:nowrap;
+}
+.native-file-menu button:hover { background:#f3f6fa; }
+.native-file-menu kbd { color:#98a2b3; font: 600 11px/1 system-ui; }
+.native-menu-divider { height:1px; margin:6px 5px; background:#e9edf2; }
+.native-submenu-row { position:relative; }
+.native-submenu {
+    display:none;
+    position:absolute;
+    left:calc(100% - 3px);
+    top:-7px;
+    width:230px;
+    max-height:70vh;
+    overflow-y:auto;
+    padding:7px;
+    border:1px solid #dfe4eb;
+    border-radius:12px;
+    background:#fff;
+    box-shadow:0 22px 55px rgba(15,23,42,.18);
+}
+.native-submenu-row:hover > .native-submenu,
+.native-submenu-row:focus-within > .native-submenu { display:block; }
+.native-export-submenu { width:270px; }
+.submenu-arrow { color:#98a2b3; font-size:18px; line-height:1; }
+.native-pro-badge {
+    margin-left:auto;
+    padding:2px 5px;
+    border:1px solid #d7b56a;
+    border-radius:999px;
+    color:#795b1b;
+    background:#fff9ea;
+    font-size:9px;
+    font-weight:900;
+}
+.native-new-menu { width:220px; }
+@media (max-width: 900px) {
+    .native-file-menu { position:fixed; top:72px; left:12px; }
+    .native-submenu { position:fixed; top:72px; left:274px; }
+}
+
+
+/* Compact creator mode and full-screen actions */
+.creator-toolbar-control {
+    height: 40px;
+    min-width: 188px;
+    max-width: 254px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 8px 0 11px;
+    border: 1px solid #dfe4ec;
+    border-radius: 12px;
+    background: #ffffff;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.035);
+    flex: 0 1 auto;
+}
+.creator-toolbar-control:hover,
+.creator-toolbar-control:focus-within {
+    border-color: #d8b66a;
+    background: #fffdf8;
+    box-shadow: 0 0 0 3px rgba(216, 182, 106, 0.12);
+}
+.creator-toolbar-control.active {
+    border-color: #d8b66a;
+    background: #fffaf0;
+}
+.creator-toolbar-icon {
+    color: #a77820;
+    font-size: 13px;
+    line-height: 1;
+    flex: 0 0 auto;
+}
+.creator-toolbar-control select {
+    width: 100%;
+    min-width: 0;
+    height: 36px;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: #243044;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+}
+.toolbar-focus-button {
+    height: 40px !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 0 13px !important;
+    border: 1px solid #dfe4ec !important;
+    border-radius: 12px !important;
+    background: #ffffff !important;
+    color: #243044 !important;
+    font-size: 12px;
+    font-weight: 850;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.035);
+}
+.toolbar-focus-button:hover {
+    border-color: #d8b66a !important;
+    background: #fffdf8 !important;
+    color: #6d531f !important;
+}
+@media (max-width: 1180px) {
+    .creator-toolbar-control { min-width: 150px; max-width: 190px; }
+    .toolbar-focus-button span:last-child { display: none; }
+    .toolbar-focus-button { width: 40px; padding: 0 !important; }
+}

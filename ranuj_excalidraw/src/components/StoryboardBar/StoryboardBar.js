@@ -14,6 +14,7 @@ export default function StoryboardBar({
                                         onOpenManager,
                                         onPresent,
                                         onPlayCurrent,
+                                        onMergeAll,
                                         onReorderFrames,
                                       }) {
   const [expanded, setExpanded] = useState(true);
@@ -112,6 +113,7 @@ export default function StoryboardBar({
           <div className="storyboard-actions">
             <button type="button" onClick={() => proAction("Frame playback", onPlayCurrent)}>▶ Play frame</button>
             <button type="button" className="storyboard-present" onClick={() => proAction("Presentation and frame playback", onPresent)}>▶ Play all</button>
+            <button type="button" className="storyboard-merge-all" disabled={frames.length <= 1} onClick={() => proAction("Merge frames", onMergeAll)}>Merge all</button>
             <button type="button" onClick={() => proAction("Frames", onOpenManager)}>Manage</button>
           </div>
         </div>

@@ -582,6 +582,108 @@ export function hitTest(element, x, y) {
 }
 
 
+function getRichStyleAt(element, index, baseStyle) {
+    const ranges = Array.isArray(element.richText) ? element.richText : [];
+    return ranges.reduce((style, range) => {
+        if (index >= Number(range.start) && index < Number(range.end)) {
+            return {
+                ...style,
+                bold: range.bold ?? style.bold,
+                italic: range.italic ?? style.italic,
+                underline: range.underline ?? style.underline,
+                strike: range.strike ?? style.strike,
+                stroke: range.stroke || style.stroke,
+                fontFamily: range.fontFamily || style.fontFamily,
+                fontSize: Number(range.fontSize) > 0 ? Number(range.fontSize) : style.fontSize,
+                lineHeight: Number(range.fontSize) > 0
+                    ? Math.max(style.lineHeight, Number(range.fontSize) * 1.25)
+                    : style.lineHeight,
+            };
+        }
+        return style;
+    }, { ...baseStyle });
+}
+
+function drawRichTextElement(ctx, element, baseStyle) {
+    const text = String(element.text || "");
+    const lines = text.split("\n");
+    let globalIndex = 0;
+
+    lines.forEach((line, lineIndex) => {
+        const segments = [];
+        let segmentStart = 0;
+        let segmentStyle = getRichStyleAt(element, globalIndex, baseStyle);
+
+        for (let i = 1; i <= line.length; i += 1) {
+            const nextStyle = i < line.length
+                ? getRichStyleAt(element, globalIndex + i, baseStyle)
+                : null;
+            const changed = !nextStyle ||
+                nextStyle.bold !== segmentStyle.bold ||
+                nextStyle.italic !== segmentStyle.italic ||
+                nextStyle.underline !== segmentStyle.underline ||
+                nextStyle.strike !== segmentStyle.strike ||
+                nextStyle.stroke !== segmentStyle.stroke ||
+                nextStyle.fontFamily !== segmentStyle.fontFamily ||
+                nextStyle.fontSize !== segmentStyle.fontSize;
+
+            if (changed) {
+                segments.push({
+                    text: line.slice(segmentStart, i),
+                    style: segmentStyle,
+                });
+                segmentStart = i;
+                segmentStyle = nextStyle;
+            }
+        }
+
+        if (!line.length) segments.push({ text: "", style: baseStyle });
+
+        const widths = segments.map((segment) => {
+            ctx.font = buildTextCanvasFont(segment.style);
+            return ctx.measureText(segment.text).width;
+        });
+        const totalWidth = widths.reduce((sum, width) => sum + width, 0);
+
+        let cursorX = element.x;
+        if (baseStyle.textAlign === "center") cursorX = element.x + (element.w || 120) / 2 - totalWidth / 2;
+        if (baseStyle.textAlign === "right") cursorX = element.x + (element.w || 120) - totalWidth;
+        const textY = element.y + lineIndex * baseStyle.lineHeight;
+
+        segments.forEach((segment, segmentIndex) => {
+            ctx.font = buildTextCanvasFont(segment.style);
+            ctx.fillStyle = segment.style.stroke;
+            ctx.textAlign = "left";
+            ctx.fillText(segment.text, cursorX, textY);
+
+            if ((segment.style.underline || segment.style.strike) && segment.text) {
+                ctx.save();
+                ctx.strokeStyle = segment.style.stroke;
+                ctx.lineWidth = Math.max(1, Math.round(segment.style.fontSize / 14));
+                if (segment.style.underline) {
+                    const underlineY = textY + segment.style.fontSize + 2;
+                    ctx.beginPath();
+                    ctx.moveTo(cursorX, underlineY);
+                    ctx.lineTo(cursorX + widths[segmentIndex], underlineY);
+                    ctx.stroke();
+                }
+                if (segment.style.strike) {
+                    const strikeY = textY + segment.style.fontSize * 0.52;
+                    ctx.beginPath();
+                    ctx.moveTo(cursorX, strikeY);
+                    ctx.lineTo(cursorX + widths[segmentIndex], strikeY);
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+
+            cursorX += widths[segmentIndex];
+        });
+
+        globalIndex += line.length + 1;
+    });
+}
+
 function drawSystemDesignLabel(ctx, text, x, y, w, fontSize, stroke, lineHeight = 1.15) {
     const lines = String(text || "").split("\n");
     const safeFontSize = Math.max(10, fontSize || 14);
@@ -839,8 +941,33 @@ export function drawElement(ctx, element, selected = false, renderOptions = {}) 
     const animationState = getAnimationProgress(element, renderOptions);
     const easedProgress = easeOutCubic(animationState.progress);
 
+    if (animationState.active && animationState.type === "appear") {
+        ctx.globalAlpha = animationState.progress >= 1 ? ctx.globalAlpha : 0;
+    }
+
     if (animationState.active && animationState.type === "fadeIn") {
         ctx.globalAlpha = ctx.globalAlpha * easedProgress;
+    }
+
+    if (animationState.active && animationState.type === "flyInLeft") {
+        ctx.translate((1 - easedProgress) * -80, 0);
+        ctx.globalAlpha *= easedProgress;
+    }
+    if (animationState.active && animationState.type === "flyInRight") {
+        ctx.translate((1 - easedProgress) * 80, 0);
+        ctx.globalAlpha *= easedProgress;
+    }
+    if (animationState.active && animationState.type === "flyInTop") {
+        ctx.translate(0, (1 - easedProgress) * -60);
+        ctx.globalAlpha *= easedProgress;
+    }
+    if (animationState.active && animationState.type === "flyInBottom") {
+        ctx.translate(0, (1 - easedProgress) * 60);
+        ctx.globalAlpha *= easedProgress;
+    }
+    if (animationState.active && animationState.type === "floatIn") {
+        ctx.translate(0, (1 - easedProgress) * 24);
+        ctx.globalAlpha *= easedProgress;
     }
 
     if (animationState.active && animationState.type === "slideUp") {
@@ -848,7 +975,7 @@ export function drawElement(ctx, element, selected = false, renderOptions = {}) 
         ctx.globalAlpha = ctx.globalAlpha * easedProgress;
     }
 
-    if (animationState.active && animationState.type === "scaleIn") {
+    if (animationState.active && (animationState.type === "scaleIn" || animationState.type === "zoomIn")) {
         const box = getSelectionBox(element);
 
         if (box) {
@@ -1086,38 +1213,49 @@ export function drawElement(ctx, element, selected = false, renderOptions = {}) 
         ctx.textBaseline = "top";
         ctx.textAlign = style.textAlign;
 
-        const lines = getAnimatedTextLines(
-            element.text,
-            animationState,
-            ctx,
-            Math.max(1, (element.w || 120) - 8)
-        );
+        const hasActiveTypewriterAnimation =
+            animationState?.active && animationState?.type === "typewriter";
 
-        lines.forEach((line, index) => {
-            const textX = getTextAnchorX(element, style);
-            const textY = element.y + index * style.lineHeight;
+        if (
+            Array.isArray(element.richText) &&
+            element.richText.length > 0 &&
+            !hasActiveTypewriterAnimation
+        ) {
+            drawRichTextElement(ctx, element, style);
+        } else {
+            const lines = getAnimatedTextLines(
+                element.text,
+                animationState,
+                ctx,
+                Math.max(1, (element.w || 120) - 8)
+            );
 
-            ctx.fillText(line, textX, textY);
+            lines.forEach((line, index) => {
+                const textX = getTextAnchorX(element, style);
+                const textY = element.y + index * style.lineHeight;
 
-            if (style.underline && line) {
-                const metrics = ctx.measureText(line);
-                const underlineY = textY + style.fontSize + 2;
-                const underlineBounds = getUnderlineBounds(
-                    textX,
-                    metrics.width,
-                    style
-                );
+                ctx.fillText(line, textX, textY);
 
-                ctx.save();
-                ctx.beginPath();
-                ctx.strokeStyle = style.stroke;
-                ctx.lineWidth = Math.max(1, Math.round(style.fontSize / 14));
-                ctx.moveTo(underlineBounds.startX, underlineY);
-                ctx.lineTo(underlineBounds.endX, underlineY);
-                ctx.stroke();
-                ctx.restore();
-            }
-        });
+                if (style.underline && line) {
+                    const metrics = ctx.measureText(line);
+                    const underlineY = textY + style.fontSize + 2;
+                    const underlineBounds = getUnderlineBounds(
+                        textX,
+                        metrics.width,
+                        style
+                    );
+
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.strokeStyle = style.stroke;
+                    ctx.lineWidth = Math.max(1, Math.round(style.fontSize / 14));
+                    ctx.moveTo(underlineBounds.startX, underlineY);
+                    ctx.lineTo(underlineBounds.endX, underlineY);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            });
+        }
     }
 
     drawPulseRing(ctx, element, animationState, stroke);

@@ -72,6 +72,13 @@ export const ANIMATION_PRESETS = [
         compatibleTypes: ["all"],
         durationMs: 900,
     },
+    { type: "appear", label: "Appear", description: "PowerPoint-style instant entrance", compatibleTypes: ["all"], durationMs: 250 },
+    { type: "flyInLeft", label: "Fly in from left", description: "PowerPoint-style fly in", compatibleTypes: ["all"], durationMs: 850 },
+    { type: "flyInRight", label: "Fly in from right", description: "PowerPoint-style fly in", compatibleTypes: ["all"], durationMs: 850 },
+    { type: "flyInTop", label: "Fly in from top", description: "PowerPoint-style fly in", compatibleTypes: ["all"], durationMs: 850 },
+    { type: "flyInBottom", label: "Fly in from bottom", description: "PowerPoint-style fly in", compatibleTypes: ["all"], durationMs: 850 },
+    { type: "zoomIn", label: "Zoom", description: "PowerPoint-style zoom entrance", compatibleTypes: ["all"], durationMs: 800 },
+    { type: "floatIn", label: "Float in", description: "Soft fade and float entrance", compatibleTypes: ["all"], durationMs: 900 },
     {
         type: "slideUp",
         label: "Slide up",

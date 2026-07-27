@@ -765,6 +765,27 @@ function SketchyDrawPage() {
     });
   }, []);
 
+  const updateElementFrameVisibility = useCallback((elementId, firstFrameIndex, lastFrameIndex) => {
+    if (!elementId) return;
+
+    setTimelineFrames((prevFrames) => {
+      const maxIndex = Math.max(0, prevFrames.length - 1);
+      const start = Math.max(0, Math.min(Number(firstFrameIndex) || 0, maxIndex));
+      const end = Math.max(start, Math.min(Number(lastFrameIndex) || start, maxIndex));
+
+      return prevFrames.map((frame, index) => {
+        const containsElement = (frame.elements || []).some((element) => element.id === elementId);
+        if (!containsElement) return frame;
+
+        const hidden = new Set(frame.hiddenElementIds || []);
+        if (index < start || index > end) hidden.add(elementId);
+        else hidden.delete(elementId);
+
+        return { ...frame, hiddenElementIds: Array.from(hidden) };
+      });
+    });
+  }, []);
+
   const moveFrameElementOrder = useCallback((frameIndex, elementId, direction) => {
     if (!elementId) return;
 
@@ -1296,6 +1317,9 @@ function SketchyDrawPage() {
     exportPDF,
     printCanvas,
     exportJSON,
+    exportPPT,
+    exportExcel,
+    exportCSV,
     importDrawingJson,
     openJsonPicker,
     openImportPicker,
@@ -1660,6 +1684,7 @@ function SketchyDrawPage() {
               onSelectFrame={(index) => requirePro("Frames", () => selectTimelineFrame(index))}
               onDeleteFrame={deleteTimelineFrame}
               onOpenFramesPanel={() => setFramesPanelOpen(true)}
+              onUpdateElementFrameVisibility={updateElementFrameVisibility}
           />}
 
           <div className="work-area">
@@ -1686,6 +1711,9 @@ function SketchyDrawPage() {
                 exportPDF={exportPDF}
                 printCanvas={printCanvas}
                 exportJSON={exportJSON}
+                exportPPT={exportPPT}
+                exportExcel={exportExcel}
+                exportCSV={exportCSV}
                 canvasProps={canvasProps}
                 updateCanvasProps={updateCanvasProps}
                 openJsonPicker={openJsonPicker}
@@ -1754,6 +1782,7 @@ function SketchyDrawPage() {
                 onOpenManager={() => requirePro("Frames", () => setFramesPanelOpen(true))}
                 onPresent={() => requirePro("Presentation and frame playback", () => openAnimationPlayer("all"))}
                 onPlayCurrent={() => requirePro("Frame playback", () => openAnimationPlayer("current"))}
+                onMergeAll={() => requirePro("Merge frames", mergeAllTimelineFrames)}
                 onReorderFrames={reorderTimelineFrames}
             />}
 

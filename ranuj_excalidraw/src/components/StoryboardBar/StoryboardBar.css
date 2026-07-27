@@ -77,3 +77,17 @@
 .storyboard-bar.pro-locked .storyboard-track {
   opacity: .72;
 }
+
+
+/* Storyboard action polish */
+.storyboard-actions { align-items:center; }
+.storyboard-actions button { white-space:nowrap; }
+.storyboard-actions .storyboard-merge-all {
+  border-color:#dcc58f;
+  background:#fff;
+  color:#6f561f;
+}
+.storyboard-actions .storyboard-merge-all:hover:not(:disabled) { background:#fffaf0; }
+.storyboard-actions .storyboard-merge-all:disabled { opacity:.42; cursor:not-allowed; }
+.storyboard-track { scrollbar-width:thin; scrollbar-color:#d8dde6 transparent; }
+.storyboard-frame { box-shadow:0 3px 10px rgba(15,23,42,.035); }

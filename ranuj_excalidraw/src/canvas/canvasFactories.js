@@ -68,6 +68,7 @@ export function buildTextElement({
                                      italic = false,
                                      underline = false,
                                      textAlign = "left",
+                                     richText = [],
                                      pageIndex,
                                  }) {
     const finalText = text ?? "";
@@ -103,6 +104,7 @@ export function buildTextElement({
         italic,
         underline,
         textAlign,
+        richText: Array.isArray(richText) ? richText : [],
         pageIndex,
         w: box.w,
         h: box.h,

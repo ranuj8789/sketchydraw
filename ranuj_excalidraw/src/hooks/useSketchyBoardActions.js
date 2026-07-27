@@ -22,6 +22,7 @@ import {
     importPowerPointFile,
     importSpreadsheetFile,
 } from "../canvas/importOfficeDocument";
+import { exportFramesToCSV, exportFramesToExcel, exportFramesToPowerPoint } from "../utils/exportOfficeDocument";
 
 export function useSketchyBoardActions({
                                            elements = [],
@@ -143,6 +144,40 @@ export function useSketchyBoardActions({
         );
     };
 
+
+    const exportPPT = async () => {
+        const allowed = await requireProAccess("Export PowerPoint");
+        if (!allowed) return;
+        try {
+            await exportFramesToPowerPoint({
+                frames: timelineFrames,
+                canvasSize,
+                canvasProps,
+                fileName: `${safeTitle}.pptx`,
+            });
+        } catch (error) {
+            console.error(error);
+            alert(error?.message || "Could not export PowerPoint.");
+        }
+    };
+
+    const exportExcel = async () => {
+        const allowed = await requireProAccess("Export Excel");
+        if (!allowed) return;
+        try {
+            await exportFramesToExcel(timelineFrames, `${safeTitle}.xlsx`);
+        } catch (error) {
+            console.error(error);
+            alert(error?.message || "Could not export Excel.");
+        }
+    };
+
+    const exportCSV = async () => {
+        const allowed = await requireProAccess("Export CSV");
+        if (!allowed) return;
+        exportFramesToCSV(timelineFrames, `${safeTitle}.csv`);
+    };
+
     const importDrawingJson = async (event) => {
         const file = event.target.files?.[0];
 
@@ -247,6 +282,9 @@ export function useSketchyBoardActions({
         exportPDF,
         printCanvas,
         exportJSON,
+        exportPPT,
+        exportExcel,
+        exportCSV,
         importDrawingJson,
         openJsonPicker,
         openImportPicker,

@@ -19,6 +19,7 @@ export function createTextElementHelper({
                                             italic,
                                             underline,
                                             textAlign,
+                                            richText,
                                             pageIndex,
                                         }) {
     const finalText = text ?? "";
@@ -48,6 +49,7 @@ export function createTextElementHelper({
         italic: style.italic,
         underline: style.underline,
         textAlign: style.textAlign,
+        richText: Array.isArray(richText) ? richText : [],
         pageIndex,
     });
 
@@ -73,6 +75,7 @@ export function updateTextElementHelper({
                                             italic,
                                             underline,
                                             textAlign,
+                                            richText,
                                             pageIndex,
                                         }) {
     // IMPORTANT:
@@ -117,6 +120,7 @@ export function updateTextElementHelper({
             italic: style.italic,
             underline: style.underline,
             textAlign: style.textAlign,
+            richText: Array.isArray(richText) ? richText : (el.richText || []),
         };
     });
 

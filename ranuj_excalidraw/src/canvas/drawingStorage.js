@@ -108,6 +108,9 @@ export function normalizeElementForSave(element) {
             underline: !!element.underline,
             textAlign: element.textAlign || "left",
             parentId: element.parentId || null,
+            richText: Array.isArray(element.richText)
+                ? element.richText.map((range) => ({ ...range }))
+                : [],
         };
     }
 
