@@ -180,6 +180,100 @@ export function detectOfficeImportType(file) {
     const name = String(file?.name || "").toLowerCase();
     if (name.endsWith(".pptx")) return "ppt";
     if (name.endsWith(".xlsx") || name.endsWith(".xls") || name.endsWith(".csv")) return "excel";
+    if (name.endsWith(".docx")) return "word";
     if (name.endsWith(".json")) return "json";
     return "unknown";
+}
+
+function wordParagraphsToFrames(documentName, paragraphs, canvasSize) {
+    const width = Math.max(900, Number(canvasSize?.width) || 1200);
+    const height = Math.max(600, Number(canvasSize?.height) || 700);
+    const margin = 64;
+    const usableWidth = width - margin * 2;
+    const titleHeight = 70;
+    const lineHeight = 36;
+    const maxLinesPerFrame = Math.max(8, Math.floor((height - margin * 2 - titleHeight) / lineHeight));
+    const cleanParagraphs = (paragraphs || []).map((value) => String(value || "").trim()).filter(Boolean);
+
+    if (!cleanParagraphs.length) {
+        return [{
+            id: uid(),
+            name: documentName || "Word document",
+            elements: [textElement({
+                x: margin,
+                y: margin,
+                text: "This Word document did not contain readable text.",
+                w: usableWidth,
+                fontSize: 24,
+                stroke: "#344054",
+            })],
+            hiddenElementIds: [],
+            durationMs: 2500,
+        }];
+    }
+
+    const pages = [];
+    for (let start = 0; start < cleanParagraphs.length; start += maxLinesPerFrame) {
+        pages.push(cleanParagraphs.slice(start, start + maxLinesPerFrame));
+    }
+
+    return pages.map((pageParagraphs, pageIndex) => {
+        const elements = [
+            textElement({
+                x: margin,
+                y: 42,
+                text: pages.length > 1 ? `${documentName} — Page ${pageIndex + 1}` : documentName,
+                w: usableWidth,
+                fontSize: 30,
+                bold: true,
+            }),
+        ];
+
+        pageParagraphs.forEach((paragraph, index) => {
+            elements.push(textElement({
+                x: margin,
+                y: 120 + index * lineHeight,
+                text: paragraph,
+                w: usableWidth,
+                fontSize: 19,
+                stroke: "#344054",
+            }));
+        });
+
+        return {
+            id: uid(),
+            name: pages.length > 1 ? `Page ${pageIndex + 1}` : documentName,
+            elements,
+            hiddenElementIds: [],
+            durationMs: 3000,
+        };
+    });
+}
+
+export async function importWordFile(file, canvasSize) {
+    const name = String(file?.name || "Word document").replace(/\.docx$/i, "") || "Word document";
+    if (!String(file?.name || "").toLowerCase().endsWith(".docx")) {
+        throw new Error("Only .docx Word files are supported. Save older .doc files as .docx first.");
+    }
+
+    const JSZip = await getJsZip();
+    const zip = await JSZip.loadAsync(await file.arrayBuffer());
+    const documentEntry = zip.file("word/document.xml");
+    if (!documentEntry) {
+        throw new Error("This .docx file does not contain a readable Word document.");
+    }
+
+    const xmlText = await documentEntry.async("text");
+    const xml = new DOMParser().parseFromString(xmlText, "application/xml");
+    if (xml.getElementsByTagName("parsererror").length) {
+        throw new Error("The Word document XML could not be parsed.");
+    }
+
+    const paragraphs = Array.from(xml.getElementsByTagNameNS("*", "p")).map((paragraph) => {
+        return Array.from(paragraph.getElementsByTagNameNS("*", "t"))
+            .map((node) => node.textContent || "")
+            .join("");
+    });
+
+    return wordParagraphsToFrames(name, paragraphs, canvasSize);
 }

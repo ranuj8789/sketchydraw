@@ -43,6 +43,7 @@ export default function Toolbar({
                                     exportPPT,
                                     exportExcel,
                                     exportCSV,
+                                    exportProtectedDrawing,
                                     openJsonPicker,
                                     openImportPicker,
                                     createNewDrawing,
@@ -60,6 +61,8 @@ export default function Toolbar({
                                     socialCreatorPreset = null,
                                     setSocialCreatorPreset,
                                     onToggleFocusMode,
+                                    onOpenMarkdownGrid,
+                                    onOpenExcelGrid,
                                 }) {
     const [loginOpen, setLoginOpen] = useState(false);
     const [subscriptionOpen, setSubscriptionOpen] = useState(false);
@@ -686,7 +689,9 @@ export default function Toolbar({
                                     <div className="native-submenu">
                                         <button type="button" onClick={() => { (openImportPicker || openJsonPicker)?.("json"); setFileOpen(false); }}>JSON…</button>
                                         <button type="button" onClick={() => { openImportPicker?.("ppt"); setFileOpen(false); }}>PowerPoint…</button>
+                                        <button type="button" onClick={() => { openImportPicker?.("word"); setFileOpen(false); }}>Word…</button>
                                         <button type="button" onClick={() => { openImportPicker?.("excel"); setFileOpen(false); }}>Excel / CSV…</button>
+                                        <button type="button" onClick={() => { openImportPicker?.("protected"); setFileOpen(false); }}>Protected drawing…</button>
                                     </div>
                                 </div>
 
@@ -698,6 +703,7 @@ export default function Toolbar({
                                         <button type="button" onClick={() => { runExport(exportSVG); setFileOpen(false); }}>SVG…</button>
                                         <button type="button" onClick={() => { runExport(exportPDF); setFileOpen(false); }}>PDF…</button>
                                         <button type="button" onClick={() => { runExport(exportJSON); setFileOpen(false); }}>JSON…</button>
+                                        <button type="button" onClick={() => { runExport(exportProtectedDrawing); setFileOpen(false); }}>Password-protected…</button>
                                         <div className="native-menu-divider" />
                                         <button type="button" onClick={() => { runProOnly("PowerPoint export", () => runExport(exportPPT)); setFileOpen(false); }}>PowerPoint… <span className="native-pro-badge">PRO</span></button>
                                         <button type="button" onClick={() => { runProOnly("Excel export", () => runExport(exportExcel)); setFileOpen(false); }}>Excel… <span className="native-pro-badge">PRO</span></button>
@@ -737,6 +743,8 @@ export default function Toolbar({
                                 <button type="button" onClick={() => { applyCanvasPattern("notebook"); setNewOpen(false); }}>Notebook</button>
                                 <button type="button" onClick={() => { applyCanvasPattern("dots"); setNewOpen(false); }}>Dot grid</button>
                                 <button type="button" onClick={() => { applyCanvasPattern("blocks"); setNewOpen(false); }}>Blocks</button>
+                                <button type="button" onClick={() => { onOpenExcelGrid?.(); setNewOpen(false); }}>New Excel</button>
+                                <button type="button" onClick={() => { onOpenMarkdownGrid?.(); setNewOpen(false); }}>New Markdown</button>
                                 <div className="native-menu-divider" />
                                 <button type="button" onClick={() => { setSocialCreatorPreset?.(null); setNewOpen(false); }}>Free canvas</button>
                                 <button type="button" onClick={() => { setSocialCreatorPreset?.("instagram-post"); setNewOpen(false); }}>Instagram Post</button>
@@ -847,6 +855,9 @@ export default function Toolbar({
                                 </button>
                                 <button type="button" onClick={() => { openImportPicker?.("ppt"); setImportOpen(false); }}>
                                     📊 Import PowerPoint
+                                </button>
+                                <button type="button" onClick={() => { openImportPicker?.("word"); setImportOpen(false); }}>
+                                    📝 Import Word
                                 </button>
                                 <button type="button" onClick={() => { openImportPicker?.("excel"); setImportOpen(false); }}>
                                     📈 Import Excel / CSV

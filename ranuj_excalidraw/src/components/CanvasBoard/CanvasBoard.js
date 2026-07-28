@@ -2835,6 +2835,28 @@ export default function CanvasBoard({
             }
 
             const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+
+            const savedType = parsed.documentType || parsed.workspaceType || parsed?.data?.documentType || parsed?.data?.workspaceType;
+            if (savedType === "excel") {
+                const sheet = parsed?.data?.spreadsheet || parsed.spreadsheet || {};
+                window.dispatchEvent(new CustomEvent("sketchydraw:open-spreadsheet", {
+                    detail: {
+                        rows: sheet.rows || sheet.rowCount,
+                        cols: sheet.cols || sheet.columnCount,
+                        cells: sheet.cells || {},
+                        selected: sheet.selected || sheet.activeCell || { row: 0, col: 0 },
+                        fileName: drawing.title || parsed.title || sheet.fileName || "Untitled Excel",
+                        currentMeta: {
+                            id: drawing.id || parsed.id || null,
+                            title: drawing.title || parsed.title || sheet.fileName || "Untitled Excel",
+                            groupName: drawing.groupName || parsed.groupName || drawing.workspace || parsed.workspace || DEFAULT_GROUP,
+                        },
+                    },
+                }));
+                setMyDrawingsOpen(false);
+                return;
+            }
+
             localDraftIdRef.current = drawing.id || parsed.id || null;
             const actualDrawing = parsed.data || parsed;
 

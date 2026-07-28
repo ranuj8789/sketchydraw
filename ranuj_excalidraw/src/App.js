@@ -8,6 +8,8 @@ import FramesPanel from "./components/FramesPanel/FramesPanel";
 import FramePlayerScreen from "./components/FramePlayerScreen/FramePlayerScreen";
 import StoryboardBar from "./components/StoryboardBar/StoryboardBar";
 import SketchyAlert from "./components/SketchyAlert";
+import MarkdownViewer from "./components/MarkDownViewer/MarkdownViewer";
+import SpreadsheetWorkspace from "./components/SpreadsheetWorkspace/SpreadsheetWorkspace";
 import { verifyEmail, resetPassword } from "./api/authApi";
 import { measureTextBox } from "./canvas/textMetrics";
 import {
@@ -25,7 +27,7 @@ import {
 } from "./components/DrawingGroupStore/drawingGroupStore";
 import { DEFAULT_TEXT_STYLE } from "./canvas/textStyle";
 import { createAnimationConfig } from "./canvas/animationRegistry";
-import { buildCodeIllustrationFrames, parseCodeIllustratorNumbers } from "./canvas/codeIllustrator";
+import { buildCodeIllustrationFrames, parseCodeIllustratorNumbers } from "./codeIllustrator";
 import { exportTimelineGif } from "./utils/exportGif";
 import { hasProAccess, requestProUpgrade } from "./utils/proFeatureGate";
 import {
@@ -314,6 +316,8 @@ function SketchyDrawPage() {
   const [sketchyAlert, setSketchyAlert] = useState(null);
   const [gifExporting, setGifExporting] = useState(false);
   const [gifExportProgress, setGifExportProgress] = useState(0);
+  const [markdownViewer, setMarkdownViewer] = useState({ open: false, title: "Markdown Grid", content: "" });
+  const [workspaceMode, setWorkspaceMode] = useState("canvas");
 
   const [timelineFrames, setTimelineFrames] = useState(() => [
     createTimelineFrame([], 0),
@@ -346,6 +350,17 @@ function SketchyDrawPage() {
 
   const closeSketchyAlert = useCallback(() => {
     setSketchyAlert(null);
+  }, []);
+
+  useEffect(() => {
+    const openMarkdown = (event) => setMarkdownViewer((previous) => ({
+      open: true,
+      title: event.detail?.title || previous.title || "Markdown Grid",
+      content: event.detail?.content ?? previous.content ?? "",
+    }));
+    const openMarkdownWorkspace = (event) => { openMarkdown(event); setWorkspaceMode("markdown"); };
+    window.addEventListener("sketchydraw:open-markdown-grid", openMarkdownWorkspace);
+    return () => window.removeEventListener("sketchydraw:open-markdown-grid", openMarkdownWorkspace);
   }, []);
 
   const [canvasSize, setCanvasSize] = useState({
@@ -1320,6 +1335,7 @@ function SketchyDrawPage() {
     exportPPT,
     exportExcel,
     exportCSV,
+    exportProtectedDrawing,
     importDrawingJson,
     openJsonPicker,
     openImportPicker,
@@ -1691,7 +1707,7 @@ function SketchyDrawPage() {
             <input
                 ref={jsonInputRef}
                 type="file"
-                accept=".json,.pptx,.xlsx,.xls,.csv,application/json,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+                accept=".json,.sketchylock,.docx,.pptx,.xlsx,.xls,.csv,application/json,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
                 onChange={importDrawingJson}
                 style={{ display: "none" }}
             />
@@ -1714,6 +1730,7 @@ function SketchyDrawPage() {
                 exportPPT={exportPPT}
                 exportExcel={exportExcel}
                 exportCSV={exportCSV}
+                exportProtectedDrawing={exportProtectedDrawing}
                 canvasProps={canvasProps}
                 updateCanvasProps={updateCanvasProps}
                 openJsonPicker={openJsonPicker}
@@ -1738,9 +1755,11 @@ function SketchyDrawPage() {
                 socialCreatorPreset={socialCreatorPreset}
                 setSocialCreatorPreset={setSocialCreatorPreset}
                 onToggleFocusMode={enterFocusMode}
+                onOpenMarkdownGrid={() => { setMarkdownViewer((prev) => ({ ...prev, open: true })); setWorkspaceMode("markdown"); }}
+                onOpenExcelGrid={() => setWorkspaceMode("excel")}
             />}
 
-            <CanvasBoard
+            {workspaceMode === "canvas" && <CanvasBoard
                 tool={tool}
                 setTool={setTool}
                 stroke={stroke}
@@ -1772,9 +1791,9 @@ function SketchyDrawPage() {
                 onStartAnimationPreview={startCurrentFrameAnimationPreview}
                 socialCreatorPreset={socialCreatorPreset}
                 focusMode={focusMode}
-            />
+            />}
 
-            {!focusMode && <StoryboardBar
+            {workspaceMode === "canvas" && !focusMode && <StoryboardBar
                 frames={timelineFrames}
                 currentIndex={currentFrameIndex}
                 onSelectFrame={selectTimelineFrame}
@@ -1785,6 +1804,21 @@ function SketchyDrawPage() {
                 onMergeAll={() => requirePro("Merge frames", mergeAllTimelineFrames)}
                 onReorderFrames={reorderTimelineFrames}
             />}
+
+            {workspaceMode === "markdown" && (
+                <MarkdownViewer
+                    open
+                    title={markdownViewer.title}
+                    content={markdownViewer.content}
+                    onChange={(content) => setMarkdownViewer((prev) => ({ ...prev, content }))}
+                    onTitleChange={(title) => setMarkdownViewer((prev) => ({ ...prev, title }))}
+                    onClose={() => { setMarkdownViewer((prev) => ({ ...prev, open: false })); setWorkspaceMode("canvas"); }}
+                />
+            )}
+
+            {workspaceMode === "excel" && (
+                <SpreadsheetWorkspace onClose={() => setWorkspaceMode("canvas")} />
+            )}
 
             {focusMode && (
                 <button
@@ -1823,6 +1857,7 @@ function SketchyDrawPage() {
                 onMergeFrameWithNext={mergeFrameWithNextAt}
                 onMergeAllFrames={mergeAllTimelineFrames}
             />}
+
 
             {proUser && <FramePlayerScreen
                 open={animationPlayerOpen}

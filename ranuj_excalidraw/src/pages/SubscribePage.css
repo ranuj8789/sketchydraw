@@ -1,0 +1,2 @@
+/* Subscribe page styles. Kept local so importing SubscribePage never breaks the build. */
+.subscribe-page { min-height: 100vh; background: #f7f8fb; color: #172033; }

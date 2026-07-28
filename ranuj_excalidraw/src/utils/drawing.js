@@ -1186,7 +1186,28 @@ export function drawElement(ctx, element, selected = false, renderOptions = {}) 
         }
 
         if (img && img.complete && img.naturalWidth > 0) {
-            ctx.drawImage(img, x, y, w, h);
+            const brightness = Number(element.brightness ?? 100);
+            const contrast = Number(element.contrast ?? 100);
+            const saturation = Number(element.saturation ?? 100);
+            const blur = Math.max(0, Number(element.blur) || 0);
+            const filters = [
+                `brightness(${brightness}%)`,
+                `contrast(${contrast}%)`,
+                `saturate(${saturation}%)`,
+                `blur(${blur}px)`,
+                element.grayscale ? "grayscale(100%)" : "grayscale(0%)",
+                element.sepia ? "sepia(100%)" : "sepia(0%)",
+            ].join(" ");
+            const rotation = (Number(element.rotation) || 0) * Math.PI / 180;
+            const flipX = element.flipX ? -1 : 1;
+            const flipY = element.flipY ? -1 : 1;
+            ctx.save();
+            ctx.filter = filters;
+            ctx.translate(x + w / 2, y + h / 2);
+            ctx.rotate(rotation);
+            ctx.scale(flipX, flipY);
+            ctx.drawImage(img, -w / 2, -h / 2, w, h);
+            ctx.restore();
         } else {
             ctx.save();
             ctx.fillStyle = "#f8fafc";

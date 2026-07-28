@@ -21,8 +21,10 @@ import {
     detectOfficeImportType,
     importPowerPointFile,
     importSpreadsheetFile,
+    importWordFile,
 } from "../canvas/importOfficeDocument";
 import { exportFramesToCSV, exportFramesToExcel, exportFramesToPowerPoint } from "../utils/exportOfficeDocument";
+import { encryptDrawingPayload, decryptDrawingPayload, downloadProtectedDrawing } from "../utils/drawingEncryption";
 
 export function useSketchyBoardActions({
                                            elements = [],
@@ -178,6 +180,29 @@ export function useSketchyBoardActions({
         exportFramesToCSV(timelineFrames, `${safeTitle}.csv`);
     };
 
+
+    const exportProtectedDrawing = async () => {
+        const password = window.prompt("Set a password for this protected drawing (minimum 6 characters):");
+        if (!password) return;
+        const confirmPassword = window.prompt("Confirm the drawing password:");
+        if (password !== confirmPassword) {
+            alert("Passwords do not match.");
+            return;
+        }
+        try {
+            const json = createDrawingJson({
+                elements, viewport, canvasSize, canvasProps,
+                name: drawingTitle || "Untitled Drawing",
+                frames: timelineFrames,
+                activeFrameIndex: currentFrameIndex,
+            });
+            const encrypted = await encryptDrawingPayload(json, password);
+            downloadProtectedDrawing(encrypted, `${safeTitle}.sketchylock`);
+        } catch (error) {
+            alert(error?.message || "Could not protect this drawing.");
+        }
+    };
+
     const importDrawingJson = async (event) => {
         const file = event.target.files?.[0];
 
@@ -190,15 +215,37 @@ export function useSketchyBoardActions({
         const detectedType = detectOfficeImportType(file);
         const requestedType = importTypeRef.current || detectedType;
         const importType = detectedType !== "unknown" ? detectedType : requestedType;
-        const label = importType === "ppt" ? "Import PowerPoint" : importType === "excel" ? "Import Excel" : "Import JSON";
-        const allowed = await requireProAccess(label);
+        const label = importType === "ppt" ? "Import PowerPoint" : importType === "excel" ? "Import Excel" : importType === "word" ? "Import Word" : importType === "protected" ? "Open protected drawing" : "Import JSON";
+        const allowed = importType === "protected" ? true : await requireProAccess(label);
         if (!allowed) return;
 
         try {
-            if (importType === "ppt" || importType === "excel") {
+            if (importType === "protected") {
+                const encrypted = JSON.parse(await file.text());
+                const password = window.prompt("Enter the password for this drawing:");
+                if (!password) return;
+                const decrypted = await decryptDrawingPayload(encrypted, password);
+                const loadedProtected = loadDrawingJson(decrypted);
+                const protectedFrames = loadedProtected?.frames || decrypted?.data?.frames || decrypted?.frames || [];
+                if (protectedFrames.length && typeof onRestoreTimeline === "function") {
+                    onRestoreTimeline(protectedFrames, Number(loadedProtected?.activeFrameIndex || 0));
+                } else {
+                    setElements(loadedProtected.elements || []);
+                    commitHistory?.(loadedProtected.elements || []);
+                }
+                setSelectedIds([]);
+                if (loadedProtected.viewport) setViewport?.(loadedProtected.viewport);
+                if (loadedProtected.canvasSize) setCanvasSize?.(loadedProtected.canvasSize);
+                if (loadedProtected.canvasProps) setCanvasProps?.(loadedProtected.canvasProps);
+                return;
+            }
+
+            if (importType === "ppt" || importType === "excel" || importType === "word") {
                 const frames = importType === "ppt"
                     ? await importPowerPointFile(file, canvasSize)
-                    : await importSpreadsheetFile(file, canvasSize);
+                    : importType === "word"
+                        ? await importWordFile(file, canvasSize)
+                        : await importSpreadsheetFile(file, canvasSize);
                 if (!frames.length) throw new Error("The selected file did not contain any importable slides or sheets.");
                 onRestoreTimeline?.(frames, 0);
                 setElements(frames[0].elements || []);
@@ -263,8 +310,8 @@ export function useSketchyBoardActions({
     };
 
     const openImportPicker = async (type = "json") => {
-        const label = type === "ppt" ? "Import PowerPoint" : type === "excel" ? "Import Excel" : "Import JSON";
-        const allowed = await requireProAccess(label);
+        const label = type === "ppt" ? "Import PowerPoint" : type === "excel" ? "Import Excel" : type === "word" ? "Import Word" : type === "protected" ? "Open protected drawing" : "Import JSON";
+        const allowed = type === "protected" ? true : await requireProAccess(label);
         if (!allowed) return;
         importTypeRef.current = type;
         jsonInputRef.current?.click();
@@ -285,6 +332,7 @@ export function useSketchyBoardActions({
         exportPPT,
         exportExcel,
         exportCSV,
+        exportProtectedDrawing,
         importDrawingJson,
         openJsonPicker,
         openImportPicker,

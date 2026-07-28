@@ -185,6 +185,7 @@ export default function PropertiesPanel({
                                             currentFrameIndex = 0,
                                         }) {
     const isText = selectedElement?.type === "text";
+    const isImage = selectedElement?.type === "image";
 
     const [customFontFamily, setCustomFontFamily] = useState("Caveat");
     const [customFontSize, setCustomFontSize] = useState(
@@ -613,6 +614,42 @@ export default function PropertiesPanel({
                                                 Curved
                                             </button>
                                         </div>
+                                    </div>
+                                </>
+                            )}
+
+                            {isImage && (
+                                <>
+                                    <div className="property-section">
+                                        <label>Photo adjustments</label>
+                                        {[['Brightness','brightness',0,200],['Contrast','contrast',0,200],['Saturation','saturation',0,200],['Blur','blur',0,12]].map(([label,key,min,max]) => (
+                                            <div className="photo-adjust-row" key={key}>
+                                                <span>{label}</span>
+                                                <input
+                                                    type="range"
+                                                    min={min}
+                                                    max={max}
+                                                    value={selectedElement[key] ?? (key === 'blur' ? 0 : 100)}
+                                                    onChange={(event) => updateSelectedElementStyle?.({ [key]: Number(event.target.value) })}
+                                                />
+                                                <em>{selectedElement[key] ?? (key === 'blur' ? 0 : 100)}{key === 'blur' ? 'px' : '%'}</em>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="property-section">
+                                        <label>Photo tools</label>
+                                        <div className="segmented-row wrap-row">
+                                            <button type="button" className={selectedElement.grayscale ? 'active' : ''} onClick={() => updateSelectedElementStyle?.({ grayscale: !selectedElement.grayscale })}>B&amp;W</button>
+                                            <button type="button" className={selectedElement.sepia ? 'active' : ''} onClick={() => updateSelectedElementStyle?.({ sepia: !selectedElement.sepia })}>Sepia</button>
+                                            <button type="button" onClick={() => updateSelectedElementStyle?.({ rotation: ((Number(selectedElement.rotation) || 0) + 90) % 360 })}>Rotate 90°</button>
+                                            <button type="button" className={selectedElement.flipX ? 'active' : ''} onClick={() => updateSelectedElementStyle?.({ flipX: !selectedElement.flipX })}>Flip H</button>
+                                            <button type="button" className={selectedElement.flipY ? 'active' : ''} onClick={() => updateSelectedElementStyle?.({ flipY: !selectedElement.flipY })}>Flip V</button>
+                                            <button type="button" onClick={() => updateSelectedElementStyle?.({ brightness:100, contrast:100, saturation:100, blur:0, grayscale:false, sepia:false, rotation:0, flipX:false, flipY:false })}>Reset</button>
+                                        </div>
+                                    </div>
+                                    <div className="property-section">
+                                        <label>Opacity</label>
+                                        <input type="range" min="5" max="100" value={Math.round((selectedElement.opacity ?? 1) * 100)} onChange={(event) => updateSelectedElementStyle?.({ opacity: Number(event.target.value) / 100 })} />
                                     </div>
                                 </>
                             )}

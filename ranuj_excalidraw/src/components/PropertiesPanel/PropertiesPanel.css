@@ -414,3 +414,4 @@
 .animation-help-note { margin-top:10px; padding:9px; border-radius:10px; background:#f8fafc; color:#687284; }
 .animation-help-note strong, .animation-help-note span { display:block; font-size:10px; line-height:1.4; }
 .animation-help-note strong { color:#3e4857; margin-bottom:2px; }
+.photo-adjust-row{display:grid;grid-template-columns:74px 1fr 46px;align-items:center;gap:8px;margin:9px 0}.photo-adjust-row span{font-size:12px;color:#475569}.photo-adjust-row em{font-size:11px;color:#64748b;font-style:normal;text-align:right}.photo-adjust-row input{width:100%}.wrap-row{flex-wrap:wrap}
