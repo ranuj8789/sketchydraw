@@ -42,6 +42,10 @@ export default function SpreadsheetWorkspace({ onClose, initialData, onDataChang
   const [saveOpen, setSaveOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
+  const [selectionAnchor, setSelectionAnchor] = useState(initial.selected);
+  const [selectionEnd, setSelectionEnd] = useState(initial.selected);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterRows, setFilterRows] = useState(false);
   const fileInputRef = useRef(null);
   const gridRef = useRef(null);
 
@@ -51,6 +55,8 @@ export default function SpreadsheetWorkspace({ onClose, initialData, onDataChang
     setCols(next.cols);
     setCells(next.cells);
     setSelected(next.selected);
+    setSelectionAnchor(next.selected);
+    setSelectionEnd(next.selected);
     setFileName(next.fileName);
     setCurrentMeta(next.currentMeta);
     setEditing(null);
@@ -62,6 +68,28 @@ export default function SpreadsheetWorkspace({ onClose, initialData, onDataChang
 
   const selectedKey = cellKey(selected.row, selected.col);
   const selectedValue = cells[selectedKey] ?? "";
+
+  const selectionBounds = useMemo(() => ({
+    top: Math.min(selectionAnchor.row, selectionEnd.row),
+    bottom: Math.max(selectionAnchor.row, selectionEnd.row),
+    left: Math.min(selectionAnchor.col, selectionEnd.col),
+    right: Math.max(selectionAnchor.col, selectionEnd.col),
+  }), [selectionAnchor, selectionEnd]);
+
+  const isCellSelected = useCallback((row, col) => (
+      row >= selectionBounds.top && row <= selectionBounds.bottom &&
+      col >= selectionBounds.left && col <= selectionBounds.right
+  ), [selectionBounds]);
+
+  const visibleRows = useMemo(() => {
+    const allRows = Array.from({ length: rows }, (_, row) => row);
+    const query = searchQuery.trim().toLowerCase();
+    if (!filterRows || !query) return allRows;
+    return allRows.filter((row) =>
+        Array.from({ length: cols }, (_, col) => String(cells[cellKey(row, col)] ?? "").toLowerCase())
+            .some((value) => value.includes(query))
+    );
+  }, [rows, cols, cells, searchQuery, filterRows]);
 
   const setCellValue = useCallback((row, col, value) => {
     setCells((previous) => {
@@ -79,23 +107,114 @@ export default function SpreadsheetWorkspace({ onClose, initialData, onDataChang
       col: Math.max(0, Math.min(cols - 1, col)),
     };
     setSelected(next);
+    setSelectionAnchor(next);
+    setSelectionEnd(next);
     setEditing(null);
     requestAnimationFrame(() => {
       gridRef.current?.querySelector(`[data-cell="${next.row}:${next.col}"]`)?.focus();
     });
   }, [rows, cols]);
 
+  const selectionToText = useCallback(() => {
+    const lines = [];
+    for (let row = selectionBounds.top; row <= selectionBounds.bottom; row += 1) {
+      const line = [];
+      for (let col = selectionBounds.left; col <= selectionBounds.right; col += 1) {
+        line.push(String(cells[cellKey(row, col)] ?? ""));
+      }
+      lines.push(line.join("\t"));
+    }
+    return lines.join("\n");
+  }, [cells, selectionBounds]);
+
+  const copySelection = useCallback(async (cut = false) => {
+    const text = selectionToText();
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const helper = document.createElement("textarea");
+      helper.value = text;
+      helper.style.position = "fixed";
+      helper.style.opacity = "0";
+      document.body.appendChild(helper);
+      helper.select();
+      document.execCommand("copy");
+      helper.remove();
+    }
+    if (cut) {
+      setCells((previous) => {
+        const next = { ...previous };
+        for (let row = selectionBounds.top; row <= selectionBounds.bottom; row += 1) {
+          for (let col = selectionBounds.left; col <= selectionBounds.right; col += 1) {
+            delete next[cellKey(row, col)];
+          }
+        }
+        return next;
+      });
+    }
+  }, [selectionBounds, selectionToText]);
+
+  const applyPastedText = useCallback((text) => {
+    if (!text) return;
+    const matrix = text.replace(/\r/g, "").split("\n")
+        .filter((line, index, arr) => !(index === arr.length - 1 && line === ""))
+        .map((line) => line.split("\t"));
+    setCells((previous) => {
+      const next = { ...previous };
+      matrix.forEach((line, rowOffset) => line.forEach((value, colOffset) => {
+        const targetRow = selected.row + rowOffset;
+        const targetCol = selected.col + colOffset;
+        if (targetRow < rows && targetCol < cols) {
+          const key = cellKey(targetRow, targetCol);
+          if (value === "") delete next[key];
+          else next[key] = value;
+        }
+      }));
+      return next;
+    });
+    setSelectionAnchor(selected);
+    setSelectionEnd({
+      row: Math.min(rows - 1, selected.row + Math.max(0, matrix.length - 1)),
+      col: Math.min(cols - 1, selected.col + Math.max(0, ...matrix.map((line) => line.length - 1))),
+    });
+  }, [selected, rows, cols]);
+
+  const pasteFromClipboard = useCallback(async () => {
+    try {
+      applyPastedText(await navigator.clipboard.readText());
+    } catch {
+      // Browser may block clipboard reads; Cmd/Ctrl+V still works through the paste event.
+    }
+  }, [applyPastedText]);
+
+  const clearSelection = useCallback(() => {
+    setCells((previous) => {
+      const next = { ...previous };
+      for (let row = selectionBounds.top; row <= selectionBounds.bottom; row += 1) {
+        for (let col = selectionBounds.left; col <= selectionBounds.right; col += 1) {
+          delete next[cellKey(row, col)];
+        }
+      }
+      return next;
+    });
+  }, [selectionBounds]);
+
   const handleKeyDown = (event) => {
     if (editing) return;
     const { row, col } = selected;
+    const command = event.metaKey || event.ctrlKey;
+    if (command && event.key.toLowerCase() === "c") { event.preventDefault(); copySelection(false); return; }
+    if (command && event.key.toLowerCase() === "x") { event.preventDefault(); copySelection(true); return; }
     if (event.key === "ArrowUp") { event.preventDefault(); focusCell(row - 1, col); }
     else if (event.key === "ArrowDown" || event.key === "Enter") { event.preventDefault(); focusCell(row + 1, col); }
     else if (event.key === "ArrowLeft") { event.preventDefault(); focusCell(row, col - 1); }
     else if (event.key === "ArrowRight" || event.key === "Tab") { event.preventDefault(); focusCell(row, col + (event.shiftKey ? -1 : 1)); }
-    else if (event.key === "Backspace" || event.key === "Delete") { event.preventDefault(); setCellValue(row, col, ""); }
-    else if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
+    else if (event.key === "Backspace" || event.key === "Delete") { event.preventDefault(); clearSelection(); }
+    else if (event.key.length === 1 && !command && !event.altKey) {
       event.preventDefault();
       setCellValue(row, col, event.key);
+      setSelectionAnchor({ row, col });
+      setSelectionEnd({ row, col });
       setEditing({ row, col });
     }
   };
@@ -106,20 +225,11 @@ export default function SpreadsheetWorkspace({ onClose, initialData, onDataChang
       const text = event.clipboardData?.getData("text/plain");
       if (!text) return;
       event.preventDefault();
-      const matrix = text.replace(/\r/g, "").split("\n").filter((line, index, arr) => !(index === arr.length - 1 && line === "")).map((line) => line.split("\t"));
-      setCells((previous) => {
-        const next = { ...previous };
-        matrix.forEach((line, rowOffset) => line.forEach((value, colOffset) => {
-          const targetRow = selected.row + rowOffset;
-          const targetCol = selected.col + colOffset;
-          if (targetRow < rows && targetCol < cols) next[cellKey(targetRow, targetCol)] = value;
-        }));
-        return next;
-      });
+      applyPastedText(text);
     };
     document.addEventListener("paste", paste);
     return () => document.removeEventListener("paste", paste);
-  }, [selected, rows, cols]);
+  }, [applyPastedText]);
 
   const importFile = async (file) => {
     if (!file) return;
@@ -146,6 +256,8 @@ export default function SpreadsheetWorkspace({ onClose, initialData, onDataChang
     setRows(Math.max(DEFAULT_ROWS, matrix.length + 5));
     setCols(Math.max(DEFAULT_COLS, Math.max(0, ...matrix.map((line) => line.length)) + 3));
     setSelected({ row: 0, col: 0 });
+    setSelectionAnchor({ row: 0, col: 0 });
+    setSelectionEnd({ row: 0, col: 0 });
     setFileName(file.name.replace(/\.(xlsx|xls|csv)$/i, ""));
     setCurrentMeta(null);
   };
@@ -258,6 +370,14 @@ export default function SpreadsheetWorkspace({ onClose, initialData, onDataChang
         <header className="sheet-toolbar">
           <input className="sheet-title" value={fileName} onChange={(event) => setFileName(event.target.value)} />
           <div className="sheet-actions">
+            <div className="sheet-search">
+              <span aria-hidden="true">⌕</span>
+              <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search data" />
+              <label><input type="checkbox" checked={filterRows} onChange={(event) => setFilterRows(event.target.checked)} /> Filter rows</label>
+            </div>
+            <button onClick={() => copySelection(false)}>Copy</button>
+            <button onClick={() => copySelection(true)}>Cut</button>
+            <button onClick={pasteFromClipboard}>Paste</button>
             <button className="sheet-save-button" onClick={() => { setSaveMessage(""); setSaveOpen(true); }}>Save</button>
             <button onClick={() => fileInputRef.current?.click()}>Import Excel/CSV</button>
             <button onClick={exportCsv}>Export CSV</button>
@@ -267,19 +387,33 @@ export default function SpreadsheetWorkspace({ onClose, initialData, onDataChang
           </div>
           <input ref={fileInputRef} hidden type="file" accept=".xlsx,.xls,.csv" onChange={(event) => importFile(event.target.files?.[0])} />
         </header>
-        <div className="sheet-formula-bar"><strong>{columnName(selected.col)}{selected.row + 1}</strong><input value={selectedValue} onChange={(event) => setCellValue(selected.row, selected.col, event.target.value)} /></div>
+        <div className="sheet-formula-bar"><strong>{columnName(selected.col)}{selected.row + 1}</strong><input value={selectedValue} onChange={(event) => setCellValue(selected.row, selected.col, event.target.value)} /><span className="sheet-selection-summary">{selectionBounds.bottom - selectionBounds.top + 1} × {selectionBounds.right - selectionBounds.left + 1}</span></div>
         <div className="sheet-scroll" ref={gridRef} onKeyDown={handleKeyDown}>
           <div className="sheet-grid" style={{ gridTemplateColumns }}>
             <div className="sheet-corner" />
             {Array.from({ length: cols }, (_, col) => <div className={`sheet-column-header ${selected.col === col ? "active" : ""}`} key={`h-${col}`}>{columnName(col)}</div>)}
-            {Array.from({ length: rows }, (_, row) => (
+            {visibleRows.map((row) => (
                 <React.Fragment key={`r-${row}`}>
                   <div className={`sheet-row-header ${selected.row === row ? "active" : ""}`}>{row + 1}</div>
                   {Array.from({ length: cols }, (_, col) => {
                     const key = cellKey(row, col);
                     const active = selected.row === row && selected.col === col;
+                    const inSelection = isCellSelected(row, col);
+                    const matchesSearch = searchQuery.trim() && String(cells[key] ?? "").toLowerCase().includes(searchQuery.trim().toLowerCase());
                     const isEditing = editing?.row === row && editing?.col === col;
-                    return <div key={key} data-cell={key} tabIndex={active ? 0 : -1} className={`sheet-cell ${active ? "selected" : ""}`} onClick={() => { setSelected({ row, col }); setEditing(null); }} onDoubleClick={() => { setSelected({ row, col }); setEditing({ row, col }); }}>
+                    return <div key={key} data-cell={key} tabIndex={active ? 0 : -1} className={`sheet-cell ${inSelection ? "range-selected" : ""} ${active ? "selected" : ""} ${matchesSearch ? "search-match" : ""}`} onMouseDown={(event) => {
+                      if (event.button !== 0) return;
+                      const point = { row, col };
+                      setSelected(point);
+                      if (event.shiftKey) setSelectionEnd(point);
+                      else { setSelectionAnchor(point); setSelectionEnd(point); }
+                    }} onClick={(event) => {
+                      const point = { row, col };
+                      setSelected(point);
+                      if (event.shiftKey) setSelectionEnd(point);
+                      else { setSelectionAnchor(point); setSelectionEnd(point); }
+                      setEditing(null);
+                    }} onMouseEnter={(event) => { if (event.buttons === 1) { const point = { row, col }; setSelected(point); setSelectionEnd(point); } }} onDoubleClick={() => { setSelected({ row, col }); setEditing({ row, col }); }}>
                       {isEditing ? <input autoFocus value={cells[key] ?? ""} onChange={(event) => setCellValue(row, col, event.target.value)} onBlur={() => setEditing(null)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); focusCell(row + 1, col); } }} /> : <span>{cells[key] ?? ""}</span>}
                     </div>;
                   })}

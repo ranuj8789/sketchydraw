@@ -2166,3 +2166,168 @@
         max-height: calc(100vh - 96px);
     }
 }
+
+
+/* Import submenu must escape the scrollable File menu.
+   An absolutely positioned submenu gets clipped by .native-file-menu's
+   overflow-y:auto, so anchor Import to the viewport just like Export. */
+.native-import-submenu {
+    position: fixed;
+    top: 146px;
+    left: min(
+            calc(100vw - 246px),
+            var(--sketchydraw-import-menu-left, 52vw)
+    );
+    bottom: auto;
+    width: 230px;
+    max-height: calc(100vh - 180px);
+    overflow-y: auto;
+    z-index: 1000006;
+}
+
+@media (max-width: 900px) {
+    .native-import-submenu {
+        top: 136px;
+        left: auto;
+        right: 12px;
+        max-height: calc(100vh - 156px);
+    }
+}
+
+/* File submenu positioning fix.
+   Keep Import/Export attached to the File menu instead of using viewport-fixed
+   offsets. The File menu is short, so it does not need to clip its submenus. */
+.native-file-menu {
+    overflow: visible;
+    scrollbar-gutter: auto;
+}
+
+.native-submenu,
+.native-import-submenu,
+.native-export-submenu {
+    position: absolute;
+    top: -7px;
+    left: calc(100% - 3px);
+    right: auto;
+    bottom: auto;
+    margin: 0;
+    transform: none;
+    z-index: 1000006;
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+
+.native-import-submenu {
+    width: 230px;
+}
+
+.native-export-submenu {
+    width: 270px;
+}
+
+@media (max-width: 900px) {
+    .native-file-menu {
+        overflow: visible;
+    }
+
+    .native-submenu,
+    .native-import-submenu,
+    .native-export-submenu {
+        position: absolute;
+        top: -7px;
+        left: calc(100% - 3px);
+        right: auto;
+        bottom: auto;
+        max-height: calc(100vh - 100px);
+    }
+}
+
+/* =========================================================
+   FINAL FIX: viewport-safe native File submenus
+   Keeps Import/Export attached to the File menu and gives
+   long menus their own scroll area above the Frames toolbar.
+   ========================================================= */
+.native-file-menu {
+    overflow: visible !important;
+}
+
+.native-submenu,
+.native-import-submenu,
+.native-export-submenu {
+    position: absolute !important;
+    left: calc(100% - 3px) !important;
+    right: auto !important;
+    bottom: auto !important;
+    margin: 0 !important;
+    transform: none !important;
+    z-index: 1000006 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+
+/* Import opens beside its own row and remains fully usable. */
+.native-import-submenu {
+    top: -7px !important;
+    width: 230px;
+    max-height: min(430px, calc(100vh - 300px)) !important;
+}
+
+/* Export is longer, so constrain it to the actual space available below
+   the top toolbar and above the floating Frames controls. */
+.native-export-submenu {
+    top: -82px !important;
+    width: 270px;
+    max-height: min(520px, calc(100vh - 245px)) !important;
+    padding-bottom: 10px;
+}
+
+.native-submenu::-webkit-scrollbar,
+.native-import-submenu::-webkit-scrollbar,
+.native-export-submenu::-webkit-scrollbar {
+    width: 8px;
+}
+
+.native-submenu::-webkit-scrollbar-track,
+.native-import-submenu::-webkit-scrollbar-track,
+.native-export-submenu::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.native-submenu::-webkit-scrollbar-thumb,
+.native-import-submenu::-webkit-scrollbar-thumb,
+.native-export-submenu::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 999px;
+    border: 2px solid #ffffff;
+}
+
+.native-submenu::-webkit-scrollbar-thumb:hover,
+.native-import-submenu::-webkit-scrollbar-thumb:hover,
+.native-export-submenu::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+@media (max-width: 900px) {
+    .native-submenu,
+    .native-import-submenu,
+    .native-export-submenu {
+        position: fixed !important;
+        left: auto !important;
+        right: 12px !important;
+        width: min(270px, calc(100vw - 24px));
+    }
+
+    .native-import-submenu {
+        top: 128px !important;
+        max-height: calc(100vh - 150px) !important;
+    }
+
+    .native-export-submenu {
+        top: 72px !important;
+        max-height: calc(100vh - 94px) !important;
+    }
+}

@@ -309,12 +309,19 @@ export function useSketchyBoardActions({
         }
     };
 
-    const openImportPicker = async (type = "json") => {
-        const label = type === "ppt" ? "Import PowerPoint" : type === "excel" ? "Import Excel" : type === "word" ? "Import Word" : type === "protected" ? "Open protected drawing" : "Import JSON";
-        const allowed = type === "protected" ? true : await requireProAccess(label);
-        if (!allowed) return;
+    const openImportPicker = (type = "json") => {
+        // The native file picker must be opened synchronously from the user's
+        // click. Waiting for an async subscription check first causes Chrome
+        // to block the picker. Access is still checked in importDrawingJson
+        // immediately after the user selects a file.
         importTypeRef.current = type;
-        jsonInputRef.current?.click();
+
+        const input = jsonInputRef.current;
+        if (!input) return;
+
+        // Reset first so choosing the same file twice still fires onChange.
+        input.value = "";
+        input.click();
     };
 
     const openJsonPicker = () => openImportPicker("json");

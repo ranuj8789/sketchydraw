@@ -710,7 +710,7 @@ export default function Toolbar({
 
                                 <div className="native-submenu-row">
                                     <button type="button"><span>Import</span><span className="submenu-arrow">›</span></button>
-                                    <div className="native-submenu">
+                                    <div className="native-submenu native-import-submenu">
                                         <button type="button" onClick={() => { (openImportPicker || openJsonPicker)?.("json"); setFileOpen(false); }}>JSON…</button>
                                         <button type="button" onClick={() => { openImportPicker?.("ppt"); setFileOpen(false); }}>PowerPoint…</button>
                                         <button type="button" onClick={() => { openImportPicker?.("word"); setFileOpen(false); }}>Word…</button>

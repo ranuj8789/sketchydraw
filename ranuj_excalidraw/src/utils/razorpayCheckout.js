@@ -1,7 +1,7 @@
 import { verifyPayment, markPaymentFailed } from "../api/paymentApi";
 import { getUser, mergeSubscriptionIntoUser } from "./auth";
 
-const FALLBACK_RAZORPAY_KEY_ID = "rzp_test_SrzxT6qVNIVV7H";
+const FALLBACK_RAZORPAY_KEY_ID = "rzp_live_TJDhUpDzvfjBgg";
 
 function getRazorpayKeyId(order) {
     return (

@@ -1739,8 +1739,8 @@ function SketchyDrawPage() {
             onConfirm={() => sketchyAlert?.onConfirm?.()}
         />
 
-        <div className="layout">
-          <Sidebar
+        <div className={`layout workspace-${workspaceMode}`}>
+          {workspaceMode === "canvas" && <Sidebar
               tool={tool}
               setTool={setTool}
               stroke={stroke}
@@ -1776,7 +1776,7 @@ function SketchyDrawPage() {
               onOpenFramesPanel={() => setFramesPanelOpen(true)}
               onUpdateElementFrameVisibility={updateElementFrameVisibility}
               focusMode={focusMode}
-          />
+          />}
 
           <div className="work-area">
             <input
@@ -1787,7 +1787,7 @@ function SketchyDrawPage() {
                 style={{ display: "none" }}
             />
 
-            {!focusMode && <Toolbar
+            {!focusMode && workspaceMode !== "excel" && <Toolbar
                 undo={undo}
                 redo={redo}
                 clearCanvas={clearCanvas}
