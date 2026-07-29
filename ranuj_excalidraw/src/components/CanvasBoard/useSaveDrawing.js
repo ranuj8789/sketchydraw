@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createDrawingJson } from "../../canvas/drawingStorage";
-import { getUser, isLoggedIn } from "../../utils/auth";
+import { getUser, isLoggedIn, isProUser } from "../../utils/auth";
 import { requireProAccess } from "../../utils/proAccess";
 import { saveDrawing } from "../../api/drawingApi";
 import {
@@ -73,8 +73,13 @@ export function useSaveDrawing({
                                           groupName,
                                           description,
                                           saveAsNew = saveAsNewMode,
+                                          silent = false,
                                       } = {}) => {
         if (isSavingDrawing) return;
+
+        window.dispatchEvent(new CustomEvent("sketchydraw:save-status", {
+            detail: { state: "saving", message: "Saving…" },
+        }));
 
         const user = getUser();
 
@@ -109,9 +114,9 @@ export function useSaveDrawing({
             hiddenElementIds: Array.isArray(frame?.hiddenElementIds)
                 ? [...frame.hiddenElementIds]
                 : [],
-            elements: Array.isArray(frame?.elements)
-                ? frame.elements
-                : [],
+            elements: index === Math.max(0, Math.min(Number(currentFrameIndex) || 0, timelineFrames.length - 1))
+                ? (Array.isArray(elements) ? elements : [])
+                : (Array.isArray(frame?.elements) ? frame.elements : []),
         }));
 
         const savedActiveFrameIndex = Math.max(
@@ -167,7 +172,12 @@ export function useSaveDrawing({
 
         if (!isLoggedIn()) {
             setSaveMessage("Saved locally. Login to sync this drawing.");
-            window.dispatchEvent(new Event("sketchydraw:open-login"));
+            window.dispatchEvent(new CustomEvent("sketchydraw:save-status", {
+                detail: { state: "saved", message: `Saved locally · ${savedFrames.length} frames` },
+            }));
+            if (!silent) {
+                window.dispatchEvent(new Event("sketchydraw:open-login"));
+            }
 
             setTimeout(() => {
                 setSavePopupOpen(false);
@@ -178,12 +188,15 @@ export function useSaveDrawing({
             return;
         }
 
-        const allowed = await requireProAccess(
-            saveAsNew ? "Save As New" : "Save Drawing"
-        );
+        const allowed = silent
+            ? isProUser(user)
+            : await requireProAccess(saveAsNew ? "Save As New" : "Save Drawing");
 
         if (!allowed) {
             setSaveMessage("Saved locally. Upgrade to sync this drawing.");
+            window.dispatchEvent(new CustomEvent("sketchydraw:save-status", {
+                detail: { state: "saved", message: `Saved locally · ${savedFrames.length} frames` },
+            }));
 
             setTimeout(() => {
                 setSavePopupOpen(false);
@@ -259,6 +272,9 @@ export function useSaveDrawing({
                     ? "Drawing saved as new successfully."
                     : "Drawing saved successfully."
             );
+            window.dispatchEvent(new CustomEvent("sketchydraw:save-status", {
+                detail: { state: "saved", message: `Saved · ${savedFrames.length} frames` },
+            }));
 
             setTimeout(() => {
                 setSavePopupOpen(false);
@@ -268,6 +284,9 @@ export function useSaveDrawing({
         } catch (error) {
             console.error("Drawing sync failed:", error);
             setSaveMessage("Saved locally. Server sync failed.");
+            window.dispatchEvent(new CustomEvent("sketchydraw:save-status", {
+                detail: { state: "warning", message: `Saved locally · ${savedFrames.length} frames` },
+            }));
         } finally {
             setIsSavingDrawing(false);
         }

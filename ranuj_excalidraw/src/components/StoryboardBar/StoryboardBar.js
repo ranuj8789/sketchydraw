@@ -17,7 +17,8 @@ export default function StoryboardBar({
                                         onMergeAll,
                                         onReorderFrames,
                                       }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
+  const [hoverOpen, setHoverOpen] = useState(false);
   const [dragIndex, setDragIndex] = useState(null);
   const proUser = hasProAccess();
   const proAction = (feature, action) => {
@@ -30,6 +31,19 @@ export default function StoryboardBar({
   const [autoHidden, setAutoHidden] = useState(false);
   const [pinned, setPinned] = useState(() => localStorage.getItem("sketchydraw.storyboardPinned") === "true");
   const hideTimerRef = useRef(null);
+  const hoverOpenTimerRef = useRef(null);
+  const hoverCloseTimerRef = useRef(null);
+
+  const clearHoverTimers = () => {
+    if (hoverOpenTimerRef.current) {
+      window.clearTimeout(hoverOpenTimerRef.current);
+      hoverOpenTimerRef.current = null;
+    }
+    if (hoverCloseTimerRef.current) {
+      window.clearTimeout(hoverCloseTimerRef.current);
+      hoverCloseTimerRef.current = null;
+    }
+  };
 
   const clearHideTimer = () => {
     if (hideTimerRef.current) {
@@ -49,16 +63,27 @@ export default function StoryboardBar({
   useEffect(() => {
     setAutoHidden(false);
     scheduleAutoHide();
-    return clearHideTimer;
+    return () => {
+      clearHideTimer();
+      clearHoverTimers();
+    };
   }, [expanded, currentIndex, frames.length, pinned]);
 
   const handlePointerEnter = () => {
     clearHideTimer();
+    clearHoverTimers();
     setAutoHidden(false);
+    hoverOpenTimerRef.current = window.setTimeout(() => {
+      setHoverOpen(true);
+    }, 250);
   };
 
   const handlePointerLeave = () => {
-    scheduleAutoHide();
+    clearHoverTimers();
+    hoverCloseTimerRef.current = window.setTimeout(() => {
+      setHoverOpen(false);
+      scheduleAutoHide();
+    }, 200);
   };
 
   const togglePinned = () => {
@@ -78,7 +103,7 @@ export default function StoryboardBar({
 
   return (
       <section
-          className={`storyboard-bar ${expanded ? "expanded" : "collapsed"} ${autoHidden ? "peek" : ""} ${pinned ? "pinned" : ""} ${!proUser ? "pro-locked" : ""}`}
+          className={`storyboard-bar ${expanded || hoverOpen || pinned ? "expanded" : "collapsed"} ${autoHidden ? "peek" : ""} ${hoverOpen ? "hover-open" : ""} ${pinned ? "pinned" : ""} ${!proUser ? "pro-locked" : ""}`}
           onMouseEnter={handlePointerEnter}
           onMouseLeave={handlePointerLeave}
           onFocusCapture={handlePointerEnter}
@@ -98,8 +123,8 @@ export default function StoryboardBar({
             {expanded ? "⌄" : "⌃"}
           </button>
           <div className="storyboard-title">
-            <strong>Storyboard {!proUser && <small className="storyboard-pro-badge">PRO</small>}</strong>
-            <span>{frames.length || 1} frames</span>
+            <strong>Frames {!proUser && <small className="storyboard-pro-badge">PRO</small>}</strong>
+            <span>{Math.min(currentIndex + 1, frames.length || 1)} / {frames.length || 1}</span>
           </div>
           <button
               type="button"
@@ -108,7 +133,7 @@ export default function StoryboardBar({
               aria-pressed={pinned}
               title={pinned ? "Unpin storyboard and auto-hide after 5 seconds" : "Pin storyboard open"}
           >
-            {pinned ? "📌 Pinned" : "📍 Pin"}
+            {pinned ? "📌" : "📍"}
           </button>
           <div className="storyboard-actions">
             <button type="button" onClick={() => proAction("Frame playback", onPlayCurrent)}>▶ Play frame</button>
@@ -118,7 +143,7 @@ export default function StoryboardBar({
           </div>
         </div>
 
-        {expanded && (
+        {(expanded || hoverOpen || pinned) && (
             <div className="storyboard-track" role="list" aria-label="Frame order">
               {frames.map((frame, index) => (
                   <React.Fragment key={frame.id || index}>

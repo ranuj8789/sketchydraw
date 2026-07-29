@@ -124,6 +124,19 @@ export default function SubscriptionPopup({ open, onClose, onLoginRequired }) {
     const [user, setUser] = useState(getUser());
 
     useEffect(() => {
+        if (!open) return undefined;
+
+        const handleEscape = (event) => {
+            if (event.key !== "Escape") return;
+            event.preventDefault();
+            onClose?.();
+        };
+
+        window.addEventListener("keydown", handleEscape);
+        return () => window.removeEventListener("keydown", handleEscape);
+    }, [open, onClose]);
+
+    useEffect(() => {
         if (!open) return;
 
         let cancelled = false;

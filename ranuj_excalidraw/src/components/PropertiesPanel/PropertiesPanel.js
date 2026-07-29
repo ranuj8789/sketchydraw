@@ -89,7 +89,36 @@ function getAnimation(element) {
         type: element?.animation?.type || "none",
         durationMs: Number(element?.animation?.durationMs) || 1000,
         delayMs: Number(element?.animation?.delayMs) || 0,
+        dependencyMode: element?.animation?.dependencyMode || "absolute",
+        dependsOnId: element?.animation?.dependsOnId || "",
+        dependencyOffsetMs: Number(element?.animation?.dependencyOffsetMs) || 0,
+        beforeStart: element?.animation?.beforeStart || "hidden",
+        afterEnd: element?.animation?.afterEnd || "visible",
     };
+}
+
+function ObjectDiagram({ element, compact = false }) {
+    const type = element?.type || "object";
+    const className = `object-diagram object-diagram-${type} ${compact ? "compact" : ""}`;
+
+    if (type === "text") {
+        return <span className={className}><i /><i /><i /></span>;
+    }
+    if (type === "image") {
+        return <span className={className}><i className="sun" /><i className="mountain" /></span>;
+    }
+    if (type === "ellipse") return <span className={className} />;
+    if (type === "diamond") return <span className={className} />;
+    if (type === "line" || type === "arrow" || type === "pencil") {
+        return <span className={className}><i /></span>;
+    }
+    if (type === "user") {
+        return <span className={className}><i className="head" /><i className="body" /></span>;
+    }
+    if (isSystemDesignType(type)) {
+        return <span className={className}><i /><b>{String(type).slice(0, 2).toUpperCase()}</b></span>;
+    }
+    return <span className={className}><i /></span>;
 }
 
 function getArrowValue(element) {
@@ -838,102 +867,106 @@ export default function PropertiesPanel({
 
             {activeInspectorTab === "animation" && selectedElement && (
                 <div className="animation-inspector">
+                    <section className="animation-selected-object">
+                        <ObjectDiagram element={selectedElement} />
+                        <div>
+                            <span>Selected object</span>
+                            <strong>{getObjectLabel(selectedElement, 0)}</strong>
+                            <small>Only this object will be changed below.</small>
+                        </div>
+                    </section>
+
+                    <div className="animation-group-label">
+                        <span>1</span>
+                        <div><strong>Object animation</strong><small>How this selected object enters the frame.</small></div>
+                    </div>
+
                     <section className="animation-card animation-card-hero">
                         <div className="animation-section-heading">
                             <div>
-                                <span className="animation-eyebrow">Frame {currentFrameIndex + 1} · selected object</span>
-                                <label>Animation & timing</label>
-                                <small>Choose when this object appears, what it follows, and when it hides.</small>
+                                <span className="animation-eyebrow">Frame {currentFrameIndex + 1}</span>
+                                <label>Entrance effect</label>
+                                <small>Click the object on canvas, then choose its effect here.</small>
                             </div>
                             <strong>{(animation.delayMs / 1000).toFixed(2)}s → {((animation.delayMs + animation.durationMs) / 1000).toFixed(2)}s</strong>
                         </div>
 
-                        <label className="animation-field wide">
-                            <span>Entrance animation</span>
-                            <select
-                                value={animation.type}
-                                onChange={(event) => updateSelectedElementStyle?.({ animation: { ...animation, type: event.target.value } })}
-                            >
-                                {supportedAnimationOptions.map((item) => (
-                                    <option key={item.value} value={item.value}>{item.label}</option>
-                                ))}
-                            </select>
-                        </label>
+                        <div className="animation-effect-grid">
+                            {supportedAnimationOptions.map((item) => (
+                                <button
+                                    key={item.value}
+                                    type="button"
+                                    className={animation.type === item.value ? "active" : ""}
+                                    onClick={() => updateSelectedElementStyle?.({ animation: { ...animation, type: item.value } })}
+                                >
+                                    <span className={`effect-preview effect-${item.value}`}><ObjectDiagram element={selectedElement} compact /></span>
+                                    <b>{item.label}</b>
+                                </button>
+                            ))}
+                        </div>
                     </section>
 
                     <section className="animation-card">
                         <div className="animation-card-title">
-                            <strong>When should it start?</strong>
-                            <span>Use an exact time or make it follow another object.</span>
+                            <strong>When should this object appear?</strong>
+                            <span>Start by time, or visually choose which diagram object it should follow.</span>
                         </div>
 
-                        <label className="animation-field wide">
-                            <span>Start rule</span>
-                            <select
-                                value={animation.dependencyMode || "absolute"}
-                                onChange={(event) => {
-                                    const dependencyMode = event.target.value;
-                                    updateSelectedElementStyle?.({
-                                        animation: {
-                                            ...animation,
-                                            dependencyMode,
-                                            ...(dependencyMode === "absolute" ? { dependsOnId: "" } : {}),
-                                        },
-                                    });
-                                }}
-                            >
-                                <option value="absolute">At an exact time</option>
-                                <option value="afterStart">After another object starts</option>
-                                <option value="afterEnd">After another object finishes</option>
-                            </select>
-                        </label>
+                        <div className="animation-start-rule-grid">
+                            {[{value:"absolute",label:"At a time",hint:"Use the frame clock"},{value:"afterStart",label:"Start together",hint:"Follow another object"},{value:"afterEnd",label:"Start after",hint:"Wait until it finishes"}].map((rule) => (
+                                <button
+                                    key={rule.value}
+                                    type="button"
+                                    className={(animation.dependencyMode || "absolute") === rule.value ? "active" : ""}
+                                    onClick={() => updateSelectedElementStyle?.({ animation: { ...animation, dependencyMode: rule.value, ...(rule.value === "absolute" ? { dependsOnId: "" } : {}) } })}
+                                >
+                                    <i className={`start-rule-icon ${rule.value}`} />
+                                    <strong>{rule.label}</strong>
+                                    <small>{rule.hint}</small>
+                                </button>
+                            ))}
+                        </div>
 
                         {(animation.dependencyMode === "afterStart" || animation.dependencyMode === "afterEnd") && (
-                            <label className="animation-field wide">
-                                <span>Depends on</span>
-                                <select
-                                    value={animation.dependsOnId || ""}
-                                    onChange={(event) => updateSelectedElementStyle?.({ animation: { ...animation, dependsOnId: event.target.value } })}
-                                >
-                                    <option value="">Choose an object</option>
+                            <div className="dependency-picker">
+                                <span className="dependency-picker-title">Click the diagram object to follow</span>
+                                <div className="dependency-object-grid">
                                     {dependencyCandidates.map((item, index) => (
-                                        <option key={item.id} value={item.id}>{getObjectLabel(item, index)}</option>
+                                        <button
+                                            key={item.id}
+                                            type="button"
+                                            className={animation.dependsOnId === item.id ? "active" : ""}
+                                            onClick={() => updateSelectedElementStyle?.({ animation: { ...animation, dependsOnId: item.id } })}
+                                            title={getObjectLabel(item, index)}
+                                        >
+                                            <ObjectDiagram element={item} />
+                                            <span>{getObjectLabel(item, index)}</span>
+                                            {animation.dependsOnId === item.id && <b>✓</b>}
+                                        </button>
                                     ))}
-                                </select>
-                            </label>
+                                </div>
+                            </div>
                         )}
 
                         <div className="animation-settings-grid">
                             <label className="animation-field">
-                                <span>{animation.dependencyMode && animation.dependencyMode !== "absolute" ? "Pause after dependency" : "Start at"}</span>
+                                <span>{animation.dependencyMode !== "absolute" ? "Extra pause" : "Start at"}</span>
                                 <div className="animation-number-input">
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        step="100"
-                                        value={animation.dependencyMode && animation.dependencyMode !== "absolute" ? (animation.dependencyOffsetMs || 0) : (animation.delayMs || 0)}
-                                        onChange={(event) => {
-                                            const value = Math.max(0, Number(event.target.value) || 0);
-                                            const patch = animation.dependencyMode && animation.dependencyMode !== "absolute"
-                                                ? { dependencyOffsetMs: value }
-                                                : { delayMs: value };
-                                            updateSelectedElementStyle?.({ animation: { ...animation, ...patch } });
-                                        }}
-                                    />
+                                    <input type="number" min="0" step="100"
+                                           value={animation.dependencyMode !== "absolute" ? animation.dependencyOffsetMs : animation.delayMs}
+                                           onChange={(event) => {
+                                               const value = Math.max(0, Number(event.target.value) || 0);
+                                               const patch = animation.dependencyMode !== "absolute" ? { dependencyOffsetMs: value } : { delayMs: value };
+                                               updateSelectedElementStyle?.({ animation: { ...animation, ...patch } });
+                                           }} />
                                     <em>ms</em>
                                 </div>
                             </label>
-
                             <label className="animation-field">
-                                <span>Duration</span>
+                                <span>Animation duration</span>
                                 <div className="animation-number-input">
-                                    <input
-                                        type="number"
-                                        min="50"
-                                        step="50"
-                                        value={animation.durationMs}
-                                        onChange={(event) => updateSelectedElementStyle?.({ animation: { ...animation, durationMs: Math.max(50, Number(event.target.value) || 50) } })}
-                                    />
+                                    <input type="number" min="50" step="50" value={animation.durationMs}
+                                           onChange={(event) => updateSelectedElementStyle?.({ animation: { ...animation, durationMs: Math.max(50, Number(event.target.value) || 50) } })} />
                                     <em>ms</em>
                                 </div>
                             </label>
@@ -946,41 +979,33 @@ export default function PropertiesPanel({
                         </div>
                     </section>
 
-                    <section className="animation-card">
-                        <div className="animation-card-title">
-                            <strong>Visibility in this frame</strong>
-                            <span>Control whether it exists before and after its animation.</span>
-                        </div>
-                        <div className="animation-settings-grid">
-                            <label className="animation-field">
-                                <span>Before its turn</span>
-                                <select
-                                    value={animation.beforeStart || "hidden"}
-                                    onChange={(event) => updateSelectedElementStyle?.({ animation: { ...animation, beforeStart: event.target.value } })}
-                                >
-                                    <option value="hidden">Hidden</option>
-                                    <option value="visible">Already visible</option>
-                                </select>
-                            </label>
-                            <label className="animation-field">
-                                <span>After animation</span>
-                                <select
-                                    value={animation.afterEnd || "visible"}
-                                    onChange={(event) => updateSelectedElementStyle?.({ animation: { ...animation, afterEnd: event.target.value } })}
-                                >
-                                    <option value="visible">Keep visible</option>
-                                    <option value="hidden">Hide it</option>
-                                </select>
-                            </label>
-                        </div>
-                        <div className="animation-help-note">
-                            <strong>Recommended for explainers</strong>
-                            <span>Hidden before its turn, then keep visible so the diagram builds step by step.</span>
+                    <div className="animation-group-label frame-level">
+                        <span>2</span>
+                        <div><strong>Frame visibility</strong><small>Separate from animation: decide when this object is visible in this frame.</small></div>
+                    </div>
+
+                    <section className="animation-card frame-visibility-card">
+                        <div className="visibility-choice-grid">
+                            <button type="button" className={animation.beforeStart === "visible" && animation.afterEnd === "visible" ? "active" : ""}
+                                    onClick={() => updateSelectedElementStyle?.({ animation: { ...animation, beforeStart: "visible", afterEnd: "visible" } })}>
+                                <span className="visibility-diagram always"><ObjectDiagram element={selectedElement} compact /><i /><ObjectDiagram element={selectedElement} compact /></span>
+                                <strong>Show all the time</strong><small>Visible before and after</small>
+                            </button>
+                            <button type="button" className={animation.beforeStart === "hidden" && animation.afterEnd === "visible" ? "active" : ""}
+                                    onClick={() => updateSelectedElementStyle?.({ animation: { ...animation, beforeStart: "hidden", afterEnd: "visible" } })}>
+                                <span className="visibility-diagram reveal"><em /><i /><ObjectDiagram element={selectedElement} compact /></span>
+                                <strong>Show after its turn</strong><small>Best for step-by-step diagrams</small>
+                            </button>
+                            <button type="button" className={animation.beforeStart === "hidden" && animation.afterEnd === "hidden" ? "active" : ""}
+                                    onClick={() => updateSelectedElementStyle?.({ animation: { ...animation, beforeStart: "hidden", afterEnd: "hidden" } })}>
+                                <span className="visibility-diagram moment"><em /><ObjectDiagram element={selectedElement} compact /><em /></span>
+                                <strong>Show only while animating</strong><small>Hide again when finished</small>
+                            </button>
                         </div>
                     </section>
 
                     <div className="animation-timing-preview">
-                        <span style={{ width: `${Math.min(65, (animation.dependencyMode && animation.dependencyMode !== "absolute" ? (animation.dependencyOffsetMs || 0) : animation.delayMs) / 80)}%` }} />
+                        <span style={{ width: `${Math.min(65, (animation.dependencyMode !== "absolute" ? animation.dependencyOffsetMs : animation.delayMs) / 80)}%` }} />
                         <b style={{ width: `${Math.max(8, Math.min(80, animation.durationMs / 40))}%` }} />
                     </div>
                 </div>

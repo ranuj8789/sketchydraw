@@ -27,6 +27,7 @@ import {
 } from "./components/DrawingGroupStore/drawingGroupStore";
 import { DEFAULT_TEXT_STYLE } from "./canvas/textStyle";
 import { createAnimationConfig } from "./canvas/animationRegistry";
+import { buildTextElement } from "./canvas/canvasFactories";
 import { buildCodeIllustrationFrames, parseCodeIllustratorNumbers } from "./codeIllustrator";
 import { exportTimelineGif } from "./utils/exportGif";
 import { hasProAccess, requestProUpgrade } from "./utils/proFeatureGate";
@@ -634,7 +635,9 @@ function SketchyDrawPage() {
     setHistoryIndex(0);
     setFrameAnimationPlaying(false);
     setFrameAnimationTimeMs(0);
-    setFramesPanelOpen(true);
+    // Restoring/opening a saved drawing must not automatically open Manage Frames.
+    // The panel should open only from an explicit user action (Manage / frame count).
+    setFramesPanelOpen(false);
   }, []);
 
   const selectTimelineFrame = useCallback((index) => {
@@ -667,6 +670,60 @@ function SketchyDrawPage() {
       return renamed;
     });
 
+    setFrameAnimationPlaying(false);
+    setFrameAnimationTimeMs(0);
+  }, [currentFrameIndex, elements]);
+
+  const createSocialTextPages = useCallback(({
+                                               pages = [],
+                                               firstPagePosition,
+                                               followingPagePosition,
+                                               style = {},
+                                               parentId = null,
+                                             }) => {
+    const safePages = pages.filter((page) => String(page || "").trim()).slice(0, 20);
+    if (!safePages.length) return;
+
+    const baseElements = cloneElements(elements);
+    const pageFrames = safePages.map((pageText, pageIndex) => {
+      const position = pageIndex === 0 ? firstPagePosition : followingPagePosition;
+      const textElement = buildTextElement({
+        x: position?.x || 0,
+        y: position?.y || 0,
+        text: pageText,
+        stroke: style.stroke,
+        parentId,
+        fontSize: style.fontSize,
+        lineHeight: style.lineHeight,
+        fontFamily: style.fontFamily,
+        bold: style.bold,
+        italic: style.italic,
+        underline: style.underline,
+        textAlign: style.textAlign,
+        richText: [],
+      });
+
+      return createTimelineFrame([...cloneElements(baseElements), textElement], pageIndex, {
+        name: `Picture ${pageIndex + 1}`,
+      });
+    });
+
+    setTimelineFrames((prevFrames) => {
+      const safeFrames = prevFrames.length ? prevFrames : [createTimelineFrame([], 0)];
+      const safeIndex = Math.max(0, Math.min(currentFrameIndex, safeFrames.length - 1));
+      const nextFrames = [...safeFrames];
+      nextFrames.splice(safeIndex, 1, ...pageFrames);
+      return nextFrames.map((frame, index) => ({
+        ...frame,
+        name: frame.name?.startsWith("Frame ") ? `Frame ${index + 1}` : frame.name,
+      }));
+    });
+
+    const firstElements = cloneElements(pageFrames[0].elements);
+    setElements(firstElements);
+    setSelectedIds([firstElements[firstElements.length - 1]?.id].filter(Boolean));
+    setHistory([firstElements]);
+    setHistoryIndex(0);
     setFrameAnimationPlaying(false);
     setFrameAnimationTimeMs(0);
   }, [currentFrameIndex, elements]);
@@ -1029,6 +1086,23 @@ function SketchyDrawPage() {
     setAnimationPlayerWaitingForNext(false);
     setAnimationPlayerPlaying(true);
   }, []);
+
+  const restartAllAnimationPlayerFrames = useCallback(() => {
+    if (animationPlayerAdvanceTimeoutRef.current) {
+      window.clearTimeout(animationPlayerAdvanceTimeoutRef.current);
+      animationPlayerAdvanceTimeoutRef.current = null;
+    }
+
+    const firstFrame = timelineFrames[0];
+    setAnimationPlayerMode("all");
+    setAnimationPlayerFrameIndex(0);
+    setCurrentFrameIndex(0);
+    setElements(cloneElements(firstFrame?.elements || []));
+    setSelectedIds([]);
+    setAnimationPlayerTimeMs(0);
+    setAnimationPlayerWaitingForNext(false);
+    setAnimationPlayerPlaying(true);
+  }, [timelineFrames]);
 
   const [viewport, setViewport] = useState({
     zoom: 1,
@@ -1666,7 +1740,7 @@ function SketchyDrawPage() {
         />
 
         <div className="layout">
-          {!focusMode && <Sidebar
+          <Sidebar
               tool={tool}
               setTool={setTool}
               stroke={stroke}
@@ -1701,7 +1775,8 @@ function SketchyDrawPage() {
               onDeleteFrame={deleteTimelineFrame}
               onOpenFramesPanel={() => setFramesPanelOpen(true)}
               onUpdateElementFrameVisibility={updateElementFrameVisibility}
-          />}
+              focusMode={focusMode}
+          />
 
           <div className="work-area">
             <input
@@ -1789,6 +1864,8 @@ function SketchyDrawPage() {
                 onReplaceTimeline={replaceTimelineWithElements}
                 onRestoreTimeline={restoreTimelineFrames}
                 onStartAnimationPreview={startCurrentFrameAnimationPreview}
+                onCreateSocialTextPages={createSocialTextPages}
+                onSelectTimelineFrame={(index) => requirePro("Frames", () => selectTimelineFrame(index))}
                 socialCreatorPreset={socialCreatorPreset}
                 focusMode={focusMode}
             />}
@@ -1877,6 +1954,7 @@ function SketchyDrawPage() {
                 onPlaybackSpeedChange={setAnimationPlayerSpeed}
                 onClose={closeAnimationPlayer}
                 onRestart={restartAnimationPlayerFrame}
+                onRestartAll={restartAllAnimationPlayerFrames}
                 onNext={advanceAnimationPlayerFrame}
                 onAdvanceModeChange={setFrameAdvanceMode}
             />}

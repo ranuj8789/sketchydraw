@@ -35,6 +35,7 @@ export default function FramePlayerScreen({
                                               onPlaybackSpeedChange,
                                               onClose,
                                               onRestart,
+                                              onRestartAll,
                                               onNext,
                                               onAdvanceModeChange,
                                           }) {
@@ -156,6 +157,12 @@ export default function FramePlayerScreen({
                     <button type="button" onClick={onRestart}>
                         Replay frame
                     </button>
+
+                    {mode === "all" && (
+                        <button type="button" className="frame-player-replay-all-btn" onClick={onRestartAll}>
+                            Replay all frames
+                        </button>
+                    )}
 
                     {hasNextFrame && (
                         <button

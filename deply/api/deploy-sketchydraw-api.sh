@@ -1,188 +1,119 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# =========================
-# SKETCHYDRAW API DEPLOY
-# Run from MacBook
-# Direct upload to releases
-# SSH user: mediautils
-# No /tmp
-# No sudo cp/chown/chmod/ln
-# =========================
-
-SERVER_USER="mediautils"
+SERVER_USER="ranuj"
 SERVER_HOST="192.168.1.10"
 SERVER_SSH_PORT="2222"
 
-PROJECT_ROOT="/Users/ranujmahajan/projects/sketchydraw"
-API_DIR="$PROJECT_ROOT/sketchdraw-api"
+API_DIR="/Users/ranujmahajan/projects/sketchydraw/sketchdraw-api"
 
-REMOTE_BASE="/mnt/media-nvme/sketchydraw/app"
-REMOTE_RELEASES="$REMOTE_BASE/releases"
-REMOTE_CURRENT="$REMOTE_BASE/current"
+REMOTE_RELEASES="/mnt/media-nvme/sketchydraw/app/releases"
+REMOTE_CURRENT="/mnt/media-nvme/sketchydraw/app/current"
 
 SERVICE_NAME="sketchydraw-api"
-JAR_LINK_NAME="sketchydraw-api.jar"
-
+CURRENT_JAR="$REMOTE_CURRENT/sketchydraw-api.jar"
 LOCAL_PORT="8081"
 
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 RELEASE_NAME="sketchydraw-api-${TIMESTAMP}.jar"
+REMOTE_JAR="$REMOTE_RELEASES/$RELEASE_NAME"
 
 echo "======================================"
 echo " Deploying SketchyDraw API"
-echo " Server: ${SERVER_USER}@${SERVER_HOST}:${SERVER_SSH_PORT}"
-echo " Remote base: ${REMOTE_BASE}"
-echo " Release: ${RELEASE_NAME}"
+echo " Server: $SERVER_USER@$SERVER_HOST:$SERVER_SSH_PORT"
+echo " Release: $RELEASE_NAME"
 echo "======================================"
 
-echo "Building API..."
+echo "Building application..."
+
 cd "$API_DIR"
 mvn clean package -DskipTests
 
-LOCAL_JAR="$(ls -t target/*.jar | grep -v 'original' | head -1 || true)"
+LOCAL_JAR="$API_DIR/target/sketchydraw-api.jar"
 
-if [ -z "$LOCAL_JAR" ] || [ ! -f "$LOCAL_JAR" ]; then
-  echo "ERROR: No jar found in target/"
-  exit 1
+if [ ! -f "$LOCAL_JAR" ]; then
+    echo "ERROR: JAR not found:"
+    echo "$LOCAL_JAR"
+    exit 1
 fi
 
-echo "Jar found: $LOCAL_JAR"
+echo "Build successful."
+echo "Checking server connection..."
 
-echo "Checking SSH..."
-ssh -p "$SERVER_SSH_PORT" "$SERVER_USER@$SERVER_HOST" "whoami && echo SSH OK"
+ssh -p "$SERVER_SSH_PORT" "$SERVER_USER@$SERVER_HOST" \
+    "echo 'SSH connected as:' && whoami"
 
-echo "Checking remote write access..."
-ssh -p "$SERVER_SSH_PORT" "$SERVER_USER@$SERVER_HOST" bash <<EOF
-set -euo pipefail
+echo "Checking deployment folders..."
 
-REMOTE_RELEASES="$REMOTE_RELEASES"
-REMOTE_CURRENT="$REMOTE_CURRENT"
+ssh -p "$SERVER_SSH_PORT" "$SERVER_USER@$SERVER_HOST" "
+    test -d '$REMOTE_RELEASES' ||
+    {
+        echo 'ERROR: Releases folder missing';
+        exit 1;
+    }
 
-if [ ! -w "\$REMOTE_RELEASES" ]; then
-  echo "ERROR: mediautils cannot write releases: \$REMOTE_RELEASES"
-  exit 1
-fi
+    test -d '$REMOTE_CURRENT' ||
+    {
+        echo 'ERROR: Current folder missing';
+        exit 1;
+    }
 
-if [ ! -w "\$REMOTE_CURRENT" ]; then
-  echo "ERROR: mediautils cannot write current: \$REMOTE_CURRENT"
-  exit 1
-fi
+    test -w '$REMOTE_RELEASES' ||
+    {
+        echo 'ERROR: ranuj cannot write to releases folder';
+        exit 1;
+    }
 
-echo "Remote write access OK."
-EOF
+    test -w '$REMOTE_CURRENT' ||
+    {
+        echo 'ERROR: ranuj cannot write to current folder';
+        exit 1;
+    }
+"
 
-echo "Uploading jar directly to releases..."
-scp -P "$SERVER_SSH_PORT" "$LOCAL_JAR" "$SERVER_USER@$SERVER_HOST:$REMOTE_RELEASES/$RELEASE_NAME"
+echo "Uploading JAR..."
 
-echo "Switching release and restarting service..."
+scp -P "$SERVER_SSH_PORT" \
+    "$LOCAL_JAR" \
+    "$SERVER_USER@$SERVER_HOST:$REMOTE_JAR"
 
-ssh -p "$SERVER_SSH_PORT" "$SERVER_USER@$SERVER_HOST" bash <<EOF
-set -euo pipefail
+echo "Activating release..."
 
-REMOTE_RELEASES="$REMOTE_RELEASES"
-REMOTE_CURRENT="$REMOTE_CURRENT"
-SERVICE_NAME="$SERVICE_NAME"
-JAR_LINK_NAME="$JAR_LINK_NAME"
-RELEASE_NAME="$RELEASE_NAME"
-LOCAL_PORT="$LOCAL_PORT"
+ssh -p "$SERVER_SSH_PORT" "$SERVER_USER@$SERVER_HOST" "
+    set -e
 
-NEW_JAR="\$REMOTE_RELEASES/\$RELEASE_NAME"
-CURRENT_JAR="\$REMOTE_CURRENT/\$JAR_LINK_NAME"
+    chmod 644 '$REMOTE_JAR'
+
+    ln -sfn '$REMOTE_JAR' '$CURRENT_JAR'
+
+    echo 'Current JAR:'
+    readlink -f '$CURRENT_JAR'
+
+    sudo -n systemctl restart '$SERVICE_NAME'
+
+    sleep 12
+
+    if ! systemctl is-active --quiet '$SERVICE_NAME'; then
+        echo 'ERROR: SketchyDraw service failed'
+        systemctl --no-pager --full status '$SERVICE_NAME' || true
+        exit 1
+    fi
+
+    echo 'Service is active.'
+
+    PORT_LINE=\$(ss -ltn | grep '127.0.0.1:$LOCAL_PORT' || true)
+
+    if [ -z \"\$PORT_LINE\" ]; then
+        echo 'ERROR: Application is not listening on 127.0.0.1:$LOCAL_PORT'
+        ss -ltn | grep ':$LOCAL_PORT' || true
+        exit 1
+    fi
+
+    echo \"\$PORT_LINE\"
+"
 
 echo "======================================"
-echo " Remote SketchyDraw Deploy Started"
-echo "======================================"
-
-echo "Remote user:"
-whoami
-
-echo "New release:"
-echo "\$NEW_JAR"
-
-if [ ! -f "\$NEW_JAR" ]; then
-  echo "ERROR: New jar not found: \$NEW_JAR"
-  exit 1
-fi
-
-echo "Setting uploaded jar permission..."
-chmod 644 "\$NEW_JAR"
-
-OLD_TARGET=""
-if [ -L "\$CURRENT_JAR" ]; then
-  OLD_TARGET=\$(readlink -f "\$CURRENT_JAR")
-  echo "Old release: \$OLD_TARGET"
-else
-  echo "Old release: none"
-fi
-
-echo "Updating current symlink..."
-ln -sfn "\$NEW_JAR" "\$CURRENT_JAR"
-
-CURRENT_TARGET=\$(readlink -f "\$CURRENT_JAR")
-
-echo "Current symlink now points to:"
-echo "\$CURRENT_TARGET"
-
-if [ "\$CURRENT_TARGET" != "\$NEW_JAR" ]; then
-  echo "ERROR: Current symlink is wrong"
-  echo "Expected: \$NEW_JAR"
-  echo "Actual:   \$CURRENT_TARGET"
-  exit 1
-fi
-
-echo "Restarting \$SERVICE_NAME..."
-sudo -n /usr/bin/systemctl restart "\$SERVICE_NAME"
-
-echo "Waiting for service startup..."
-sleep 12
-
-SERVICE_STATUS=\$(/usr/bin/systemctl is-active "\$SERVICE_NAME" || true)
-echo "Service status: \$SERVICE_STATUS"
-
-if [ "\$SERVICE_STATUS" != "active" ]; then
-  echo "ERROR: Service is not active"
-  exit 1
-fi
-
-echo "Checking app is local-only on port \$LOCAL_PORT..."
-PORT_LINE=\$(/usr/bin/ss -ltn | grep ":\$LOCAL_PORT" || true)
-
-if [ -z "\$PORT_LINE" ]; then
-  echo "ERROR: Port \$LOCAL_PORT is not listening"
-  exit 1
-fi
-
-echo "\$PORT_LINE"
-
-if echo "\$PORT_LINE" | grep -q "0.0.0.0:\$LOCAL_PORT"; then
-  echo "ERROR: App is public on 0.0.0.0:\$LOCAL_PORT"
-  echo "Fix env: SERVER_ADDRESS=127.0.0.1"
-  exit 1
-fi
-
-if echo "\$PORT_LINE" | grep -q "\\[::\\]:\$LOCAL_PORT"; then
-  echo "ERROR: App is public on IPv6 [::]:\$LOCAL_PORT"
-  echo "Fix env: SERVER_ADDRESS=127.0.0.1"
-  exit 1
-fi
-
-if ! echo "\$PORT_LINE" | grep -q "127.0.0.1:\$LOCAL_PORT"; then
-  echo "ERROR: Expected 127.0.0.1:\$LOCAL_PORT only"
-  echo "Actual:"
-  echo "\$PORT_LINE"
-  exit 1
-fi
-
-echo "======================================"
-echo " SketchyDraw Deploy Successful"
-echo " Release: \$NEW_JAR"
-echo " Current: \$CURRENT_TARGET"
-echo " Port:    127.0.0.1:\$LOCAL_PORT only"
-echo "======================================"
-EOF
-
-echo "======================================"
-echo " API Deploy Successful"
+echo " SketchyDraw API deployed successfully"
 echo " Release: $RELEASE_NAME"
+echo " Port: 127.0.0.1:$LOCAL_PORT"
 echo "======================================"

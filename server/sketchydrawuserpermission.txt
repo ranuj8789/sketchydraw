@@ -1,0 +1,24 @@
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin sketchydraw
+
+sudo mkdir -p /mnt/media-nvme/sketchydraw/app/current
+sudo mkdir -p /mnt/media-nvme/sketchydraw/app/releases
+sudo mkdir -p /mnt/media-nvme/sketchydraw/logs
+sudo mkdir -p /mnt/media-nvme/sketchydraw/uploads
+sudo mkdir -p /mnt/media-nvme/sketchydraw/tmp
+
+sudo chown -R root:sketchydraw /mnt/media-nvme/sketchydraw
+
+sudo chmod -R 750 /mnt/media-nvme/sketchydraw/app
+sudo chmod -R 750 /mnt/media-nvme/sketchydraw/app/current
+sudo chmod -R 750 /mnt/media-nvme/sketchydraw/app/releases
+
+sudo chown -R sketchydraw:sketchydraw /mnt/media-nvme/sketchydraw/logs
+sudo chown -R sketchydraw:sketchydraw /mnt/media-nvme/sketchydraw/uploads
+sudo chown -R sketchydraw:sketchydraw /mnt/media-nvme/sketchydraw/tmp
+
+sudo chmod -R 750 /mnt/media-nvme/sketchydraw/logs
+sudo chmod -R 750 /mnt/media-nvme/sketchydraw/uploads
+sudo chmod -R 750 /mnt/media-nvme/sketchydraw/tmp
+
+sudo chown -R ranuj:sketchydraw /mnt/media-nvme/sketchydraw/app
+sudo chmod -R 750 /mnt/media-nvme/sketchydraw/app

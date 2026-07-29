@@ -331,3 +331,23 @@ button.danger {
   color: transparent;
   background: rgba(147, 197, 253, 0.72);
 }
+
+/* Sidebar is now a floating overlay, so the canvas owns the full viewport width. */
+.layout {
+  display: block;
+  position: relative;
+  padding: 10px 8px 0;
+}
+
+.work-area {
+  width: 100%;
+  height: 100%;
+}
+
+/* Floating controls must not reserve layout space. */
+.work-area > .storyboard-bar {
+  flex: none;
+}
+.canvas-wrap {
+  padding-bottom: 0;
+}

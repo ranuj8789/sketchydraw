@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
     Pencil,
     Square,
@@ -13,6 +13,9 @@ import {
     Image as ImageIcon,
     Code2,
     UserRound,
+    PanelLeftOpen,
+    Pin,
+    X,
 } from "lucide-react";
 import PropertiesPanel from "../PropertiesPanel/PropertiesPanel";
 import { getAnimationLabel } from "../../canvas/animationRegistry";
@@ -28,9 +31,9 @@ const TOOLS = [
     { id: "rect", label: "Rectangle", icon: Square },
     { id: "diamond", label: "Diamond", icon: Diamond },
     { id: "ellipse", label: "Ellipse", icon: Circle },
-    { id: "user", label: "User", icon: UserRound },
+    { id: "user", label: "User", icon: UserRound, premium: true },
     { id: "text", label: "Text", icon: Type },
-    { id: "image", label: "Image", icon: ImageIcon },
+    { id: "image", label: "Image", icon: ImageIcon, premium: true },
     { id: "eraser", label: "Eraser", icon: Eraser },
 ];
 
@@ -894,9 +897,164 @@ export default function Sidebar({
                                     onSelectFrame,
                                     onDeleteFrame,
                                     onOpenFramesPanel,
+                                    focusMode = false,
                                 }) {
     const [activeTab, setActiveTab] = useState("draw");
+    const [sidebarPinMode, setSidebarPinMode] = useState(() => {
+        try {
+            const saved = window.localStorage.getItem("sketchydraw.sidebarPinMode");
+            return saved === "compact" || saved === "expanded" ? saved : "";
+        } catch {
+            return "";
+        }
+    });
+    // Start every fresh editor session with the complete toolbar visible.
+    // The user can collapse it once they begin working.
+    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [sidebarPosition, setSidebarPosition] = useState(() => {
+        try {
+            const saved = JSON.parse(window.localStorage.getItem("sketchydraw.sidebarPosition") || "null");
+            if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) return saved;
+        } catch {}
+        return { x: 14, y: 84 };
+    });
+    const sidebarHostRef = useRef(null);
+    const sidebarDragRef = useRef(null);
+    const sidebarHideTimerRef = useRef(null);
+    const sidebarShowTimerRef = useRef(null);
     const proUser = hasProAccess();
+
+    const clearSidebarShowTimer = () => {
+        if (sidebarShowTimerRef.current) {
+            window.clearTimeout(sidebarShowTimerRef.current);
+            sidebarShowTimerRef.current = null;
+        }
+    };
+
+    const clearSidebarHideTimer = () => {
+        if (sidebarHideTimerRef.current) {
+            window.clearTimeout(sidebarHideTimerRef.current);
+            sidebarHideTimerRef.current = null;
+        }
+    };
+
+    const scheduleSidebarOpen = () => {
+        clearSidebarHideTimer();
+        clearSidebarShowTimer();
+        if (sidebarPinMode === "compact" || sidebarPinMode === "expanded") return;
+        sidebarShowTimerRef.current = window.setTimeout(() => {
+            setSidebarOpen(true);
+        }, 230);
+    };
+
+    const scheduleSidebarClose = () => {
+        clearSidebarShowTimer();
+        clearSidebarHideTimer();
+        if (sidebarPinMode === "expanded") return;
+        sidebarHideTimerRef.current = window.setTimeout(() => {
+            setSidebarOpen(false);
+        }, 220);
+    };
+
+    useEffect(() => () => {
+        clearSidebarHideTimer();
+        clearSidebarShowTimer();
+    }, []);
+    useEffect(() => {
+        clearSidebarHideTimer();
+
+        // Focus/full-screen mode intentionally uses only the slim tool rail.
+        if (focusMode) {
+            setSidebarOpen(false);
+            return;
+        }
+
+        if (sidebarPinMode === "expanded") {
+            setSidebarOpen(true);
+        }
+    }, [focusMode, sidebarPinMode]);
+
+    const setPinMode = (mode) => {
+        const next = sidebarPinMode === mode ? "" : mode;
+        setSidebarPinMode(next);
+        try {
+            window.localStorage.setItem("sketchydraw.sidebarPinMode", next);
+        } catch {}
+        clearSidebarHideTimer();
+        setSidebarOpen(next === "expanded");
+    };
+
+    const clampSidebarPosition = (x, y) => {
+        const expandedWidth = 54 + 62 + 276;
+        const panelHeight = Math.min(700, Math.max(320, window.innerHeight - (focusMode ? 36 : 108)));
+        const minX = 8;
+        const minY = focusMode ? 12 : 84;
+        const maxX = Math.max(minX, window.innerWidth - expandedWidth - 8);
+        const storyboardReserve = focusMode ? 12 : 78;
+        const maxY = Math.max(minY, window.innerHeight - panelHeight - storyboardReserve);
+        return {
+            x: Math.min(maxX, Math.max(minX, x)),
+            y: Math.min(maxY, Math.max(minY, y)),
+        };
+    };
+
+    const startSidebarDrag = (event) => {
+        if (event.button !== 0) return;
+        if (event.target.closest("button")) return;
+        const host = sidebarHostRef.current;
+        if (!host) return;
+
+        clearSidebarHideTimer();
+        clearSidebarShowTimer();
+        const rect = host.getBoundingClientRect();
+        sidebarDragRef.current = {
+            pointerId: event.pointerId,
+            offsetX: event.clientX - rect.left,
+            offsetY: event.clientY - rect.top,
+            lastPosition: sidebarPosition,
+        };
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        document.body.classList.add("dragging-floating-sidebar");
+        event.preventDefault();
+    };
+
+    const moveSidebarDrag = (event) => {
+        const drag = sidebarDragRef.current;
+        if (!drag || drag.pointerId !== event.pointerId) return;
+        const next = clampSidebarPosition(
+            event.clientX - drag.offsetX,
+            event.clientY - drag.offsetY
+        );
+        drag.lastPosition = next;
+        setSidebarPosition(next);
+        event.preventDefault();
+    };
+
+    const endSidebarDrag = (event) => {
+        const drag = sidebarDragRef.current;
+        if (!drag || drag.pointerId !== event.pointerId) return;
+        const finalPosition = drag.lastPosition || sidebarPosition;
+        sidebarDragRef.current = null;
+        document.body.classList.remove("dragging-floating-sidebar");
+        try {
+            window.localStorage.setItem("sketchydraw.sidebarPosition", JSON.stringify(finalPosition));
+        } catch {}
+    };
+
+    const resetSidebarPosition = () => {
+        const initial = { x: 14, y: focusMode ? 18 : 84 };
+        setSidebarPosition(initial);
+        try {
+            window.localStorage.setItem("sketchydraw.sidebarPosition", JSON.stringify(initial));
+        } catch {}
+    };
+
+    useEffect(() => {
+        const onResize = () => setSidebarPosition((current) => clampSidebarPosition(current.x, current.y));
+        window.addEventListener("resize", onResize);
+        return () => window.removeEventListener("resize", onResize);
+    }, [focusMode]);
+
     const chooseTab = (tab, feature) => {
         if (!proUser && feature) {
             requestProUpgrade(feature);
@@ -905,114 +1063,222 @@ export default function Sidebar({
         setActiveTab(tab);
     };
 
+    const chooseTool = (item) => {
+        if (item.premium && !proUser) {
+            requestProUpgrade(`${item.label} tool`);
+            return;
+        }
+        setTool(item.id);
+    };
+
     return (
-        <div className="sidebar">
-            <div className="sidebar-logo-box">
-                <div className="sidebar-logo-text">
-                    <strong>SketchyDraw</strong>
-                    <span>Draw ideas fast</span>
+        <div
+            ref={sidebarHostRef}
+            style={{
+                "--floating-sidebar-x": `${sidebarPosition.x}px`,
+                "--floating-sidebar-y": `${sidebarPosition.y}px`,
+            }}
+            className={`floating-sidebar-host ${focusMode ? "fullscreen-sidebar" : "normal-sidebar"} ${!focusMode && (sidebarOpen || sidebarPinMode === "expanded") ? "open" : "closed"} pin-${sidebarPinMode || "none"}`}
+            onMouseEnter={scheduleSidebarOpen}
+            onMouseLeave={scheduleSidebarClose}
+            onFocusCapture={() => {
+                clearSidebarHideTimer();
+                clearSidebarShowTimer();
+                if (sidebarPinMode !== "compact") setSidebarOpen(true);
+            }}
+            onBlurCapture={scheduleSidebarClose}
+        >
+            <div className="floating-sidebar-launcher" aria-label="Quick drawing toolbar">
+                <button
+                    type="button"
+                    className="floating-sidebar-main-button"
+                    onClick={() => setSidebarOpen((value) => !value)}
+                    aria-label="Open drawing tools"
+                    title="Open drawing tools"
+                >
+                    <PanelLeftOpen size={20} />
+                </button>
+
+                <button
+                    type="button"
+                    className={`floating-sidebar-rail-pin ${sidebarPinMode === "expanded" ? "active" : ""}`}
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        setPinMode("expanded");
+                    }}
+                    aria-label={sidebarPinMode === "expanded" ? "Unpin expanded toolbar" : "Pin expanded toolbar"}
+                    title={sidebarPinMode === "expanded" ? "Unpin toolbar" : "Pin toolbar open"}
+                    aria-pressed={sidebarPinMode === "expanded"}
+                >
+                    <Pin size={16} />
+                </button>
+
+                <div className="floating-sidebar-quick-tools" aria-label="Drawing tools">
+                    {TOOLS.map((item) => {
+                        const Icon = item.icon;
+                        return (
+                            <button
+                                key={item.id}
+                                type="button"
+                                className={tool === item.id ? "active" : ""}
+                                onClick={(event) => {
+                                    event.stopPropagation();
+                                    chooseTool(item);
+                                }}
+                                title={`${item.label}${item.premium ? " · PRO" : ""}`}
+                            >
+                                <Icon size={17} />
+                                {item.premium && <span className="quick-tool-pro-dot" />}
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 
-            <div className="left-toolbar-tabs">
-                <button
-                    type="button"
-                    className={activeTab === "draw" ? "active" : ""}
-                    onClick={() => setActiveTab("draw")}
+            <aside className="sidebar floating-sidebar-panel" aria-hidden={!sidebarOpen && sidebarPinMode !== "expanded"}>
+                <div
+                    className="sidebar-logo-box sidebar-drag-handle"
+                    onPointerDown={startSidebarDrag}
+                    onPointerMove={moveSidebarDrag}
+                    onPointerUp={endSidebarDrag}
+                    onPointerCancel={endSidebarDrag}
+                    onDoubleClick={resetSidebarPosition}
+                    title="Drag toolbar · double-click to reset position"
                 >
-                    Draw
-                </button>
-                <button
-                    type="button"
-                    className={activeTab === "gif" ? "active" : ""}
-                    onClick={() => chooseTab("gif", "GIF tools") }
-                >
-                    GIF {!proUser && <small className="tab-pro-badge">PRO</small>}
-                </button>
-                <button
-                    type="button"
-                    className={activeTab === "code" ? "active" : ""}
-                    onClick={() => setActiveTab("code")}
-                >
-                    Code
-                </button>
-                <button
-                    type="button"
-                    className={activeTab === "system" ? "active" : ""}
-                    onClick={() => setActiveTab("system")}
-                >
-                    System
-                </button>
-            </div>
-
-            {activeTab === "draw" && (
-                <>
-                    <div className="panel">
-                        <h3>Tools</h3>
-
-                        <div className="tool-grid">
-                            {TOOLS.map((item) => {
-                                const Icon = item.icon;
-
-                                return (
-                                    <button
-                                        key={item.id}
-                                        type="button"
-                                        className={`tool-btn ${tool === item.id ? "active" : ""}`}
-                                        onClick={() => setTool(item.id)}
-                                    >
-                                        <Icon size={16} />
-                                        <span>{item.label}</span>
-                                    </button>
-                                );
-                            })}
-                        </div>
+                    <div className="sidebar-logo-text">
+                        <strong>SketchyDraw</strong>
+                        <span>Draw ideas fast</span>
                     </div>
+                    <div className="sidebar-display-controls" aria-label="Toolbar display controls">
+                        <button
+                            type="button"
+                            className={`sidebar-pin-button sidebar-panel-pin ${sidebarPinMode === "expanded" ? "active" : ""}`}
+                            onClick={() => setPinMode("expanded")}
+                            title={sidebarPinMode === "expanded" ? "Unpin expanded toolbar" : "Pin expanded toolbar"}
+                            aria-label={sidebarPinMode === "expanded" ? "Unpin expanded toolbar" : "Pin expanded toolbar"}
+                            aria-pressed={sidebarPinMode === "expanded"}
+                        >
+                            <Pin size={15} />
+                            <span>{sidebarPinMode === "expanded" ? "Pinned" : "Pin"}</span>
+                        </button>
+                        <button type="button" className="sidebar-close-button" onClick={() => setSidebarOpen(false)} title="Collapse toolbar" aria-label="Collapse toolbar"><X size={15} /></button>
+                    </div>
+                </div>
 
-                    <PropertiesPanel
-                        selectedElement={selectedElement}
-                        colors={colors}
-                        updateSelectedElementStyle={updateSelectedElementStyle}
-                        deleteSelected={deleteSelected}
-                        toggleSelectedLineCurve={toggleSelectedLineCurve}
-                        canvasProps={canvasProps}
-                        updateCanvasProps={updateCanvasProps}
-                        frames={frames}
-                        currentFrameIndex={currentFrameIndex}
-                    />
-                </>
-            )}
+                <div className="left-toolbar-tabs">
+                    <button
+                        type="button"
+                        className={activeTab === "draw" ? "active" : ""}
+                        onClick={() => setActiveTab("draw")}
+                        title="Draw tools"
+                    >
+                        <span className="sidebar-tab-full">Draw</span>
+                        <span className="sidebar-tab-short">D</span>
+                    </button>
+                    <button
+                        type="button"
+                        className={activeTab === "gif" ? "active" : ""}
+                        onClick={() => chooseTab("gif", "GIF tools") }
+                        title="GIF tools"
+                    >
+                        <span className="sidebar-tab-full">GIF</span>
+                        <span className="sidebar-tab-short">G</span>
+                        {!proUser && <small className="tab-pro-badge">PRO</small>}
+                    </button>
+                    {/*<button*/}
+                    {/*    type="button"*/}
+                    {/*    className={activeTab === "code" ? "active" : ""}*/}
+                    {/*    // onClick={() => chooseTab("code", "Code Illustrator")}*/}
+                    {/*    title="Code illustrator"*/}
+                    {/*>*/}
+                    {/*    <span className="sidebar-tab-full">Code</span>*/}
+                    {/*    <span className="sidebar-tab-short">C</span>*/}
+                    {/*    {!proUser && <small className="tab-pro-badge">PRO</small>}*/}
+                    {/*</button>*/}
+                    {/*<button*/}
+                    {/*    type="button"*/}
+                    {/*    className={activeTab === "system" ? "active" : ""}*/}
+                    {/*    onClick={() => chooseTab("system", "System design tools")}*/}
+                    {/*    title="System design tools"*/}
+                    {/*>*/}
+                    {/*    <span className="sidebar-tab-full">System</span>*/}
+                    {/*    <span className="sidebar-tab-short">S</span>*/}
+                    {/*    {!proUser && <small className="tab-pro-badge">PRO</small>}*/}
+                    {/*</button>*/}
+                </div>
+
+                <div className="floating-sidebar-scroll-body">
+
+                    {activeTab === "draw" && (
+                        <>
+                            <div className="panel">
+                                <h3>Tools</h3>
+
+                                <div className="tool-grid">
+                                    {TOOLS.map((item) => {
+                                        const Icon = item.icon;
+
+                                        return (
+                                            <button
+                                                key={item.id}
+                                                type="button"
+                                                className={`tool-btn ${tool === item.id ? "active" : ""}`}
+                                                onClick={() => chooseTool(item)}
+                                            >
+                                                <Icon size={16} />
+                                                <span>{item.label}</span>
+                                                {item.premium && !proUser && <small className="tool-pro-badge">PRO</small>}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            <PropertiesPanel
+                                selectedElement={selectedElement}
+                                colors={colors}
+                                updateSelectedElementStyle={updateSelectedElementStyle}
+                                deleteSelected={deleteSelected}
+                                toggleSelectedLineCurve={toggleSelectedLineCurve}
+                                canvasProps={canvasProps}
+                                updateCanvasProps={updateCanvasProps}
+                                frames={frames}
+                                currentFrameIndex={currentFrameIndex}
+                            />
+                        </>
+                    )}
 
 
 
-            {activeTab === "gif" && (
-                <GifToolsTab
-                    frames={frames}
-                    currentFrameIndex={currentFrameIndex}
-                    animationPlaying={animationPlaying}
-                    animationTimeMs={animationTimeMs}
-                    advanceMode={advanceMode}
-                    onAdvanceModeChange={onAdvanceModeChange}
-                    onAddFrameAfter={onAddFrameAfter}
-                    onToggleFrameAnimation={onToggleFrameAnimation}
-                    onApplyFrameObjectOrderTiming={onApplyFrameObjectOrderTiming}
-                    onMergeFrameWithNext={onMergeFrameWithNext}
-                    onMergeAllFrames={onMergeAllFrames}
-                    onInsertGifPrimitive={onInsertGifPrimitive}
-                />
-            )}
+                    {activeTab === "gif" && (
+                        <GifToolsTab
+                            frames={frames}
+                            currentFrameIndex={currentFrameIndex}
+                            animationPlaying={animationPlaying}
+                            animationTimeMs={animationTimeMs}
+                            advanceMode={advanceMode}
+                            onAdvanceModeChange={onAdvanceModeChange}
+                            onAddFrameAfter={onAddFrameAfter}
+                            onToggleFrameAnimation={onToggleFrameAnimation}
+                            onApplyFrameObjectOrderTiming={onApplyFrameObjectOrderTiming}
+                            onMergeFrameWithNext={onMergeFrameWithNext}
+                            onMergeAllFrames={onMergeAllFrames}
+                            onInsertGifPrimitive={onInsertGifPrimitive}
+                        />
+                    )}
 
-            {activeTab === "code" && (
-                <CodeIllustratorTab
-                    onGenerateCodeIllustration={onGenerateCodeIllustration}
-                />
-            )}
+                    {activeTab === "code" && (
+                        <CodeIllustratorTab
+                            onGenerateCodeIllustration={onGenerateCodeIllustration}
+                        />
+                    )}
 
-            {activeTab === "system" && (
-                <SystemDesignTab tool={tool} setTool={setTool} />
-            )}
+                    {activeTab === "system" && (
+                        <SystemDesignTab tool={tool} setTool={setTool} />
+                    )}
 
-
+                </div>
+            </aside>
         </div>
     );
 }

@@ -67,6 +67,7 @@ import {
     writeElementsToSystemClipboard,
 } from "../../canvas/canvasClipboard";
 import {screenToWorld} from "../../canvas/canvasViewport";
+import {buildTextCanvasFont} from "../../canvas/textRenderStyle";
 import {
     NOTEBOOK_LINE_GAP,
 } from "../../canvas/notebook/notebookPageConstants";
@@ -105,6 +106,68 @@ import {
     getAnimationLabel,
     getAnimationPresetsForSelection,
 } from "../../canvas/animationRegistry";
+
+
+const SOCIAL_TEXT_PAGINATION_PRESETS = new Set(["post", "story", "status"]);
+const MAX_SOCIAL_TEXT_PAGES = 20;
+
+function splitTextIntoSocialPages(text, style, maxWidth, maxHeight) {
+    if (typeof document === "undefined") return [String(text || "")];
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    ctx.font = buildTextCanvasFont(style);
+
+    const safeWidth = Math.max(80, Number(maxWidth) || 80);
+    const safeHeight = Math.max(style.lineHeight, Number(maxHeight) || style.lineHeight);
+    const maxLinesPerPage = Math.max(1, Math.floor(safeHeight / style.lineHeight));
+    const wrappedLines = [];
+
+    String(text || "").split("\n").forEach((paragraph) => {
+        if (!paragraph) {
+            wrappedLines.push("");
+            return;
+        }
+
+        const words = paragraph.split(/\s+/);
+        let line = "";
+
+        words.forEach((word) => {
+            const candidate = line ? `${line} ${word}` : word;
+            if (ctx.measureText(candidate).width <= safeWidth) {
+                line = candidate;
+                return;
+            }
+
+            if (line) wrappedLines.push(line);
+
+            if (ctx.measureText(word).width > safeWidth) {
+                let chunk = "";
+                for (const char of word) {
+                    const next = chunk + char;
+                    if (chunk && ctx.measureText(next).width > safeWidth) {
+                        wrappedLines.push(chunk);
+                        chunk = char;
+                    } else {
+                        chunk = next;
+                    }
+                }
+                line = chunk;
+            } else {
+                line = word;
+            }
+        });
+
+        wrappedLines.push(line);
+    });
+
+    const pages = [];
+    for (let index = 0; index < wrappedLines.length && pages.length < MAX_SOCIAL_TEXT_PAGES; index += maxLinesPerPage) {
+        pages.push(wrappedLines.slice(index, index + maxLinesPerPage).join("\n"));
+    }
+
+    return pages.length ? pages : [String(text || "")];
+}
 
 const ERASER_CURSOR_SVG = `
 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
@@ -492,6 +555,8 @@ export default function CanvasBoard({
                                         onReplaceTimeline,
                                         onRestoreTimeline,
                                         onStartAnimationPreview,
+                                        onCreateSocialTextPages,
+                                        onSelectTimelineFrame,
                                         socialCreatorPreset = null,
                                         focusMode = false,
                                     }) {
@@ -600,6 +665,15 @@ export default function CanvasBoard({
         currentDrawingMeta,
         setCurrentDrawingMeta,
     });
+
+    useEffect(() => {
+        const autoSaveTimer = window.setInterval(() => {
+            if (isSavingDrawing || savePopupOpen) return;
+            saveCurrentDrawing({ saveAsNew: false, silent: true });
+        }, 10000);
+
+        return () => window.clearInterval(autoSaveTimer);
+    }, [isSavingDrawing, savePopupOpen, saveCurrentDrawing]);
 
     const {
         isVideoExporting,
@@ -1505,6 +1579,70 @@ export default function CanvasBoard({
                                }) => {
         textCommitLockRef.current = Date.now() + 250;
 
+        if (
+            SOCIAL_TEXT_PAGINATION_PRESETS.has(socialCreatorPreset) &&
+            socialGuide?.safe &&
+            typeof onCreateSocialTextPages === "function"
+        ) {
+            const safeTopLeft = screenToWorld(
+                { x: socialGuide.safe.left, y: socialGuide.safe.top },
+                viewportRef.current
+            );
+            const safeBottomRight = screenToWorld(
+                {
+                    x: socialGuide.safe.left + socialGuide.safe.width,
+                    y: socialGuide.safe.top + socialGuide.safe.height,
+                },
+                viewportRef.current
+            );
+            const normalizedStyle = normalizeTextStyle({
+                stroke, fontSize, lineHeight, fontFamily, bold, italic, underline, textAlign,
+            });
+            const availableWidth = Math.max(80, safeBottomRight.x - x);
+            const firstPageHeight = Math.max(
+                normalizedStyle.lineHeight,
+                safeBottomRight.y - y
+            );
+            const followingPageHeight = Math.max(
+                normalizedStyle.lineHeight,
+                safeBottomRight.y - safeTopLeft.y
+            );
+
+            const firstPass = splitTextIntoSocialPages(
+                text,
+                normalizedStyle,
+                availableWidth,
+                firstPageHeight
+            );
+
+            let pages = firstPass;
+            if (firstPass.length > 1) {
+                const remainingText = firstPass.slice(1).join("\n");
+                pages = [
+                    firstPass[0],
+                    ...splitTextIntoSocialPages(
+                        remainingText,
+                        normalizedStyle,
+                        Math.max(80, safeBottomRight.x - safeTopLeft.x),
+                        followingPageHeight
+                    ),
+                ].slice(0, MAX_SOCIAL_TEXT_PAGES);
+            }
+
+            if (pages.length > 1) {
+                onCreateSocialTextPages({
+                    pages,
+                    firstPagePosition: { x, y },
+                    followingPagePosition: { x: safeTopLeft.x, y: safeTopLeft.y },
+                    style: normalizedStyle,
+                    parentId,
+                });
+                setEditor(null);
+                setTool("select");
+                return;
+            }
+        }
+
         createTextElementHelper({
             elements: elementsRef.current,
             setElements: (next) => {
@@ -1889,12 +2027,22 @@ export default function CanvasBoard({
             }
         }
 
-        // First click on any unselected object only selects it. It does not
-        // immediately move, which prevents accidental dragging of large boxes.
+        // Large container rectangles keep the safer two-step behaviour.
+        // Normal objects (including User and system-design diagrams) select and
+        // start moving in the same pointer gesture, which feels natural and
+        // fixes the "selected but cannot drag" experience.
         if (!isAlreadySelected) {
             const nextSelectedIds = [target.id];
             selectedIdsRef.current = nextSelectedIds;
             setSelectedIds(nextSelectedIds);
+
+            const keepSelectOnly =
+                isRectangleElement(target) &&
+                isContainerRectangle(target, currentElements);
+
+            if (!keepSelectOnly) {
+                startMove(target, point, nextSelectedIds);
+            }
             return;
         }
 
@@ -2969,6 +3117,28 @@ export default function CanvasBoard({
                                     : "Everything is inside the safe area"}
                             </div>
                         </div>
+                    </div>
+                )}
+
+                {socialGuide && timelineFrames.length > 1 && (
+                    <div
+                        className="social-carousel-dots"
+                        style={{
+                            left: socialGuide.left + socialGuide.width / 2,
+                            top: Math.min(canvasSize.height - 18, socialGuide.top + socialGuide.height + 12),
+                        }}
+                        aria-label="Picture navigation"
+                    >
+                        {timelineFrames.slice(0, MAX_SOCIAL_TEXT_PAGES).map((frame, index) => (
+                            <button
+                                key={frame.id || index}
+                                type="button"
+                                className={index === currentFrameIndex ? "active" : ""}
+                                onClick={() => onSelectTimelineFrame?.(index)}
+                                aria-label={`Open picture ${index + 1}`}
+                                title={`Picture ${index + 1}`}
+                            />
+                        ))}
                     </div>
                 )}
 

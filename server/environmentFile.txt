@@ -1,0 +1,7 @@
+sudo mkdir -p /etc/sketchydraw
+sudo nano /etc/sketchydraw/sketchydraw-api.env
+
+sudo systemctl daemon-reload
+sudo systemctl enable sketchydraw-api
+sudo systemctl start sketchydraw-api
+sudo systemctl status sketchydraw-api

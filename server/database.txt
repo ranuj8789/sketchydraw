@@ -1,0 +1,7 @@
+CREATE USER sketchydraw_user WITH PASSWORD 'Ranuj!@3ran2';
+
+CREATE DATABASE sketchydraw
+    OWNER sketchydraw_user;
+
+GRANT ALL PRIVILEGES ON DATABASE sketchydraw
+    TO sketchydraw_user;

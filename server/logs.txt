@@ -1,0 +1,4 @@
+sudo journalctl -u sketchydraw-api -n 100 --no-pager
+
+sudo systemctl status sketchydraw-api --no-pager
+sudo ss -ltnp | grep -E ':8081|:9090'

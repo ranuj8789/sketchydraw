@@ -91,3 +91,175 @@
 .storyboard-actions .storyboard-merge-all:disabled { opacity:.42; cursor:not-allowed; }
 .storyboard-track { scrollbar-width:thin; scrollbar-color:#d8dde6 transparent; }
 .storyboard-frame { box-shadow:0 3px 10px rgba(15,23,42,.035); }
+
+/* Floating storyboard: overlays the canvas instead of consuming a permanent row. */
+.storyboard-bar {
+  position: fixed;
+  left: 92px;
+  right: 14px;
+  bottom: 12px;
+  z-index: 3900;
+  width: auto;
+  margin: 0;
+  border-radius: 16px;
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(16px);
+}
+
+.storyboard-bar.peek {
+  max-height: 46px;
+}
+
+.storyboard-bar.peek:hover,
+.storyboard-bar.peek:focus-within,
+.storyboard-bar.pinned {
+  max-height: 132px;
+}
+
+@media (max-width: 720px) {
+  .storyboard-bar {
+    left: 80px;
+    right: 8px;
+    bottom: 8px;
+  }
+  .storyboard-actions button:not(.storyboard-present) {
+    display: none;
+  }
+}
+
+
+/* FINAL LIVE UI: light floating storyboard with visible frame cards. */
+.storyboard-bar {
+  position: fixed;
+  left: 50%;
+  right: auto;
+  bottom: 12px;
+  width: min(1180px, calc(100vw - 120px));
+  transform: translateX(-50%);
+  z-index: 3900;
+  margin: 0;
+  max-height: 142px;
+  overflow: hidden;
+  border: 1px solid #dfe5ec;
+  border-radius: 16px;
+  background: rgba(255,255,255,.985);
+  color: #111827;
+  box-shadow: 0 18px 44px rgba(15,23,42,.16);
+  backdrop-filter: blur(16px);
+}
+.storyboard-head { min-height:44px; padding:6px 10px; gap:9px; }
+.storyboard-collapse,
+.storyboard-pin,
+.storyboard-actions button {
+  border:1px solid #dbe2ea;
+  background:#fff;
+  color:#334155;
+}
+.storyboard-collapse:hover,
+.storyboard-pin:hover,
+.storyboard-actions button:hover:not(:disabled) { background:#f8fafc; }
+.storyboard-title strong { color:#111827; }
+.storyboard-title span { color:#667085; }
+.storyboard-pin.active { border-color:#d8b66a; background:#fffaf0; color:#6f561f; }
+.storyboard-actions .storyboard-present { border-color:#d8b66a; background:#fff8e8; color:#654b18; }
+.storyboard-actions .storyboard-merge-all { border-color:#dbe2ea; background:#fff; color:#475569; }
+.storyboard-track {
+  display:flex;
+  align-items:center;
+  gap:7px;
+  padding:8px 12px 12px;
+  overflow-x:auto;
+  overflow-y:hidden;
+  border-top:1px solid #eef1f4;
+  background:rgba(248,250,252,.72);
+  scrollbar-width:thin;
+  scrollbar-color:#cbd5e1 transparent;
+}
+.storyboard-frame {
+  flex:0 0 150px;
+  height:58px;
+  border:1px solid #dfe5ec;
+  border-radius:12px;
+  background:#fff;
+  color:#111827;
+  box-shadow:0 3px 10px rgba(15,23,42,.04);
+}
+.storyboard-frame:hover { border-color:#c8a85d; background:#fffdf8; }
+.storyboard-frame.active { border-color:#c8a85d; background:#fffdf8; box-shadow:0 0 0 2px rgba(200,168,93,.15); }
+.storyboard-frame-number { background:#f4f1ea; color:#715821; }
+.storyboard-frame-copy strong { color:#111827; }
+.storyboard-frame-copy small { color:#7a8493; }
+.storyboard-gap { color:#a58a4a; }
+.storyboard-gap small { color:#8b95a5; }
+.storyboard-add { height:58px; border-color:#cfd6df; background:#fff; color:#5c6573; }
+.storyboard-add:hover { border-color:#c8a85d; background:#fffdf8; color:#715821; }
+.storyboard-bar.collapsed,
+.storyboard-bar.peek { max-height:46px; width:min(760px, calc(100vw - 120px)); }
+.storyboard-bar.peek .storyboard-head::after { display:none !important; }
+.storyboard-bar.peek:hover,
+.storyboard-bar.peek:focus-within,
+.storyboard-bar.pinned { max-height:142px; width:min(1180px, calc(100vw - 120px)); }
+.storyboard-bar.peek:hover .storyboard-track,
+.storyboard-bar.peek:focus-within .storyboard-track { display:flex; }
+.storyboard-bar.collapsed .storyboard-track { display:none; }
+@media (max-width: 980px) {
+  .storyboard-bar,
+  .storyboard-bar.collapsed,
+  .storyboard-bar.peek,
+  .storyboard-bar.peek:hover,
+  .storyboard-bar.peek:focus-within,
+  .storyboard-bar.pinned { width:calc(100vw - 24px); }
+  .storyboard-actions .storyboard-merge-all { display:none; }
+}
+
+/* LIVE FIX: collapsed storyboard expands on hover even when the track was not mounted before. */
+.storyboard-bar.collapsed:hover,
+.storyboard-bar.hover-open,
+.storyboard-bar:focus-within {
+  max-height: 142px;
+  width: min(1180px, calc(100vw - 120px));
+}
+.storyboard-bar.hover-open .storyboard-track,
+.storyboard-bar.collapsed:hover .storyboard-track,
+.storyboard-bar:focus-within .storyboard-track {
+  display: flex;
+}
+.storyboard-bar {
+  transition: max-height .2s ease, width .2s ease, box-shadow .2s ease;
+}
+.storyboard-track {
+  scroll-behavior: smooth;
+  overscroll-behavior-x: contain;
+}
+@media (max-width: 980px) {
+  .storyboard-bar.collapsed:hover,
+  .storyboard-bar.hover-open,
+  .storyboard-bar:focus-within {
+    width: calc(100vw - 24px);
+  }
+}
+
+/* Smooth floating storyboard reveal/collapse. */
+.storyboard-bar {
+  transition:
+          max-height 280ms cubic-bezier(.22, 1, .36, 1),
+          box-shadow 240ms ease,
+          transform 240ms cubic-bezier(.22, 1, .36, 1),
+          opacity 200ms ease !important;
+  will-change: max-height, transform, opacity;
+}
+
+.storyboard-track {
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+          opacity 210ms ease,
+          transform 260ms cubic-bezier(.22, 1, .36, 1) !important;
+}
+
+.storyboard-bar.expanded .storyboard-track,
+.storyboard-bar.hover-open .storyboard-track,
+.storyboard-bar.pinned .storyboard-track {
+  opacity: 1;
+  transform: translateY(0);
+}

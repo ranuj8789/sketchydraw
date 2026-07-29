@@ -1,0 +1,9 @@
+sudo mkdir -p /var/www/sketchydraw-ui
+sudo chown -R ranuj:sketchydraw /var/www/sketchydraw-ui
+sudo chmod 755 /var/www/sketchydraw-ui
+
+sudo certbot install --cert-name sketchydraw.com
+
+sudo systemctl reload nginx
+
+sudo ln -sfn /etc/nginx/sites-available/sketchydraw /etc/nginx/sites-enabled/sketchydraw

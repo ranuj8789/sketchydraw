@@ -80,6 +80,7 @@ export default function Toolbar({
     const [videoExportMode, setVideoExportMode] = useState(() => localStorage.getItem("sketchydraw.videoExportMode") || "server");
     const [videoExportState, setVideoExportState] = useState({ exporting: false, progress: 0, status: "" });
     const [legalOpen, setLegalOpen] = useState(false);
+    const [saveStatus, setSaveStatus] = useState({ state: "idle", message: "" });
 
     const [user, setUser] = useState(getUser());
     const [loggedIn, setLoggedIn] = useState(isLoggedIn());
@@ -97,6 +98,19 @@ export default function Toolbar({
     const [profileMessage, setProfileMessage] = useState("");
 
     const proUser = isProUser(user);
+
+    const selectCreatorPreset = (presetId) => {
+        const nextPreset = presetId || null;
+
+        // Free users can use WhatsApp Status creator mode only.
+        if (!proUser && nextPreset && nextPreset !== "status") {
+            const preset = SOCIAL_MEDIA_PRESETS[nextPreset];
+            requestProUpgrade(`${preset?.shortLabel || "This"} creator mode`);
+            return;
+        }
+
+        setSocialCreatorPreset?.(nextPreset);
+    };
 
     const profileRef = useRef(null);
     const saveRef = useRef(null);
@@ -119,6 +133,15 @@ export default function Toolbar({
             return String(Math.min(Math.max(parsed, 1), totalFrames));
         });
     }, [timelineFrames.length]);
+
+
+    useEffect(() => {
+        const handleSaveStatus = (event) => {
+            setSaveStatus(event.detail || { state: "idle", message: "" });
+        };
+        window.addEventListener("sketchydraw:save-status", handleSaveStatus);
+        return () => window.removeEventListener("sketchydraw:save-status", handleSaveStatus);
+    }, []);
 
     useEffect(() => {
         const handleVideoExportState = (event) => {
@@ -605,6 +628,12 @@ export default function Toolbar({
 
             <div className="topbar">
                 <div className="topbar-actions">
+                    {saveStatus.message && (
+                        <div className={`toolbar-save-status ${saveStatus.state}`} title={saveStatus.message}>
+                            <span aria-hidden="true">{saveStatus.state === "saving" ? "↻" : "✓"}</span>
+                            <span>{saveStatus.state === "saved" ? "Auto-saved" : saveStatus.message}</span>
+                        </div>
+                    )}
                     <button type="button" onClick={undo} disabled={!canUndo} title="Undo last action">
                         Undo
                     </button>
@@ -675,14 +704,9 @@ export default function Toolbar({
                                 </button>
                                 <div className="native-menu-divider" />
 
-                                <div className="native-submenu-row">
-                                    <button type="button"><span>Save</span><span className="submenu-arrow">›</span></button>
-                                    <div className="native-submenu">
-                                        <button type="button" onClick={() => { triggerSaveExisting?.(); setFileOpen(false); }}>Save</button>
-                                        <button type="button" onClick={() => { triggerSaveAsNew?.(); setFileOpen(false); }}>Save as…</button>
-                                        <button type="button" onClick={() => { window.dispatchEvent(new Event("sketchydraw:open-my-drawings")); setFileOpen(false); }}>My drawings</button>
-                                    </div>
-                                </div>
+                                <button type="button" onClick={() => { window.dispatchEvent(new Event("sketchydraw:open-my-drawings")); setFileOpen(false); }}>
+                                    <span>Open drawing…</span><kbd>⌘O</kbd>
+                                </button>
 
                                 <div className="native-submenu-row">
                                     <button type="button"><span>Import</span><span className="submenu-arrow">›</span></button>
@@ -746,11 +770,11 @@ export default function Toolbar({
                                 <button type="button" onClick={() => { onOpenExcelGrid?.(); setNewOpen(false); }}>New Excel</button>
                                 <button type="button" onClick={() => { onOpenMarkdownGrid?.(); setNewOpen(false); }}>New Markdown</button>
                                 <div className="native-menu-divider" />
-                                <button type="button" onClick={() => { setSocialCreatorPreset?.(null); setNewOpen(false); }}>Free canvas</button>
-                                <button type="button" onClick={() => { setSocialCreatorPreset?.("instagram-post"); setNewOpen(false); }}>Instagram Post</button>
-                                <button type="button" onClick={() => { setSocialCreatorPreset?.("instagram-portrait"); setNewOpen(false); }}>Instagram Portrait</button>
-                                <button type="button" onClick={() => { setSocialCreatorPreset?.("instagram-story"); setNewOpen(false); }}>Instagram Story</button>
-                                <button type="button" onClick={() => { setSocialCreatorPreset?.("whatsapp-status"); setNewOpen(false); }}>WhatsApp Status</button>
+                                <button type="button" onClick={() => { selectCreatorPreset(null); setNewOpen(false); }}>Free canvas</button>
+                                <button type="button" onClick={() => { selectCreatorPreset("post"); setNewOpen(false); }}>Instagram Post{!proUser ? " · PRO" : ""}</button>
+                                <button type="button" onClick={() => { selectCreatorPreset("portrait"); setNewOpen(false); }}>Instagram Portrait{!proUser ? " · PRO" : ""}</button>
+                                <button type="button" onClick={() => { selectCreatorPreset("story"); setNewOpen(false); }}>Instagram Story{!proUser ? " · PRO" : ""}</button>
+                                <button type="button" onClick={() => { selectCreatorPreset("status"); setNewOpen(false); }}>WhatsApp Status · FREE</button>
                             </div>
                         )}
                     </div>
@@ -759,14 +783,14 @@ export default function Toolbar({
                         <span className="creator-toolbar-icon" aria-hidden="true">✦</span>
                         <select
                             value={socialCreatorPreset || ""}
-                            onChange={(event) => setSocialCreatorPreset?.(event.target.value || null)}
+                            onChange={(event) => selectCreatorPreset(event.target.value)}
                             title="Choose a creator canvas size"
                             aria-label="Creator mode"
                         >
                             <option value="">Creator mode</option>
                             {Object.values(SOCIAL_MEDIA_PRESETS).map((preset) => (
                                 <option key={preset.id} value={preset.id}>
-                                    {preset.shortLabel} · {preset.width}×{preset.height}
+                                    {preset.shortLabel} · {preset.width}×{preset.height}{!proUser && preset.id !== "status" ? " · PRO" : preset.id === "status" ? " · FREE" : ""}
                                 </option>
                             ))}
                         </select>
@@ -870,13 +894,13 @@ export default function Toolbar({
                         <span className="social-creator-label">Creator canvas</span>
                         <select
                             value={socialCreatorPreset || ""}
-                            onChange={(event) => setSocialCreatorPreset?.(event.target.value || null)}
+                            onChange={(event) => selectCreatorPreset(event.target.value)}
                             title="Show Instagram or WhatsApp composition guides"
                         >
                             <option value="">Off / Free canvas</option>
                             {Object.values(SOCIAL_MEDIA_PRESETS).map((preset) => (
                                 <option key={preset.id} value={preset.id}>
-                                    {preset.shortLabel} · {preset.width}×{preset.height}
+                                    {preset.shortLabel} · {preset.width}×{preset.height}{!proUser && preset.id !== "status" ? " · PRO" : preset.id === "status" ? " · FREE" : ""}
                                 </option>
                             ))}
                         </select>

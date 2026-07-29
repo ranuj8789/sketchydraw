@@ -2080,3 +2080,40 @@
     .toolbar-focus-button span:last-child { display: none; }
     .toolbar-focus-button { width: 40px; padding: 0 !important; }
 }
+
+
+.toolbar-save-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    max-width: 190px;
+    padding: 0 10px;
+    border: 1px solid #dbe4ef;
+    border-radius: 10px;
+    background: #f8fafc;
+    color: #475569;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.toolbar-save-status.saving span:first-child { animation: sketchydraw-save-spin .9s linear infinite; }
+.toolbar-save-status.saved { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+.toolbar-save-status.warning { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+@keyframes sketchydraw-save-spin { to { transform: rotate(360deg); } }
+
+.topbar-save-actions { display: inline-flex; gap: 4px; }
+.topbar-save-actions button { min-height: 36px; padding: 0 10px; font-size: 12px; font-weight: 700; }
+.topbar-save-actions button:first-child { border-color: #d6a23c; background: #fffaf0; }
+
+/* Auto-save status: compact confirmation instead of manual Save buttons */
+.toolbar-save-status.saved {
+    animation: sketchydraw-autosaved-blink 1.1s ease both;
+}
+@keyframes sketchydraw-autosaved-blink {
+    0% { opacity: 0; transform: translateY(-3px); }
+    30%, 75% { opacity: 1; transform: translateY(0); }
+    100% { opacity: .72; }
+}

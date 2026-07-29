@@ -45,6 +45,7 @@ function getElementHit(el, point) {
         el.type === "rectangle" ||
         el.type === "ellipse" ||
         el.type === "diamond" ||
+        el.type === "user" ||
         isSystemDesignType(el.type) ||
         el.type === "text" ||
         el.type === "image"

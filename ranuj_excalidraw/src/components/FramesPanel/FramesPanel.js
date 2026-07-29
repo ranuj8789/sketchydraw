@@ -7,6 +7,22 @@ function nameFor(frame, index) {
 }
 
 
+function getThumbnailViewport(canvasSize, canvasViewport, width, height) {
+    const sourceWidth = Math.max(1, Number(canvasSize?.width) || 1200);
+    const sourceHeight = Math.max(1, Number(canvasSize?.height) || 700);
+    const scale = Math.min(width / sourceWidth, height / sourceHeight);
+    const contentWidth = sourceWidth * scale;
+    const contentHeight = sourceHeight * scale;
+    const padX = (width - contentWidth) / 2;
+    const padY = (height - contentHeight) / 2;
+
+    return {
+        zoom: Math.max(0.01, Number(canvasViewport?.zoom) || 1) * scale,
+        offsetX: (Number(canvasViewport?.offsetX) || 0) * scale + padX,
+        offsetY: (Number(canvasViewport?.offsetY) || 0) * scale + padY,
+    };
+}
+
 function FrameThumbnail({ frame, canvasSize, canvasViewport, canvasProps, active, onPlay }) {
     const canvasRef = useRef(null);
 
@@ -14,14 +30,25 @@ function FrameThumbnail({ frame, canvasSize, canvasViewport, canvasProps, active
         const canvas = canvasRef.current;
         if (!canvas) return;
 
+        const previewWidth = 260;
+        const previewHeight = 150;
+        const pixelRatio = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+        canvas.width = Math.round(previewWidth * pixelRatio);
+        canvas.height = Math.round(previewHeight * pixelRatio);
+        canvas.style.width = "100%";
+        canvas.style.height = "100%";
+
+        const context = canvas.getContext("2d");
+        context?.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+
         renderCanvas({
             canvas,
-            canvasSize: canvasSize || { width: 1200, height: 700 },
+            canvasSize: { width: previewWidth, height: previewHeight },
             elements: frame?.elements || [],
             selectedIds: [],
             connectionHint: null,
             alignmentGuides: [],
-            viewport: canvasViewport || { zoom: 1, offsetX: 0, offsetY: 0 },
+            viewport: getThumbnailViewport(canvasSize, canvasViewport, previewWidth, previewHeight),
             showGrid: false,
             canvasProps: canvasProps || {},
             renderOptions: {
