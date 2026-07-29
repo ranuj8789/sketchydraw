@@ -13,6 +13,11 @@ import {
 } from "../../api/paymentApi";
 import { startCashfreeCheckout } from "../../utils/cashfreeCheckout";
 import { openRazorpayCheckout } from "../../utils/razorpayCheckout";
+import {
+    filterPlansByCurrency,
+    formatPlanPrice,
+    getPreferredCurrency,
+} from "../../utils/pricing";
 import "./SubscriptionPopup.css";
 
 const CASHFREE_MODE =
@@ -24,11 +29,6 @@ const DEFAULT_PAYMENT_PROVIDER =
     process.env.REACT_APP_PAYMENT_PROVIDER === "CASHFREE"
         ? "CASHFREE"
         : "RAZORPAY";
-
-function formatPrice(plan) {
-    const symbol = plan.currency === "INR" ? "₹" : plan.currency || "";
-    return `${symbol}${Number(plan.price || 0).toLocaleString("en-IN")}`;
-}
 
 function getPlanPeriod(plan) {
     const days = Number(plan.validityDays || 0);
@@ -51,7 +51,8 @@ function normalizePlan(plan) {
         active: plan.active,
         productType: plan.productType || plan.product_type,
         validityDays: plan.validityDays || plan.validity_days,
-        description: plan.description || "Unlock premium SketchyDraw features.",
+        description:
+            plan.description || "Unlock premium SketchyDraw features.",
     };
 }
 
@@ -87,7 +88,10 @@ function extractProviderOrderId(data) {
     );
 }
 
-function extractProviderPaymentIdFromCashfree(checkoutResult, orderResponse) {
+function extractProviderPaymentIdFromCashfree(
+    checkoutResult,
+    orderResponse
+) {
     return (
         checkoutResult?.paymentDetails?.paymentMessage ||
         checkoutResult?.paymentDetails?.paymentId ||
@@ -110,10 +114,14 @@ function getExpiryDate(user, status) {
     );
 }
 
-export default function SubscriptionPopup({ open, onClose, onLoginRequired }) {
+export default function SubscriptionPopup({
+                                              open,
+                                              onClose,
+                                              onLoginRequired,
+                                          }) {
     const [plans, setPlans] = useState([]);
     const [selectedPlanCode, setSelectedPlanCode] = useState("");
-    const [selectedProvider, setSelectedProvider] = useState(DEFAULT_PAYMENT_PROVIDER);
+    const [selectedProvider] = useState(DEFAULT_PAYMENT_PROVIDER);
 
     const [loadingPlans, setLoadingPlans] = useState(false);
     const [loadingPayment, setLoadingPayment] = useState(false);
@@ -128,16 +136,20 @@ export default function SubscriptionPopup({ open, onClose, onLoginRequired }) {
 
         const handleEscape = (event) => {
             if (event.key !== "Escape") return;
+
             event.preventDefault();
             onClose?.();
         };
 
         window.addEventListener("keydown", handleEscape);
-        return () => window.removeEventListener("keydown", handleEscape);
+
+        return () => {
+            window.removeEventListener("keydown", handleEscape);
+        };
     }, [open, onClose]);
 
     useEffect(() => {
-        if (!open) return;
+        if (!open) return undefined;
 
         let cancelled = false;
 
@@ -147,26 +159,51 @@ export default function SubscriptionPopup({ open, onClose, onLoginRequired }) {
 
             try {
                 const data = await getActivePlans();
+                const preferredCurrency = getPreferredCurrency();
 
-                const normalized = extractPlans(data)
+                const activeSubscriptionPlans = extractPlans(data)
                     .map(normalizePlan)
                     .filter((plan) => plan.code)
                     .filter((plan) => plan.active !== false)
                     .filter(
                         (plan) =>
                             !plan.productType ||
-                            String(plan.productType).toUpperCase() === "SUBSCRIPTION"
-                    )
-                    .sort((a, b) => Number(a.price || 0) - Number(b.price || 0));
+                            String(plan.productType).toUpperCase() ===
+                            "SUBSCRIPTION"
+                    );
+
+                const normalized = filterPlansByCurrency(
+                    activeSubscriptionPlans,
+                    preferredCurrency
+                ).sort(
+                    (a, b) =>
+                        Number(a.validityDays || 0) -
+                        Number(b.validityDays || 0)
+                );
 
                 if (cancelled) return;
 
                 setPlans(normalized);
-                setSelectedPlanCode((prev) => prev || normalized[0]?.code || "");
-            } catch (e) {
+                setSelectedPlanCode((previousCode) => {
+                    if (
+                        previousCode &&
+                        normalized.some(
+                            (plan) => plan.code === previousCode
+                        )
+                    ) {
+                        return previousCode;
+                    }
+
+                    return normalized[0]?.code || "";
+                });
+            } catch (error) {
                 if (!cancelled) {
                     setPlans([]);
-                    setMessage(e?.message || "Unable to load subscription plans.");
+                    setSelectedPlanCode("");
+                    setMessage(
+                        error?.message ||
+                        "Unable to load subscription plans."
+                    );
                 }
             } finally {
                 if (!cancelled) {
@@ -186,13 +223,14 @@ export default function SubscriptionPopup({ open, onClose, onLoginRequired }) {
 
             try {
                 const data = await getSubscriptionStatus();
-                const updatedUser = mergeSubscriptionIntoUser(data) || getUser();
+                const updatedUser =
+                    mergeSubscriptionIntoUser(data) || getUser();
 
                 if (cancelled) return;
 
                 setStatus(data);
                 setUser(updatedUser);
-            } catch (e) {
+            } catch {
                 if (!cancelled) {
                     setStatus(null);
                     setUser(getUser());
@@ -213,7 +251,10 @@ export default function SubscriptionPopup({ open, onClose, onLoginRequired }) {
     }, [open]);
 
     const selectedPlan = useMemo(() => {
-        return plans.find((plan) => plan.code === selectedPlanCode) || null;
+        return (
+            plans.find((plan) => plan.code === selectedPlanCode) ||
+            null
+        );
     }, [plans, selectedPlanCode]);
 
     const activePro =
@@ -242,7 +283,9 @@ export default function SubscriptionPopup({ open, onClose, onLoginRequired }) {
         setUser(updatedUser);
         setStatus(verifyResponse);
 
-        window.dispatchEvent(new Event("sketchydraw:subscription-updated"));
+        window.dispatchEvent(
+            new Event("sketchydraw:subscription-updated")
+        );
 
         return updatedUser;
     }
@@ -270,19 +313,32 @@ export default function SubscriptionPopup({ open, onClose, onLoginRequired }) {
         setLoadingPayment(true);
 
         try {
-            const data = await createPayment(selectedPlan.code, "CASHFREE");
+            const data = await createPayment(
+                selectedPlan.code,
+                "CASHFREE"
+            );
 
             const providerOrderId = extractProviderOrderId(data);
             const paymentSessionId = extractPaymentSessionId(data);
 
             if (!providerOrderId) {
-                console.error("Payment response without provider order id:", data);
-                throw new Error("Provider order id missing from backend response.");
+                console.error(
+                    "Payment response without provider order id:",
+                    data
+                );
+                throw new Error(
+                    "Provider order id missing from backend response."
+                );
             }
 
             if (!paymentSessionId) {
-                console.error("Payment response without session id:", data);
-                throw new Error("Cashfree payment session id missing from backend response.");
+                console.error(
+                    "Payment response without session id:",
+                    data
+                );
+                throw new Error(
+                    "Cashfree payment session id missing from backend response."
+                );
             }
 
             const checkoutResult = await startCashfreeCheckout({
@@ -291,27 +347,31 @@ export default function SubscriptionPopup({ open, onClose, onLoginRequired }) {
                 redirectTarget: "_modal",
             });
 
-            console.log("Cashfree checkout result:", checkoutResult);
-
             const verifyResponse = await verifyPayment({
                 providerOrderId,
-                providerPaymentId: extractProviderPaymentIdFromCashfree(
-                    checkoutResult,
-                    data
-                ),
+                providerPaymentId:
+                    extractProviderPaymentIdFromCashfree(
+                        checkoutResult,
+                        data
+                    ),
                 signature: "",
             });
 
             await activateFromVerifyResponse(verifyResponse);
 
-            setMessage("Payment successful. Pro access activated.");
+            setMessage(
+                "Payment successful. Pro access activated."
+            );
 
-            setTimeout(() => {
+            window.setTimeout(() => {
                 onClose?.();
             }, 900);
-        } catch (e) {
-            console.error("Cashfree payment failed:", e);
-            setMessage(e?.message || "Unable to complete Cashfree payment.");
+        } catch (error) {
+            console.error("Cashfree payment failed:", error);
+            setMessage(
+                error?.message ||
+                "Unable to complete Cashfree payment."
+            );
         } finally {
             setLoadingPayment(false);
         }
@@ -340,25 +400,37 @@ export default function SubscriptionPopup({ open, onClose, onLoginRequired }) {
         setLoadingPayment(true);
 
         try {
-            const order = await createPayment(selectedPlan.code, "RAZORPAY");
+            const order = await createPayment(
+                selectedPlan.code,
+                "RAZORPAY"
+            );
 
-            const result = await openRazorpayCheckout(order, getUser());
+            const result = await openRazorpayCheckout(
+                order,
+                getUser()
+            );
 
             if (result?.status) {
                 await activateFromVerifyResponse(result.status);
             } else {
-                const freshStatus = await getSubscriptionStatus();
+                const freshStatus =
+                    await getSubscriptionStatus();
                 await activateFromVerifyResponse(freshStatus);
             }
 
-            setMessage("Payment successful. Pro access activated.");
+            setMessage(
+                "Payment successful. Pro access activated."
+            );
 
-            setTimeout(() => {
+            window.setTimeout(() => {
                 onClose?.();
             }, 900);
         } catch (error) {
             console.error("Razorpay payment failed:", error);
-            setMessage(error?.message || "Unable to complete Razorpay payment.");
+            setMessage(
+                error?.message ||
+                "Unable to complete Razorpay payment."
+            );
         } finally {
             setLoadingPayment(false);
         }
@@ -374,13 +446,30 @@ export default function SubscriptionPopup({ open, onClose, onLoginRequired }) {
     }
 
     return (
-        <div className="sub-popup-backdrop" onMouseDown={onClose}>
-            <div className="sub-popup" onMouseDown={(e) => e.stopPropagation()}>
-                <button className="sub-popup-close" type="button" onClick={onClose}>
+        <div
+            className="sub-popup-backdrop"
+            onMouseDown={onClose}
+        >
+            <div
+                className="sub-popup"
+                onMouseDown={(event) => event.stopPropagation()}
+            >
+                <button
+                    className="sub-popup-close"
+                    type="button"
+                    onClick={onClose}
+                    aria-label="Close subscription popup"
+                >
                     ×
                 </button>
 
-                <div className={activePro ? "sub-popup-badge active" : "sub-popup-badge"}>
+                <div
+                    className={
+                        activePro
+                            ? "sub-popup-badge active"
+                            : "sub-popup-badge"
+                    }
+                >
                     {activePro ? "PRO ACTIVE" : "PRO"}
                 </div>
 
@@ -391,20 +480,27 @@ export default function SubscriptionPopup({ open, onClose, onLoginRequired }) {
                 </h2>
 
                 <p className="sub-popup-subtitle">
-                    Save drawings, open saved diagrams, groups, and premium SketchyDraw features.
+                    Save drawings, open saved diagrams, groups, and
+                    premium SketchyDraw features.
                 </p>
 
                 {loadingStatus && (
-                    <div className="sub-popup-message">Checking subscription status...</div>
+                    <div className="sub-popup-message">
+                        Checking subscription status...
+                    </div>
                 )}
 
                 {activePro && (
                     <div className="sub-popup-active-card">
-                        <strong>⭐ Your Pro subscription is active.</strong>
+                        <strong>
+                            ⭐ Your Pro subscription is active.
+                        </strong>
 
                         <span>
                             {expiryDate
-                                ? `Valid till ${new Date(expiryDate).toLocaleDateString()}`
+                                ? `Valid till ${new Date(
+                                    expiryDate
+                                ).toLocaleDateString()}`
                                 : "Your Pro features are active."}
                         </span>
 
@@ -413,175 +509,111 @@ export default function SubscriptionPopup({ open, onClose, onLoginRequired }) {
                 )}
 
                 {loadingPlans ? (
-                    <div className="sub-popup-message">Loading plans...</div>
+                    <div className="sub-popup-message">
+                        Loading plans...
+                    </div>
                 ) : (
                     <div className="sub-plan-list">
                         {plans.map((plan) => {
-                            const active = selectedPlanCode === plan.code;
+                            const active =
+                                selectedPlanCode === plan.code;
 
                             return (
                                 <button
                                     key={plan.code}
                                     type="button"
-                                    className={active ? "sub-plan-card active" : "sub-plan-card"}
+                                    className={
+                                        active
+                                            ? "sub-plan-card active"
+                                            : "sub-plan-card"
+                                    }
                                     onClick={() => {
                                         if (!activePro) {
-                                            setSelectedPlanCode(plan.code);
+                                            setSelectedPlanCode(
+                                                plan.code
+                                            );
                                         }
                                     }}
                                     disabled={activePro}
                                 >
                                     <div>
                                         <strong>{plan.name}</strong>
-                                        <span>{plan.description}</span>
+                                        <span>
+                                            {plan.description}
+                                        </span>
                                     </div>
 
                                     <div className="sub-plan-price">
-                                        <b>{formatPrice(plan)}</b>
-                                        <em>{getPlanPeriod(plan)}</em>
+                                        <b>
+                                            {formatPlanPrice(
+                                                plan.price,
+                                                plan.currency
+                                            )}
+                                        </b>
+                                        <em>
+                                            {getPlanPeriod(plan)}
+                                        </em>
                                     </div>
                                 </button>
                             );
                         })}
 
-                        {!loadingPlans && plans.length === 0 && (
-                            <div className="sub-popup-message">
-                                No active subscription plans found.
-                            </div>
-                        )}
+                        {!loadingPlans &&
+                            plans.length === 0 && (
+                                <div className="sub-popup-message">
+                                    No active subscription plans
+                                    found.
+                                </div>
+                            )}
                     </div>
                 )}
-
-                {/*{!activePro && (*/}
-                {/*    <div className="sub-payment-provider-box">*/}
-                {/*        <div className="sub-payment-provider-title">*/}
-                {/*            Choose payment gateway*/}
-                {/*        </div>*/}
-
-                {/*        <div className="sub-payment-provider-options">*/}
-                {/*            <button*/}
-                {/*                type="button"*/}
-                {/*                className={*/}
-                {/*                    selectedProvider === "RAZORPAY"*/}
-                {/*                        ? "sub-provider-btn active"*/}
-                {/*                        : "sub-provider-btn"*/}
-                {/*                }*/}
-                {/*                onClick={() => setSelectedProvider("RAZORPAY")}*/}
-                {/*                disabled={loadingPayment}*/}
-                {/*            >*/}
-                {/*                Razorpay*/}
-                {/*            </button>*/}
-
-                {/*            <button*/}
-                {/*                type="button"*/}
-                {/*                className={*/}
-                {/*                    selectedProvider === "CASHFREE"*/}
-                {/*                        ? "sub-provider-btn active"*/}
-                {/*                        : "sub-provider-btn"*/}
-                {/*                }*/}
-                {/*                onClick={() => setSelectedProvider("CASHFREE")}*/}
-                {/*                disabled={loadingPayment}*/}
-                {/*            >*/}
-                {/*                Cashfree*/}
-                {/*            </button>*/}
-                {/*        </div>*/}
-                {/*    </div>*/}
-                {/*)} {/*{!activePro && (*/}
-                {/*    <div className="sub-payment-provider-box">*/}
-                {/*        <div className="sub-payment-provider-title">*/}
-                {/*            Choose payment gateway*/}
-                {/*        </div>*/}
-
-                {/*        <div className="sub-payment-provider-options">*/}
-                {/*            <button*/}
-                {/*                type="button"*/}
-                {/*                className={*/}
-                {/*                    selectedProvider === "RAZORPAY"*/}
-                {/*                        ? "sub-provider-btn active"*/}
-                {/*                        : "sub-provider-btn"*/}
-                {/*                }*/}
-                {/*                onClick={() => setSelectedProvider("RAZORPAY")}*/}
-                {/*                disabled={loadingPayment}*/}
-                {/*            >*/}
-                {/*                Razorpay*/}
-                {/*            </button>*/}
-
-                {/*            <button*/}
-                {/*                type="button"*/}
-                {/*                className={*/}
-                {/*                    selectedProvider === "CASHFREE"*/}
-                {/*                        ? "sub-provider-btn active"*/}
-                {/*                        : "sub-provider-btn"*/}
-                {/*                }*/}
-                {/*                onClick={() => setSelectedProvider("CASHFREE")}*/}
-                {/*                disabled={loadingPayment}*/}
-                {/*            >*/}
-                {/*                Cashfree*/}
-                {/*            </button>*/}
-                {/*        </div>*/}
-                {/*    </div>*/}
-                {/*)} {/*{!activePro && (*/}
-                {/*    <div className="sub-payment-provider-box">*/}
-                {/*        <div className="sub-payment-provider-title">*/}
-                {/*            Choose payment gateway*/}
-                {/*        </div>*/}
-
-                {/*        <div className="sub-payment-provider-options">*/}
-                {/*            <button*/}
-                {/*                type="button"*/}
-                {/*                className={*/}
-                {/*                    selectedProvider === "RAZORPAY"*/}
-                {/*                        ? "sub-provider-btn active"*/}
-                {/*                        : "sub-provider-btn"*/}
-                {/*                }*/}
-                {/*                onClick={() => setSelectedProvider("RAZORPAY")}*/}
-                {/*                disabled={loadingPayment}*/}
-                {/*            >*/}
-                {/*                Razorpay*/}
-                {/*            </button>*/}
-
-                {/*            <button*/}
-                {/*                type="button"*/}
-                {/*                className={*/}
-                {/*                    selectedProvider === "CASHFREE"*/}
-                {/*                        ? "sub-provider-btn active"*/}
-                {/*                        : "sub-provider-btn"*/}
-                {/*                }*/}
-                {/*                onClick={() => setSelectedProvider("CASHFREE")}*/}
-                {/*                disabled={loadingPayment}*/}
-                {/*            >*/}
-                {/*                Cashfree*/}
-                {/*            </button>*/}
-                {/*        </div>*/}
-                {/*    </div>*/}
-                {/*)}*/}
 
                 <div className="sub-popup-features">
                     <div>✓ Save drawings to cloud</div>
                     <div>✓ Open your saved drawings</div>
                     <div>✓ Groups / folders</div>
-                    <div>✓ No watermark on exports</div>
+                    <div>✓ Clean exports with small SketchyDraw credit</div>
                     <div>✓ Premium export features later</div>
                 </div>
 
-                {message && <div className="sub-popup-message">{message}</div>}
+                {message && (
+                    <div className="sub-popup-message">
+                        {message}
+                    </div>
+                )}
 
                 <button
                     className="sub-popup-primary"
                     type="button"
                     onClick={handleSubscribe}
-                    disabled={activePro || loadingPlans || loadingPayment || !selectedPlan}
+                    disabled={
+                        activePro ||
+                        loadingPlans ||
+                        loadingPayment ||
+                        !selectedPlan
+                    }
                 >
                     {activePro
                         ? "Pro Active"
                         : loadingPayment
-                            ? `Starting ${selectedProvider === "CASHFREE" ? "Cashfree" : "Razorpay"}...`
+                            ? `Starting ${
+                                selectedProvider === "CASHFREE"
+                                    ? "Cashfree"
+                                    : "Razorpay"
+                            }...`
                             : selectedPlan
-                                ? `Subscribe ${formatPrice(selectedPlan)}`
+                                ? `Subscribe ${formatPlanPrice(
+                                    selectedPlan.price,
+                                    selectedPlan.currency
+                                )}`
                                 : "Subscribe"}
                 </button>
 
-                <button className="sub-popup-secondary" type="button" onClick={onClose}>
+                <button
+                    className="sub-popup-secondary"
+                    type="button"
+                    onClick={onClose}
+                >
                     {activePro ? "Close" : "Maybe later"}
                 </button>
             </div>

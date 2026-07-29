@@ -12,7 +12,7 @@ REMOTE_CURRENT="/mnt/media-nvme/sketchydraw/app/current"
 
 SERVICE_NAME="sketchydraw-api"
 CURRENT_JAR="$REMOTE_CURRENT/sketchydraw-api.jar"
-LOCAL_PORT="8081"
+LOCAL_PORT="9090"
 
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 RELEASE_NAME="sketchydraw-api-${TIMESTAMP}.jar"

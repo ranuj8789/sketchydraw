@@ -1,32 +1,43 @@
-import { PLAN_CODES } from "../constants/planCodes";
+export function formatPlanPrice(price, currency = "INR") {
+    const numericPrice = Number(price);
 
-export function isIndiaUser() {
-    const locale = navigator.language || "";
-    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+    if (!Number.isFinite(numericPrice)) {
+        return "";
+    }
 
-    return (
-        locale.toLowerCase().includes("in") ||
-        timeZone.toLowerCase().includes("kolkata") ||
-        timeZone.toLowerCase().includes("calcutta")
+    const normalizedCurrency = String(currency || "INR").toUpperCase();
+
+    return new Intl.NumberFormat(
+        normalizedCurrency === "USD" ? "en-US" : "en-IN",
+        {
+            style: "currency",
+            currency: normalizedCurrency,
+            minimumFractionDigits: 0,
+            maximumFractionDigits: normalizedCurrency === "USD" ? 2 : 0,
+        }
+    ).format(numericPrice);
+}
+
+export function filterPlansByCurrency(plans, currency) {
+    const normalizedCurrency = String(currency || "").toUpperCase();
+
+    return (Array.isArray(plans) ? plans : []).filter(
+        (plan) =>
+            plan?.active !== false &&
+            String(plan?.currency || "").toUpperCase() === normalizedCurrency
     );
 }
 
-export function getSketchyDisplayPrice() {
-    if (isIndiaUser()) {
-        return {
-            planCode: PLAN_CODES.INDIA_MONTHLY,
-            currency: "INR",
-            symbol: "₹",
-            amount: 349,
-            label: "₹349/month",
-        };
+export function getPreferredCurrency() {
+    if (typeof navigator === "undefined") {
+        return "USD";
     }
 
-    return {
-        planCode: PLAN_CODES.GLOBAL_MONTHLY,
-        currency: "USD",
-        symbol: "$",
-        amount: 4,
-        label: "$4/month",
-    };
+    const locale = String(
+        navigator.languages?.[0] ||
+        navigator.language ||
+        ""
+    ).toLowerCase();
+
+    return locale.endsWith("-in") ? "INR" : "USD";
 }
