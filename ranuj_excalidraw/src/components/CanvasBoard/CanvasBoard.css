@@ -305,3 +305,41 @@
     width: 20px;
     background: #2563eb;
 }
+
+
+/* Selected-object quick actions: shown after a normal left-click selection. */
+.object-animation-widget {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.object-duplicate-trigger {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 1px solid #cbd5e1;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #1f2937;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.16);
+    font-size: 18px;
+    font-weight: 900;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.object-duplicate-trigger:hover,
+.object-duplicate-trigger:focus-visible {
+    border-color: #2563eb;
+    background: #eff6ff;
+    color: #1d4ed8;
+    outline: none;
+}
+
+.object-animation-popover {
+    right: 0;
+}

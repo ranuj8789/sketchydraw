@@ -2117,3 +2117,52 @@
     30%, 75% { opacity: 1; transform: translateY(0); }
     100% { opacity: .72; }
 }
+
+
+/* Viewport-safe File / New / Export menus.
+   Menus scroll internally instead of overlapping the frames bar or leaving
+   options outside the visible browser area. */
+.native-file-menu {
+    max-height: calc(100vh - 96px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+
+.native-submenu {
+    max-height: calc(100vh - 112px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+
+/* Export is long, so anchor it near the top toolbar instead of the hovered
+   row. This keeps PNG/JPEG at the top and GIF visible by scrolling. */
+.native-export-submenu {
+    position: fixed;
+    top: 76px;
+    left: min(
+            calc(100vw - 286px),
+            var(--sketchydraw-export-menu-left, 52vw)
+    );
+    bottom: auto;
+    width: 270px;
+    max-height: calc(100vh - 156px);
+    z-index: 1000005;
+}
+
+/* Keep the final menu rows above the floating frames bar. */
+.native-export-submenu::after {
+    content: "";
+    display: block;
+    height: 8px;
+}
+
+@media (max-width: 900px) {
+    .native-export-submenu {
+        top: 72px;
+        left: auto;
+        right: 12px;
+        max-height: calc(100vh - 96px);
+    }
+}

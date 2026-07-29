@@ -1420,6 +1420,111 @@ export default function CanvasBoard({
         return elements.filter((el) => selectedSet.has(el.id));
     };
 
+    const duplicateSelectedElements = () => {
+        const selected = getSelectedElements();
+        if (!selected.length) return;
+
+        const makeDuplicateId = (sourceId = "object") => {
+            if (
+                typeof crypto !== "undefined" &&
+                typeof crypto.randomUUID === "function"
+            ) {
+                return `${sourceId}_copy_${crypto.randomUUID()}`;
+            }
+
+            return `${sourceId}_copy_${Date.now()}_${Math.random()
+                .toString(16)
+                .slice(2)}`;
+        };
+
+        const idMap = new Map(
+            selected.map((element) => [
+                element.id,
+                makeDuplicateId(element.id || element.type || "object"),
+            ])
+        );
+
+        const cloneValue = (value) => {
+            if (typeof structuredClone === "function") {
+                return structuredClone(value);
+            }
+
+            return JSON.parse(JSON.stringify(value));
+        };
+
+        const remapBinding = (binding) => {
+            if (!binding || typeof binding !== "object") return binding;
+
+            const clonedBinding = cloneValue(binding);
+            if (
+                clonedBinding.elementId &&
+                idMap.has(clonedBinding.elementId)
+            ) {
+                clonedBinding.elementId = idMap.get(
+                    clonedBinding.elementId
+                );
+            }
+
+            return clonedBinding;
+        };
+
+        const offset = 24;
+
+        const duplicates = selected.map((element) => {
+            const duplicate = cloneValue(element);
+            duplicate.id = idMap.get(element.id);
+
+            if (duplicate.type === "line" || duplicate.type === "arrow") {
+                duplicate.x1 = Number(duplicate.x1 || 0) + offset;
+                duplicate.y1 = Number(duplicate.y1 || 0) + offset;
+                duplicate.x2 = Number(duplicate.x2 || 0) + offset;
+                duplicate.y2 = Number(duplicate.y2 || 0) + offset;
+            } else if (
+                duplicate.type === "pencil" &&
+                Array.isArray(duplicate.points)
+            ) {
+                duplicate.points = duplicate.points.map((point) => ({
+                    ...point,
+                    x: Number(point.x || 0) + offset,
+                    y: Number(point.y || 0) + offset,
+                }));
+            } else {
+                duplicate.x = Number(duplicate.x || 0) + offset;
+                duplicate.y = Number(duplicate.y || 0) + offset;
+            }
+
+            if (
+                duplicate.parentId &&
+                idMap.has(duplicate.parentId)
+            ) {
+                duplicate.parentId = idMap.get(duplicate.parentId);
+            }
+
+            duplicate.startBinding = remapBinding(
+                duplicate.startBinding
+            );
+            duplicate.endBinding = remapBinding(
+                duplicate.endBinding
+            );
+
+            if (Array.isArray(duplicate.boundElements)) {
+                duplicate.boundElements =
+                    duplicate.boundElements.map((binding) =>
+                        remapBinding(binding)
+                    );
+            }
+
+            return duplicate;
+        });
+
+        const nextElements = [...elements, ...duplicates];
+        setElements(nextElements);
+        setSelectedIds(duplicates.map((element) => element.id));
+        setAnimationMenuOpen(false);
+        commitHistory(nextElements);
+        onUpdateTimelineFrame?.(nextElements);
+    };
+
     const selectedAnimationElements = getSelectedElements();
     const selectedAnimationBounds = getGroupBounds(selectedAnimationElements);
     const selectedAnimationPresets = getAnimationPresetsForSelection(selectedAnimationElements);
@@ -3154,8 +3259,7 @@ export default function CanvasBoard({
                     />
                 )}
 
-                {!focusMode &&
-                    tool === "select" &&
+                {tool === "select" &&
                     !editor &&
                     !dragState &&
                     selectedAnimationAnchor &&
@@ -3175,6 +3279,16 @@ export default function CanvasBoard({
                                 event.stopPropagation();
                             }}
                         >
+                            <button
+                                type="button"
+                                className="object-duplicate-trigger"
+                                onClick={duplicateSelectedElements}
+                                title="Duplicate selected object (offset by 24px)"
+                                aria-label="Duplicate selected object"
+                            >
+                                ⧉
+                            </button>
+
                             <button
                                 type="button"
                                 className={`object-animation-trigger ${

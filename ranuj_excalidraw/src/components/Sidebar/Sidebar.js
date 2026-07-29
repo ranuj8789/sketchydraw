@@ -963,8 +963,9 @@ export default function Sidebar({
     useEffect(() => {
         clearSidebarHideTimer();
 
-        // Focus/full-screen mode intentionally uses only the slim tool rail.
-        if (focusMode) {
+        // Full-screen starts compact, but the user may open or pin the
+        // complete toolbar from the rail whenever they need it.
+        if (focusMode && sidebarPinMode !== "expanded") {
             setSidebarOpen(false);
             return;
         }
@@ -1078,7 +1079,7 @@ export default function Sidebar({
                 "--floating-sidebar-x": `${sidebarPosition.x}px`,
                 "--floating-sidebar-y": `${sidebarPosition.y}px`,
             }}
-            className={`floating-sidebar-host ${focusMode ? "fullscreen-sidebar" : "normal-sidebar"} ${!focusMode && (sidebarOpen || sidebarPinMode === "expanded") ? "open" : "closed"} pin-${sidebarPinMode || "none"}`}
+            className={`floating-sidebar-host ${focusMode ? "fullscreen-sidebar" : "normal-sidebar"} ${(sidebarOpen || sidebarPinMode === "expanded") ? "open" : "closed"} pin-${sidebarPinMode || "none"}`}
             onMouseEnter={scheduleSidebarOpen}
             onMouseLeave={scheduleSidebarClose}
             onFocusCapture={() => {
