@@ -38,12 +38,42 @@ export default function FramePlayerScreen({
                                               onRestartAll,
                                               onNext,
                                               onAdvanceModeChange,
+                                              onExportGIF,
+                                              gifExporting = false,
+                                              gifExportProgress = 0,
+                                              audioDataUrl = "",
+                                              audioName = "",
                                           }) {
     const canvasRef = useRef(null);
+    const playerRef = useRef(null);
+    const audioRef = useRef(null);
+    const [isBrowserFullscreen, setIsBrowserFullscreen] = useState(false);
     const [screenSize, setScreenSize] = useState({
         width: typeof window !== "undefined" ? window.innerWidth : 1200,
         height: typeof window !== "undefined" ? window.innerHeight : 800,
     });
+
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            setIsBrowserFullscreen(document.fullscreenElement === playerRef.current);
+        };
+
+        document.addEventListener("fullscreenchange", handleFullscreenChange);
+        return () =>
+            document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    }, []);
+
+    const toggleBrowserFullscreen = async () => {
+        try {
+            if (document.fullscreenElement) {
+                await document.exitFullscreen?.();
+            } else {
+                await playerRef.current?.requestFullscreen?.();
+            }
+        } catch (error) {
+            console.error("Unable to change player fullscreen mode", error);
+        }
+    };
 
     useEffect(() => {
         if (!open) return undefined;
@@ -107,6 +137,18 @@ export default function FramePlayerScreen({
         timeMs,
     ]);
 
+    useEffect(() => {
+        const audio = audioRef.current;
+        if (!open || !audio || !audioDataUrl) return;
+
+        if (timeMs <= 80) {
+            audio.currentTime = 0;
+            audio.play().catch(() => {
+                // Browsers may require the user to press Play audio once.
+            });
+        }
+    }, [open, frameIndex, audioDataUrl, timeMs]);
+
     if (!open) return null;
 
     const hasNextFrame = mode === "all" && frameIndex < totalFrames - 1;
@@ -115,7 +157,16 @@ export default function FramePlayerScreen({
     );
 
     return (
-        <div className="frame-player-screen">
+        <div className="frame-player-screen" ref={playerRef}>
+            <div className="frame-player-storyboard-heading">
+                <div>
+                    <span>Animation storyboard</span>
+                    <strong>Preview this frame before exporting</strong>
+                </div>
+                <small>
+                    Frame {frameIndex + 1} of {totalFrames}
+                </small>
+            </div>
             <div className="frame-player-topbar">
                 <div>
                     <strong>
@@ -174,6 +225,28 @@ export default function FramePlayerScreen({
                         </button>
                     )}
 
+                    <button
+                        type="button"
+                        className="frame-player-gif-btn"
+                        onClick={onExportGIF}
+                        disabled={gifExporting}
+                        title="Export all frames as an animated GIF"
+                    >
+                        {gifExporting
+                            ? `Exporting GIF ${Math.round(
+                                (gifExportProgress || 0) * 100
+                            )}%`
+                            : "Export GIF"}
+                    </button>
+
+                    <button
+                        type="button"
+                        className="frame-player-fullscreen-btn"
+                        onClick={toggleBrowserFullscreen}
+                    >
+                        {isBrowserFullscreen ? "Exit full screen" : "Full screen"}
+                    </button>
+
                     <button type="button" className="frame-player-close-btn" onClick={onClose}>
                         ×
                     </button>
@@ -183,6 +256,16 @@ export default function FramePlayerScreen({
             <div className="frame-player-stage">
                 <canvas ref={canvasRef} />
             </div>
+
+            {audioDataUrl && (
+                <div className="frame-player-audio">
+                    <div>
+                        <strong>Frame narration</strong>
+                        <span>{audioName || `Frame ${frameIndex + 1} audio`}</span>
+                    </div>
+                    <audio ref={audioRef} controls src={audioDataUrl} preload="metadata" />
+                </div>
+            )}
 
             <div className="frame-player-hint">
                 {waitingForNext && hasNextFrame ? (

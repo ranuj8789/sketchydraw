@@ -7,6 +7,8 @@ import CanvasBoard from "./components/CanvasBoard/CanvasBoard";
 import FramesPanel from "./components/FramesPanel/FramesPanel";
 import FramePlayerScreen from "./components/FramePlayerScreen/FramePlayerScreen";
 import StoryboardBar from "./components/StoryboardBar/StoryboardBar";
+import SEO from "./components/SEO/SEO";
+import SeoLandingPage, { SEO_PAGES } from "./components/SeoLandingPage/SeoLandingPage";
 import SketchyAlert from "./components/SketchyAlert";
 import MarkdownViewer from "./components/MarkDownViewer/MarkdownViewer";
 import SpreadsheetWorkspace from "./components/SpreadsheetWorkspace/SpreadsheetWorkspace";
@@ -325,6 +327,19 @@ function SketchyDrawPage() {
   ]);
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
   const [framesPanelOpen, setFramesPanelOpen] = useState(false);
+
+  useEffect(() => {
+    const handleOpenFrameAnimationManager = () => setFramesPanelOpen(true);
+    window.addEventListener(
+        "sketchydraw:open-frame-animation-manager",
+        handleOpenFrameAnimationManager
+    );
+    return () =>
+        window.removeEventListener(
+            "sketchydraw:open-frame-animation-manager",
+            handleOpenFrameAnimationManager
+        );
+  }, []);
   const [focusMode, setFocusMode] = useState(false);
   const [frameAnimationPlaying, setFrameAnimationPlaying] = useState(false);
   const [frameAnimationTimeMs, setFrameAnimationTimeMs] = useState(0);
@@ -338,6 +353,24 @@ function SketchyDrawPage() {
   const [animationPlayerWaitingForNext, setAnimationPlayerWaitingForNext] = useState(false);
   const [animationPlayerSpeed, setAnimationPlayerSpeed] = useState(1);
   const animationPlayerAdvanceTimeoutRef = useRef(null);
+  const frameActionUndoStackRef = useRef([]);
+
+  const rememberFrameAction = useCallback((label, frames, activeIndex) => {
+    const snapshot = {
+      label,
+      frames: (frames || []).map((frame) => ({
+        ...frame,
+        hiddenElementIds: [...(frame.hiddenElementIds || [])],
+        elements: cloneElements(frame.elements || []),
+      })),
+      activeIndex: Math.max(0, Number(activeIndex) || 0),
+    };
+
+    frameActionUndoStackRef.current = [
+      ...frameActionUndoStackRef.current.slice(-9),
+      snapshot,
+    ];
+  }, []);
 
   const showSketchyAlert = useCallback((payload) => {
     setSketchyAlert({
@@ -348,6 +381,46 @@ function SketchyDrawPage() {
       ...payload,
     });
   }, []);
+
+  const undoLastFrameAction = useCallback(() => {
+    const stack = frameActionUndoStackRef.current;
+    const snapshot = stack[stack.length - 1];
+
+    if (!snapshot) {
+      showSketchyAlert({
+        type: "info",
+        title: "Nothing to undo",
+        message: "No frame merge action is available to undo.",
+      });
+      return;
+    }
+
+    frameActionUndoStackRef.current = stack.slice(0, -1);
+
+    const restoredFrames = snapshot.frames.map((frame) => ({
+      ...frame,
+      hiddenElementIds: [...(frame.hiddenElementIds || [])],
+      elements: cloneElements(frame.elements || []),
+    }));
+
+    const safeIndex = Math.max(
+        0,
+        Math.min(snapshot.activeIndex, restoredFrames.length - 1)
+    );
+
+    setTimelineFrames(restoredFrames);
+    setCurrentFrameIndex(safeIndex);
+    setElements(cloneElements(restoredFrames[safeIndex]?.elements || []));
+    setSelectedIds([]);
+    setFrameAnimationPlaying(false);
+    setFrameAnimationTimeMs(0);
+
+    showSketchyAlert({
+      type: "success",
+      title: "Frame action undone",
+      message: `${snapshot.label} was reversed.`,
+    });
+  }, [showSketchyAlert]);
 
   const closeSketchyAlert = useCallback(() => {
     setSketchyAlert(null);
@@ -757,9 +830,35 @@ function SketchyDrawPage() {
     setFrameAnimationTimeMs(0);
   }, [currentFrameIndex]);
 
+  const updateFrameAudio = useCallback((frameIndex, audioDataUrl, audioMeta = {}) => {
+    setTimelineFrames((prevFrames) =>
+        prevFrames.map((frame, index) =>
+            index === frameIndex
+                ? {
+                  ...frame,
+                  audioDataUrl: audioDataUrl || "",
+                  audioName: audioMeta.name || "Recorded narration",
+                  audioDurationMs: Math.max(
+                      0,
+                      Number(audioMeta.durationMs) || 0
+                  ),
+                }
+                : frame
+        )
+    );
+  }, []);
+
+  const removeFrameAudio = useCallback((frameIndex) => {
+    updateFrameAudio(frameIndex, "", {
+      name: "",
+      durationMs: 0,
+    });
+  }, [updateFrameAudio]);
+
   const mergeCurrentFrameWithNext = useCallback(() => {
     setTimelineFrames((prevFrames) => {
       const safeFrames = prevFrames.length ? prevFrames : [createTimelineFrame([], 0)];
+      rememberFrameAction("Merge current frame with next", safeFrames, currentFrameIndex);
       const safeIndex = Math.max(0, Math.min(currentFrameIndex, safeFrames.length - 1));
 
       if (safeIndex >= safeFrames.length - 1) {
@@ -792,11 +891,12 @@ function SketchyDrawPage() {
 
     setFrameAnimationPlaying(false);
     setFrameAnimationTimeMs(0);
-  }, [currentFrameIndex]);
+  }, [currentFrameIndex, rememberFrameAction]);
 
   const mergeAllTimelineFrames = useCallback(() => {
     setTimelineFrames((prevFrames) => {
       const safeFrames = prevFrames.length ? prevFrames : [createTimelineFrame([], 0)];
+      rememberFrameAction("Merge all frames", safeFrames, currentFrameIndex);
       const mergedElements = mergeFrameElements(...safeFrames.map((frame) => frame.elements || []));
       const mergedHidden = [];
 
@@ -814,7 +914,7 @@ function SketchyDrawPage() {
 
     setFrameAnimationPlaying(false);
     setFrameAnimationTimeMs(0);
-  }, []);
+  }, [currentFrameIndex, rememberFrameAction]);
 
   const toggleFrameElementHidden = useCallback((frameIndex, elementId) => {
     setTimelineFrames((prevFrames) => {
@@ -998,6 +1098,7 @@ function SketchyDrawPage() {
   const mergeFrameWithNextAt = useCallback((frameIndex) => {
     setTimelineFrames((prevFrames) => {
       if (frameIndex < 0 || frameIndex >= prevFrames.length - 1) return prevFrames;
+      rememberFrameAction("Merge frame with next", prevFrames, frameIndex);
       const currentFrame = prevFrames[frameIndex];
       const nextFrame = prevFrames[frameIndex + 1];
       const mergedFrame = {
@@ -1019,7 +1120,7 @@ function SketchyDrawPage() {
     });
     setFrameAnimationPlaying(false);
     setFrameAnimationTimeMs(0);
-  }, []);
+  }, [rememberFrameAction]);
 
   const toggleCurrentFrameAnimation = useCallback(() => {
     setFrameAnimationTimeMs(0);
@@ -1063,6 +1164,24 @@ function SketchyDrawPage() {
     setFrameAnimationPlaying(false);
     setFrameAnimationTimeMs(0);
   }, [currentFrameIndex, timelineFrames]);
+
+  useEffect(() => {
+    const openAnimationStoryboard = () => {
+      openAnimationPlayer("current");
+    };
+
+    window.addEventListener(
+        "sketchydraw:open-animation-storyboard",
+        openAnimationStoryboard
+    );
+
+    return () => {
+      window.removeEventListener(
+          "sketchydraw:open-animation-storyboard",
+          openAnimationStoryboard
+      );
+    };
+  }, [openAnimationPlayer]);
 
   const closeAnimationPlayer = useCallback(() => {
     if (animationPlayerAdvanceTimeoutRef.current) {
@@ -1732,236 +1851,271 @@ function SketchyDrawPage() {
   };
 
   return (
-      <div className={`app-shell ${focusMode ? "focus-mode" : ""}`}>
-        <SketchyAlert
-            alert={sketchyAlert}
-            onClose={closeSketchyAlert}
-            onConfirm={() => sketchyAlert?.onConfirm?.()}
+      <>
+        <SEO
+            title="SketchyDraw — Animated Diagram Maker, Visual Explainers and Presentations"
+            description="Create animated diagrams, visual explanations, frame-based presentations, GIFs and videos in your browser with SketchyDraw."
+            path="/"
+            schema={[{
+              "@context": "https://schema.org",
+              "@type": "SoftwareApplication",
+              name: "SketchyDraw",
+              applicationCategory: "DesignApplication",
+              operatingSystem: "Web browser",
+              url: "https://sketchydraw.com",
+              description: "A browser-based workspace for animated diagrams, visual explainers, presentations, GIFs and videos.",
+              offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+            }]}
         />
+        <div className={`app-shell ${focusMode ? "focus-mode" : ""}`}>
+          <SketchyAlert
+              alert={sketchyAlert}
+              onClose={closeSketchyAlert}
+              onConfirm={() => sketchyAlert?.onConfirm?.()}
+          />
 
-        <div className={`layout workspace-${workspaceMode}`}>
-          {workspaceMode === "canvas" && <Sidebar
-              tool={tool}
-              setTool={setTool}
-              stroke={stroke}
-              setStroke={setStroke}
-              colors={COLORS}
-              selectedElement={activeSelection}
-              deleteSelected={deleteSelected}
-              toggleSelectedLineCurve={toggleSelectedLineCurve}
-              updateSelectedElementStyle={updateSelectedElementStyle}
-              canvasProps={canvasProps}
-              updateCanvasProps={updateCanvasProps}
-              frames={timelineFrames}
-              currentFrameIndex={currentFrameIndex}
-              animationPlaying={frameAnimationPlaying}
-              animationTimeMs={frameAnimationTimeMs}
-              advanceMode={frameAdvanceMode}
-              onAdvanceModeChange={setFrameAdvanceMode}
-              onOpenPlayer={openAnimationPlayer}
-              onAddFrameAfter={addTimelineFrameAfterCurrent}
-              onToggleFrameAnimation={toggleCurrentFrameAnimation}
-              onApplyFrameObjectOrderTiming={applyFrameObjectOrderTiming}
-              onUpdateFrameElementAnimation={updateFrameElementAnimation}
-              onPreviewTimeChange={(timeMs) => { setFrameAnimationPlaying(false); setFrameAnimationTimeMs(Math.max(0, Number(timeMs) || 0)); }}
-              onToggleFrameAnimation={toggleCurrentFrameAnimation}
-              onMergeFrameWithNext={mergeCurrentFrameWithNext}
-              onMergeAllFrames={mergeAllTimelineFrames}
-              onInsertGifPrimitive={insertGifPrimitiveObject}
-              onInsertEmoji={insertEmojiObject}
-              onInsertRichText={insertRichTextObject}
-              onGenerateCodeIllustration={generateCodeIllustration}
-              onSelectFrame={(index) => requirePro("Frames", () => selectTimelineFrame(index))}
-              onDeleteFrame={deleteTimelineFrame}
-              onOpenFramesPanel={() => setFramesPanelOpen(true)}
-              onUpdateElementFrameVisibility={updateElementFrameVisibility}
-              focusMode={focusMode}
-          />}
-
-          <div className="work-area">
-            <input
-                ref={jsonInputRef}
-                type="file"
-                accept=".json,.sketchylock,.docx,.pptx,.xlsx,.xls,.csv,application/json,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
-                onChange={importDrawingJson}
-                style={{ display: "none" }}
-            />
-
-            {!focusMode && workspaceMode !== "excel" && <Toolbar
-                undo={undo}
-                redo={redo}
-                clearCanvas={clearCanvas}
-                canUndo={historyIndex > 0}
-                canRedo={historyIndex < history.length - 1}
-                showGrid={showGrid}
-                setShowGrid={setShowGrid}
-                exportPNG={exportPNG}
-                exportInstagram={exportInstagram}
-                exportJPEG={exportJPEG}
-                exportSVG={exportSVG}
-                exportPDF={exportPDF}
-                printCanvas={printCanvas}
-                exportJSON={exportJSON}
-                exportPPT={exportPPT}
-                exportExcel={exportExcel}
-                exportCSV={exportCSV}
-                exportProtectedDrawing={exportProtectedDrawing}
-                canvasProps={canvasProps}
-                updateCanvasProps={updateCanvasProps}
-                openJsonPicker={openJsonPicker}
-                openImportPicker={openImportPicker}
-                drawingTitle={currentDrawingMeta.title}
-                onDrawingTitleChange={(title) =>
-                    setCurrentDrawingMeta((prev) => ({
-                      ...prev,
-                      title: title || "Untitled",
-                    }))
-                }
-                createNewDrawing={createNewDrawing}
-                timelineFrames={timelineFrames}
-                currentFrameIndex={currentFrameIndex}
-                onPresentFrames={() => requirePro("Presentation and frame playback", () => openAnimationPlayer("all"))}
-                onPreviousFrame={() => requirePro("Frames", () => selectTimelineFrame(Math.max(0, currentFrameIndex - 1)))}
-                onNextFrame={() => requirePro("Frames", () => selectTimelineFrame(Math.min(timelineFrames.length - 1, currentFrameIndex + 1)))}
-                openFramesPanel={() => requirePro("Frames", () => setFramesPanelOpen(true))}
-                exportGIF={exportGif}
-                gifExporting={gifExporting}
-                gifExportProgress={gifExportProgress}
-                socialCreatorPreset={socialCreatorPreset}
-                setSocialCreatorPreset={setSocialCreatorPreset}
-                onToggleFocusMode={enterFocusMode}
-                onOpenMarkdownGrid={() => { setMarkdownViewer((prev) => ({ ...prev, open: true })); setWorkspaceMode("markdown"); }}
-                onOpenExcelGrid={() => setWorkspaceMode("excel")}
-            />}
-
-            {workspaceMode === "canvas" && <CanvasBoard
+          <div className={`layout workspace-${workspaceMode}`}>
+            {workspaceMode === "canvas" && <Sidebar
                 tool={tool}
                 setTool={setTool}
                 stroke={stroke}
-                elements={elements}
-                setElements={setElements}
-                selectedIds={selectedIds}
-                setSelectedIds={setSelectedIds}
-                commitHistory={commitHistory}
-                onExport={exportPNG}
-                history={history}
-                showGrid={showGrid}
-                canvasRef={canvasRef}
-                viewport={viewport}
-                setViewport={setViewport}
-                canvasSize={canvasSize}
-                setCanvasSize={setCanvasSize}
-                currentDrawingMeta={currentDrawingMeta}
-                setCurrentDrawingMeta={setCurrentDrawingMeta}
+                setStroke={setStroke}
+                colors={COLORS}
+                selectedElement={activeSelection}
+                deleteSelected={deleteSelected}
+                toggleSelectedLineCurve={toggleSelectedLineCurve}
+                updateSelectedElementStyle={updateSelectedElementStyle}
                 canvasProps={canvasProps}
-                setCanvasProps={setCanvasProps}
-                currentTextStyle={currentTextStyle}
-                timelineFrames={timelineFrames}
+                updateCanvasProps={updateCanvasProps}
+                frames={timelineFrames}
                 currentFrameIndex={currentFrameIndex}
-                renderOptions={animationRenderOptions}
-                onCreateTimelineFrame={createTimelineFrameForNewObject}
-                onUpdateTimelineFrame={updateCurrentTimelineFrame}
-                onReplaceTimeline={replaceTimelineWithElements}
-                onRestoreTimeline={restoreTimelineFrames}
-                onStartAnimationPreview={startCurrentFrameAnimationPreview}
-                onCreateSocialTextPages={createSocialTextPages}
-                onSelectTimelineFrame={(index) => requirePro("Frames", () => selectTimelineFrame(index))}
-                socialCreatorPreset={socialCreatorPreset}
-                focusMode={focusMode}
-            />}
-
-            {workspaceMode === "canvas" && !focusMode && <StoryboardBar
-                frames={timelineFrames}
-                currentIndex={currentFrameIndex}
-                onSelectFrame={selectTimelineFrame}
-                onAddFrame={() => requirePro("Frames", addTimelineFrameAfterCurrent)}
-                onOpenManager={() => requirePro("Frames", () => setFramesPanelOpen(true))}
-                onPresent={() => requirePro("Presentation and frame playback", () => openAnimationPlayer("all"))}
-                onPlayCurrent={() => requirePro("Frame playback", () => openAnimationPlayer("current"))}
-                onMergeAll={() => requirePro("Merge frames", mergeAllTimelineFrames)}
-                onReorderFrames={reorderTimelineFrames}
-            />}
-
-            {workspaceMode === "markdown" && (
-                <MarkdownViewer
-                    open
-                    title={markdownViewer.title}
-                    content={markdownViewer.content}
-                    onChange={(content) => setMarkdownViewer((prev) => ({ ...prev, content }))}
-                    onTitleChange={(title) => setMarkdownViewer((prev) => ({ ...prev, title }))}
-                    onClose={() => { setMarkdownViewer((prev) => ({ ...prev, open: false })); setWorkspaceMode("canvas"); }}
-                />
-            )}
-
-            {workspaceMode === "excel" && (
-                <SpreadsheetWorkspace onClose={() => setWorkspaceMode("canvas")} />
-            )}
-
-            {focusMode && (
-                <button
-                    type="button"
-                    className="focus-mode-exit"
-                    onClick={exitFocusMode}
-                    title="Exit focus mode (Esc)"
-                >
-                  Exit focus mode
-                </button>
-            )}
-
-            {proUser && <FramesPanel
-                open={framesPanelOpen}
-                frames={timelineFrames}
-                currentIndex={currentFrameIndex}
-                canvasSize={canvasSize}
-                canvasViewport={viewport}
-                canvasProps={canvasProps}
-                renderOptions={animationRenderOptions}
+                onUpdateFrameAudio={updateFrameAudio}
+                onRemoveFrameAudio={removeFrameAudio}
                 animationPlaying={frameAnimationPlaying}
                 animationTimeMs={frameAnimationTimeMs}
-                onClose={() => setFramesPanelOpen(false)}
-                onSelectFrame={selectTimelineFrame}
+                advanceMode={frameAdvanceMode}
+                onAdvanceModeChange={setFrameAdvanceMode}
+                onOpenPlayer={openAnimationPlayer}
                 onAddFrameAfter={addTimelineFrameAfterCurrent}
-                onDeleteFrame={deleteTimelineFrame}
-                onReorderFrames={reorderTimelineFrames}
-                onUpdateFrame={updateTimelineFrameMeta}
-                onPlayCurrent={() => openAnimationPlayer("current")}
-                onPlayAll={() => openAnimationPlayer("all")}
-                onToggleElementHidden={toggleFrameElementHidden}
-                onMoveFrameElementOrder={moveFrameElementOrder}
+                onToggleFrameAnimation={toggleCurrentFrameAnimation}
                 onApplyFrameObjectOrderTiming={applyFrameObjectOrderTiming}
                 onUpdateFrameElementAnimation={updateFrameElementAnimation}
                 onPreviewTimeChange={(timeMs) => { setFrameAnimationPlaying(false); setFrameAnimationTimeMs(Math.max(0, Number(timeMs) || 0)); }}
-                onMergeFrameWithNext={mergeFrameWithNextAt}
+                onToggleFrameAnimation={toggleCurrentFrameAnimation}
+                onMergeFrameWithNext={mergeCurrentFrameWithNext}
                 onMergeAllFrames={mergeAllTimelineFrames}
+                onInsertGifPrimitive={insertGifPrimitiveObject}
+                onInsertEmoji={insertEmojiObject}
+                onInsertRichText={insertRichTextObject}
+                onGenerateCodeIllustration={generateCodeIllustration}
+                onSelectFrame={(index) => requirePro("Frames", () => selectTimelineFrame(index))}
+                onDeleteFrame={deleteTimelineFrame}
+                onOpenFramesPanel={() => setFramesPanelOpen(true)}
+                onUpdateElementFrameVisibility={updateElementFrameVisibility}
+                focusMode={focusMode}
             />}
 
+            <div className="work-area">
+              <input
+                  ref={jsonInputRef}
+                  type="file"
+                  accept=".json,.sketchylock,.docx,.pptx,.xlsx,.xls,.csv,application/json,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+                  onChange={importDrawingJson}
+                  style={{ display: "none" }}
+              />
 
-            {proUser && <FramePlayerScreen
-                open={animationPlayerOpen}
-                frame={animationPlayerFrame}
-                frameIndex={animationPlayerFrameIndex}
-                totalFrames={timelineFrames.length || 1}
-                mode={animationPlayerMode}
-                advanceMode={frameAdvanceMode}
-                canvasSize={canvasSize}
-                canvasViewport={viewport}
-                canvasProps={canvasProps}
-                renderOptions={animationPlayerRenderOptions}
-                playing={animationPlayerPlaying}
-                timeMs={animationPlayerTimeMs}
-                waitingForNext={animationPlayerWaitingForNext}
-                playbackSpeed={animationPlayerSpeed}
-                onPlaybackSpeedChange={setAnimationPlayerSpeed}
-                onClose={closeAnimationPlayer}
-                onRestart={restartAnimationPlayerFrame}
-                onRestartAll={restartAllAnimationPlayerFrames}
-                onNext={advanceAnimationPlayerFrame}
-                onAdvanceModeChange={setFrameAdvanceMode}
-            />}
+              {!focusMode && workspaceMode !== "excel" && <Toolbar
+                  undo={undo}
+                  redo={redo}
+                  clearCanvas={clearCanvas}
+                  canUndo={historyIndex > 0}
+                  canRedo={historyIndex < history.length - 1}
+                  showGrid={showGrid}
+                  setShowGrid={setShowGrid}
+                  exportPNG={exportPNG}
+                  exportInstagram={exportInstagram}
+                  exportJPEG={exportJPEG}
+                  exportSVG={exportSVG}
+                  exportPDF={exportPDF}
+                  printCanvas={printCanvas}
+                  exportJSON={exportJSON}
+                  exportPPT={exportPPT}
+                  exportExcel={exportExcel}
+                  exportCSV={exportCSV}
+                  exportProtectedDrawing={exportProtectedDrawing}
+                  canvasProps={canvasProps}
+                  updateCanvasProps={updateCanvasProps}
+                  openJsonPicker={openJsonPicker}
+                  openImportPicker={openImportPicker}
+                  drawingTitle={currentDrawingMeta.title}
+                  onDrawingTitleChange={(title) =>
+                      setCurrentDrawingMeta((prev) => ({
+                        ...prev,
+                        title: title || "Untitled",
+                      }))
+                  }
+                  createNewDrawing={createNewDrawing}
+                  timelineFrames={timelineFrames}
+                  currentFrameIndex={currentFrameIndex}
+                  onPresentFrames={() => requirePro("Presentation and frame playback", () => openAnimationPlayer("all"))}
+                  onPreviousFrame={() => requirePro("Frames", () => selectTimelineFrame(Math.max(0, currentFrameIndex - 1)))}
+                  onNextFrame={() => requirePro("Frames", () => selectTimelineFrame(Math.min(timelineFrames.length - 1, currentFrameIndex + 1)))}
+                  openFramesPanel={() => requirePro("Frames", () => setFramesPanelOpen(true))}
+                  exportGIF={exportGif}
+                  gifExporting={gifExporting}
+                  gifExportProgress={gifExportProgress}
+                  socialCreatorPreset={socialCreatorPreset}
+                  setSocialCreatorPreset={setSocialCreatorPreset}
+                  onToggleFocusMode={enterFocusMode}
+                  onOpenMarkdownGrid={() => { setMarkdownViewer((prev) => ({ ...prev, open: true })); setWorkspaceMode("markdown"); }}
+                  onOpenExcelGrid={() => setWorkspaceMode("excel")}
+                  tool={tool}
+                  setTool={setTool}
+              />}
+
+              {workspaceMode === "canvas" && <CanvasBoard
+                  tool={tool}
+                  setTool={setTool}
+                  stroke={stroke}
+                  elements={elements}
+                  setElements={setElements}
+                  selectedIds={selectedIds}
+                  setSelectedIds={setSelectedIds}
+                  commitHistory={commitHistory}
+                  onExport={exportPNG}
+                  history={history}
+                  showGrid={showGrid}
+                  canvasRef={canvasRef}
+                  viewport={viewport}
+                  setViewport={setViewport}
+                  canvasSize={canvasSize}
+                  setCanvasSize={setCanvasSize}
+                  currentDrawingMeta={currentDrawingMeta}
+                  setCurrentDrawingMeta={setCurrentDrawingMeta}
+                  canvasProps={canvasProps}
+                  setCanvasProps={setCanvasProps}
+                  currentTextStyle={currentTextStyle}
+                  timelineFrames={timelineFrames}
+                  currentFrameIndex={currentFrameIndex}
+                  renderOptions={animationRenderOptions}
+                  onCreateTimelineFrame={createTimelineFrameForNewObject}
+                  onUpdateTimelineFrame={updateCurrentTimelineFrame}
+                  onReplaceTimeline={replaceTimelineWithElements}
+                  onRestoreTimeline={restoreTimelineFrames}
+                  onStartAnimationPreview={startCurrentFrameAnimationPreview}
+                  onCreateSocialTextPages={createSocialTextPages}
+                  onSelectTimelineFrame={(index) => requirePro("Frames", () => selectTimelineFrame(index))}
+                  socialCreatorPreset={socialCreatorPreset}
+                  focusMode={focusMode}
+              />}
+
+              {workspaceMode === "canvas" && !focusMode && <StoryboardBar
+                  frames={timelineFrames}
+                  currentIndex={currentFrameIndex}
+                  onSelectFrame={selectTimelineFrame}
+                  onAddFrame={() => requirePro("Frames", addTimelineFrameAfterCurrent)}
+                  onOpenManager={() => requirePro("Frames", () => setFramesPanelOpen(true))}
+                  onPresent={() => requirePro("Presentation and frame playback", () => openAnimationPlayer("all"))}
+                  onPreviousFrame={() => requirePro("Frames", () => selectTimelineFrame(Math.max(0, currentFrameIndex - 1)))}
+                  onNextFrame={() => requirePro("Frames", () => selectTimelineFrame(Math.min(timelineFrames.length - 1, currentFrameIndex + 1)))}
+                  onPlayCurrent={() => requirePro("Frame playback", () => openAnimationPlayer("current"))}
+                  onMergeAll={() => requirePro("Merge frames", mergeAllTimelineFrames)}
+                  onUndoFrameAction={undoLastFrameAction}
+                  canUndoFrameAction={frameActionUndoStackRef.current.length > 0}
+                  onReorderFrames={reorderTimelineFrames}
+              />}
+
+              {workspaceMode === "markdown" && (
+                  <MarkdownViewer
+                      open
+                      title={markdownViewer.title}
+                      content={markdownViewer.content}
+                      onChange={(content) => setMarkdownViewer((prev) => ({ ...prev, content }))}
+                      onTitleChange={(title) => setMarkdownViewer((prev) => ({ ...prev, title }))}
+                      onClose={() => { setMarkdownViewer((prev) => ({ ...prev, open: false })); setWorkspaceMode("canvas"); }}
+                  />
+              )}
+
+              {workspaceMode === "excel" && (
+                  <SpreadsheetWorkspace onClose={() => setWorkspaceMode("canvas")} />
+              )}
+
+              {focusMode && (
+                  <button
+                      type="button"
+                      className="focus-mode-exit"
+                      onClick={exitFocusMode}
+                      title="Exit focus mode (Esc)"
+                  >
+                    Exit focus mode
+                  </button>
+              )}
+
+              {proUser && <FramesPanel
+                  open={framesPanelOpen}
+                  frames={timelineFrames}
+                  currentIndex={currentFrameIndex}
+                  canvasSize={canvasSize}
+                  canvasViewport={viewport}
+                  canvasProps={canvasProps}
+                  renderOptions={animationRenderOptions}
+                  animationPlaying={frameAnimationPlaying}
+                  animationTimeMs={frameAnimationTimeMs}
+                  onClose={() => setFramesPanelOpen(false)}
+                  onSelectFrame={selectTimelineFrame}
+                  onAddFrameAfter={addTimelineFrameAfterCurrent}
+                  onDeleteFrame={deleteTimelineFrame}
+                  onReorderFrames={reorderTimelineFrames}
+                  onUpdateFrame={updateTimelineFrameMeta}
+                  onUpdateFrameElementAnimation={updateFrameElementAnimation}
+                  onUpdateFrameAudio={updateFrameAudio}
+                  onRemoveFrameAudio={removeFrameAudio}
+                  onUndoFrameAction={undoLastFrameAction}
+                  canUndoFrameAction={frameActionUndoStackRef.current.length > 0}
+                  onPlayCurrent={() => openAnimationPlayer("current")}
+                  onPlayAll={() => openAnimationPlayer("all")}
+                  onToggleElementHidden={toggleFrameElementHidden}
+                  onMoveFrameElementOrder={moveFrameElementOrder}
+                  onApplyFrameObjectOrderTiming={applyFrameObjectOrderTiming}
+                  onUpdateFrameElementAnimation={updateFrameElementAnimation}
+                  onPreviewTimeChange={(timeMs) => { setFrameAnimationPlaying(false); setFrameAnimationTimeMs(Math.max(0, Number(timeMs) || 0)); }}
+                  onMergeFrameWithNext={mergeFrameWithNextAt}
+                  onMergeAllFrames={mergeAllTimelineFrames}
+              />}
+
+
+              {proUser && <FramePlayerScreen
+                  open={animationPlayerOpen}
+                  frame={animationPlayerFrame}
+                  frameIndex={animationPlayerFrameIndex}
+                  totalFrames={timelineFrames.length || 1}
+                  mode={animationPlayerMode}
+                  advanceMode={frameAdvanceMode}
+                  canvasSize={canvasSize}
+                  canvasViewport={viewport}
+                  canvasProps={canvasProps}
+                  renderOptions={animationPlayerRenderOptions}
+                  playing={animationPlayerPlaying}
+                  timeMs={animationPlayerTimeMs}
+                  waitingForNext={animationPlayerWaitingForNext}
+                  playbackSpeed={animationPlayerSpeed}
+                  onPlaybackSpeedChange={setAnimationPlayerSpeed}
+                  onClose={closeAnimationPlayer}
+                  onRestart={restartAnimationPlayerFrame}
+                  onRestartAll={restartAllAnimationPlayerFrames}
+                  onNext={advanceAnimationPlayerFrame}
+                  onAdvanceModeChange={setFrameAdvanceMode}
+                  onExportGIF={exportGif}
+                  gifExporting={gifExporting}
+                  gifExportProgress={gifExportProgress}
+                  audioDataUrl={animationPlayerFrame?.audioDataUrl || ""}
+                  audioName={animationPlayerFrame?.audioName || ""}
+              />}
+            </div>
+
           </div>
-
         </div>
-      </div>
+      </>
   );
 }
 
@@ -2076,7 +2230,14 @@ function ResetPasswordPage() {
 }
 
 export default function App() {
-  const path = window.location.pathname;
+  const rawPath = window.location.pathname || "/";
+  const path = rawPath.length > 1 && rawPath.endsWith("/")
+      ? rawPath.slice(0, -1)
+      : rawPath;
+
+  if (SEO_PAGES[path]) {
+    return <SeoLandingPage page={SEO_PAGES[path]} path={path} />;
+  }
 
   if (path === "/verify") {
     return <VerifyPage />;

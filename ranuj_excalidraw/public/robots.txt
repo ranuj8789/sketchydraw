@@ -1,19 +1,8 @@
 User-agent: *
 Allow: /
-
-User-agent: GPTBot
-Allow: /
-
-User-agent: ChatGPT-User
-Allow: /
-
-User-agent: OAI-SearchBot
-Allow: /
-
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
+Disallow: /verify
+Disallow: /reset-password
+Disallow: /payment/
+Disallow: /*?token=
 
 Sitemap: https://sketchydraw.com/sitemap.xml

@@ -881,6 +881,8 @@ export default function Sidebar({
 
                                     frames = [],
                                     currentFrameIndex = 0,
+                                    onUpdateFrameAudio,
+                                    onRemoveFrameAudio,
                                     animationPlaying = false,
                                     animationTimeMs = 0,
                                     advanceMode = "enter",
@@ -911,6 +913,13 @@ export default function Sidebar({
     // Start every fresh editor session with the complete toolbar visible.
     // The user can collapse it once they begin working.
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [sidebarAutoHide, setSidebarAutoHide] = useState(() => {
+        try {
+            return window.localStorage.getItem("sketchydraw.sidebarAutoHide") === "true";
+        } catch {
+            return false;
+        }
+    });
     const [sidebarPosition, setSidebarPosition] = useState(() => {
         try {
             const saved = JSON.parse(window.localStorage.getItem("sketchydraw.sidebarPosition") || "null");
@@ -923,6 +932,27 @@ export default function Sidebar({
     const sidebarHideTimerRef = useRef(null);
     const sidebarShowTimerRef = useRef(null);
     const proUser = hasProAccess();
+
+    useEffect(() => {
+        const handleToolbarSidebarRequest = (event) => {
+            const section = event?.detail?.section;
+            if (!["draw", "properties", "gif"].includes(section)) return;
+            setActiveTab(section);
+            setSidebarOpen(true);
+        };
+        window.addEventListener("sketchydraw:open-sidebar-section", handleToolbarSidebarRequest);
+        return () => window.removeEventListener("sketchydraw:open-sidebar-section", handleToolbarSidebarRequest);
+    }, []);
+
+    useEffect(() => {
+        if (!selectedElement || selectedElement.id === "__multi__") return;
+
+        // Selecting an object should immediately reveal its properties.
+        // Animation remains a separate workflow/dialog and is not mixed into
+        // the main toolbar navigation.
+        setSidebarOpen(true);
+        setActiveTab("properties");
+    }, [selectedElement?.id]);
 
     const clearSidebarShowTimer = () => {
         if (sidebarShowTimerRef.current) {
@@ -941,19 +971,19 @@ export default function Sidebar({
     const scheduleSidebarOpen = () => {
         clearSidebarHideTimer();
         clearSidebarShowTimer();
-        if (sidebarPinMode === "compact" || sidebarPinMode === "expanded") return;
-        sidebarShowTimerRef.current = window.setTimeout(() => {
-            setSidebarOpen(true);
-        }, 230);
+        // Auto-hidden toolbar must return instantly when the user reaches it.
+        setSidebarOpen(true);
     };
 
     const scheduleSidebarClose = () => {
         clearSidebarShowTimer();
         clearSidebarHideTimer();
-        if (sidebarPinMode === "expanded") return;
+        // The toolbar stays open by default. It may slide away only after the
+        // user explicitly enables Auto hide, and never while pinned.
+        if (!sidebarAutoHide || sidebarPinMode === "expanded") return;
         sidebarHideTimerRef.current = window.setTimeout(() => {
             setSidebarOpen(false);
-        }, 220);
+        }, 5000);
     };
 
     useEffect(() => () => {
@@ -963,17 +993,11 @@ export default function Sidebar({
     useEffect(() => {
         clearSidebarHideTimer();
 
-        // Full-screen starts compact, but the user may open or pin the
-        // complete toolbar from the rail whenever they need it.
-        if (focusMode && sidebarPinMode !== "expanded") {
-            setSidebarOpen(false);
-            return;
-        }
-
-        if (sidebarPinMode === "expanded") {
+        // Keep the toolbar visible unless Auto hide was explicitly enabled.
+        if (sidebarPinMode === "expanded" || !sidebarAutoHide) {
             setSidebarOpen(true);
         }
-    }, [focusMode, sidebarPinMode]);
+    }, [focusMode, sidebarPinMode, sidebarAutoHide]);
 
     const setPinMode = (mode) => {
         const next = sidebarPinMode === mode ? "" : mode;
@@ -982,7 +1006,19 @@ export default function Sidebar({
             window.localStorage.setItem("sketchydraw.sidebarPinMode", next);
         } catch {}
         clearSidebarHideTimer();
-        setSidebarOpen(next === "expanded");
+        setSidebarOpen(true);
+    };
+
+    const toggleSidebarAutoHide = () => {
+        const next = !sidebarAutoHide;
+        setSidebarAutoHide(next);
+        try {
+            window.localStorage.setItem("sketchydraw.sidebarAutoHide", String(next));
+        } catch {}
+        clearSidebarHideTimer();
+        // Enabling Auto hide does not close immediately. The five-second
+        // countdown begins only after the pointer leaves the toolbar.
+        setSidebarOpen(true);
     };
 
     const clampSidebarPosition = (x, y) => {
@@ -1073,145 +1109,141 @@ export default function Sidebar({
     };
 
     return (
-        <div
-            ref={sidebarHostRef}
-            style={{
-                "--floating-sidebar-x": `${sidebarPosition.x}px`,
-                "--floating-sidebar-y": `${sidebarPosition.y}px`,
-            }}
-            className={`floating-sidebar-host ${focusMode ? "fullscreen-sidebar" : "normal-sidebar"} ${(sidebarOpen || sidebarPinMode === "expanded") ? "open" : "closed"} pin-${sidebarPinMode || "none"}`}
-            onMouseEnter={scheduleSidebarOpen}
-            onMouseLeave={scheduleSidebarClose}
-            onFocusCapture={() => {
-                clearSidebarHideTimer();
-                clearSidebarShowTimer();
-                if (sidebarPinMode !== "compact") setSidebarOpen(true);
-            }}
-            onBlurCapture={scheduleSidebarClose}
-        >
-            <div className="floating-sidebar-launcher" aria-label="Quick drawing toolbar">
-                <button
-                    type="button"
-                    className="floating-sidebar-main-button"
-                    onClick={() => setSidebarOpen((value) => !value)}
-                    aria-label="Open drawing tools"
-                    title="Open drawing tools"
-                >
-                    <PanelLeftOpen size={20} />
-                </button>
+        <>
+            <div
+                ref={sidebarHostRef}
+                style={{
+                    "--floating-sidebar-x": `${sidebarPosition.x}px`,
+                    "--floating-sidebar-y": `${sidebarPosition.y}px`,
+                }}
+                className={`floating-sidebar-host ${focusMode ? "fullscreen-sidebar" : "normal-sidebar"} ${(sidebarOpen || sidebarPinMode === "expanded") ? "open" : "closed"} ${sidebarAutoHide ? "auto-hide-on" : "auto-hide-off"} pin-${sidebarPinMode || "none"}`}
+                onMouseEnter={scheduleSidebarOpen}
+                onMouseLeave={scheduleSidebarClose}
+                onFocusCapture={() => {
+                    clearSidebarHideTimer();
+                    clearSidebarShowTimer();
+                    setSidebarOpen(true);
+                }}
+                onBlurCapture={scheduleSidebarClose}
+            >
+                <div className="floating-sidebar-launcher" aria-label="Quick drawing toolbar">
+                    <button
+                        type="button"
+                        className="floating-sidebar-main-button"
+                        onClick={() => setSidebarOpen((value) => !value)}
+                        aria-label="Open drawing tools"
+                        title="Open drawing tools"
+                    >
+                        <PanelLeftOpen size={20} />
+                    </button>
 
-                <button
-                    type="button"
-                    className={`floating-sidebar-rail-pin ${sidebarPinMode === "expanded" ? "active" : ""}`}
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        setPinMode("expanded");
-                    }}
-                    aria-label={sidebarPinMode === "expanded" ? "Unpin expanded toolbar" : "Pin expanded toolbar"}
-                    title={sidebarPinMode === "expanded" ? "Unpin toolbar" : "Pin toolbar open"}
-                    aria-pressed={sidebarPinMode === "expanded"}
-                >
-                    <Pin size={16} />
-                </button>
+                    <button
+                        type="button"
+                        className={`floating-sidebar-rail-pin ${sidebarPinMode === "expanded" ? "active" : ""}`}
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            setPinMode("expanded");
+                        }}
+                        aria-label={sidebarPinMode === "expanded" ? "Unpin expanded toolbar" : "Pin expanded toolbar"}
+                        title={sidebarPinMode === "expanded" ? "Unpin toolbar" : "Pin toolbar open"}
+                        aria-pressed={sidebarPinMode === "expanded"}
+                    >
+                        <Pin size={16} />
+                    </button>
 
-                <div className="floating-sidebar-quick-tools" aria-label="Drawing tools">
-                    {TOOLS.map((item) => {
-                        const Icon = item.icon;
-                        return (
-                            <button
-                                key={item.id}
-                                type="button"
-                                className={tool === item.id ? "active" : ""}
-                                onClick={(event) => {
-                                    event.stopPropagation();
-                                    chooseTool(item);
-                                }}
-                                title={`${item.label}${item.premium ? " · PRO" : ""}`}
-                            >
-                                <Icon size={17} />
-                                {item.premium && <span className="quick-tool-pro-dot" />}
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
-
-            <aside className="sidebar floating-sidebar-panel" aria-hidden={!sidebarOpen && sidebarPinMode !== "expanded"}>
-                <div
-                    className="sidebar-logo-box sidebar-drag-handle"
-                    onPointerDown={startSidebarDrag}
-                    onPointerMove={moveSidebarDrag}
-                    onPointerUp={endSidebarDrag}
-                    onPointerCancel={endSidebarDrag}
-                    onDoubleClick={resetSidebarPosition}
-                    title="Drag toolbar · double-click to reset position"
-                >
-                    <div className="sidebar-logo-text">
-                        <strong>SketchyDraw</strong>
-                        <span>Draw ideas fast</span>
+                    <div className="floating-sidebar-quick-tools" aria-label="Drawing tools">
+                        {TOOLS.map((item) => {
+                            const Icon = item.icon;
+                            return (
+                                <button
+                                    key={item.id}
+                                    type="button"
+                                    className={tool === item.id ? "active" : ""}
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        chooseTool(item);
+                                    }}
+                                    title={`${item.label}${item.premium ? " · PRO" : ""}`}
+                                >
+                                    <Icon size={17} />
+                                    {item.premium && <span className="quick-tool-pro-dot" />}
+                                </button>
+                            );
+                        })}
                     </div>
-                    <div className="sidebar-display-controls" aria-label="Toolbar display controls">
+                </div>
+
+                <aside className="sidebar floating-sidebar-panel" aria-hidden={!sidebarOpen && sidebarPinMode !== "expanded"}>
+                    <div
+                        className="sidebar-logo-box sidebar-drag-handle"
+                        onPointerDown={startSidebarDrag}
+                        onPointerMove={moveSidebarDrag}
+                        onPointerUp={endSidebarDrag}
+                        onPointerCancel={endSidebarDrag}
+                        onDoubleClick={resetSidebarPosition}
+                        title="Drag toolbar · double-click to reset position"
+                    >
+                        <div className="sidebar-logo-text">
+                            <strong>SketchyDraw</strong>
+                            <span>Draw ideas fast</span>
+                        </div>
+                        <div className="sidebar-display-controls" aria-label="Toolbar display controls">
+                            <button
+                                type="button"
+                                className={`sidebar-auto-hide-button ${sidebarAutoHide ? "active" : ""}`}
+                                onClick={toggleSidebarAutoHide}
+                                title={sidebarAutoHide ? "Auto hide is on: slides away 5 seconds after leaving" : "Enable Auto hide"}
+                                aria-label={sidebarAutoHide ? "Disable Auto hide" : "Enable Auto hide"}
+                                aria-pressed={sidebarAutoHide}
+                            >
+                                Auto hide
+                            </button>
+                            <button
+                                type="button"
+                                className={`sidebar-pin-button sidebar-panel-pin ${sidebarPinMode === "expanded" ? "active" : ""}`}
+                                onClick={() => setPinMode("expanded")}
+                                title={sidebarPinMode === "expanded" ? "Unpin toolbar" : "Pin toolbar open"}
+                                aria-label={sidebarPinMode === "expanded" ? "Unpin toolbar" : "Pin toolbar open"}
+                                aria-pressed={sidebarPinMode === "expanded"}
+                            >
+                                <Pin size={15} />
+                                <span>{sidebarPinMode === "expanded" ? "Pinned" : "Pin"}</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="left-toolbar-tabs sidebar-primary-tabs">
                         <button
                             type="button"
-                            className={`sidebar-pin-button sidebar-panel-pin ${sidebarPinMode === "expanded" ? "active" : ""}`}
-                            onClick={() => setPinMode("expanded")}
-                            title={sidebarPinMode === "expanded" ? "Unpin expanded toolbar" : "Pin expanded toolbar"}
-                            aria-label={sidebarPinMode === "expanded" ? "Unpin expanded toolbar" : "Pin expanded toolbar"}
-                            aria-pressed={sidebarPinMode === "expanded"}
+                            className={activeTab === "draw" ? "active" : ""}
+                            onClick={() => setActiveTab("draw")}
+                            title="Choose a drawing tool"
                         >
-                            <Pin size={15} />
-                            <span>{sidebarPinMode === "expanded" ? "Pinned" : "Pin"}</span>
+                            Tools
                         </button>
-                        <button type="button" className="sidebar-close-button" onClick={() => setSidebarOpen(false)} title="Collapse toolbar" aria-label="Collapse toolbar"><X size={15} /></button>
+
+                        <button
+                            type="button"
+                            className={activeTab === "properties" ? "active" : ""}
+                            onClick={() => setActiveTab("properties")}
+                            title="Canvas or selected object properties"
+                        >
+                            Properties
+                        </button>
+
+                        <button
+                            type="button"
+                            className={activeTab === "gif" ? "active" : ""}
+                            onClick={() => setActiveTab("gif")}
+                            title="GIF and animated drawing tools"
+                        >
+                            GIF Tools
+                        </button>
                     </div>
-                </div>
 
-                <div className="left-toolbar-tabs">
-                    <button
-                        type="button"
-                        className={activeTab === "draw" ? "active" : ""}
-                        onClick={() => setActiveTab("draw")}
-                        title="Draw tools"
-                    >
-                        <span className="sidebar-tab-full">Draw</span>
-                        <span className="sidebar-tab-short">D</span>
-                    </button>
-                    <button
-                        type="button"
-                        className={activeTab === "gif" ? "active" : ""}
-                        onClick={() => chooseTab("gif", "GIF tools") }
-                        title="GIF tools"
-                    >
-                        <span className="sidebar-tab-full">GIF</span>
-                        <span className="sidebar-tab-short">G</span>
-                        {!proUser && <small className="tab-pro-badge">PRO</small>}
-                    </button>
-                    {/*<button*/}
-                    {/*    type="button"*/}
-                    {/*    className={activeTab === "code" ? "active" : ""}*/}
-                    {/*    // onClick={() => chooseTab("code", "Code Illustrator")}*/}
-                    {/*    title="Code illustrator"*/}
-                    {/*>*/}
-                    {/*    <span className="sidebar-tab-full">Code</span>*/}
-                    {/*    <span className="sidebar-tab-short">C</span>*/}
-                    {/*    {!proUser && <small className="tab-pro-badge">PRO</small>}*/}
-                    {/*</button>*/}
-                    {/*<button*/}
-                    {/*    type="button"*/}
-                    {/*    className={activeTab === "system" ? "active" : ""}*/}
-                    {/*    onClick={() => chooseTab("system", "System design tools")}*/}
-                    {/*    title="System design tools"*/}
-                    {/*>*/}
-                    {/*    <span className="sidebar-tab-full">System</span>*/}
-                    {/*    <span className="sidebar-tab-short">S</span>*/}
-                    {/*    {!proUser && <small className="tab-pro-badge">PRO</small>}*/}
-                    {/*</button>*/}
-                </div>
+                    <div className="floating-sidebar-scroll-body">
 
-                <div className="floating-sidebar-scroll-body">
-
-                    {activeTab === "draw" && (
-                        <>
+                        {activeTab === "draw" && (
                             <div className="panel">
                                 <h3>Tools</h3>
 
@@ -1234,7 +1266,9 @@ export default function Sidebar({
                                     })}
                                 </div>
                             </div>
+                        )}
 
+                        {activeTab === "properties" && (
                             <PropertiesPanel
                                 selectedElement={selectedElement}
                                 colors={colors}
@@ -1245,41 +1279,34 @@ export default function Sidebar({
                                 updateCanvasProps={updateCanvasProps}
                                 frames={frames}
                                 currentFrameIndex={currentFrameIndex}
+                                onUpdateFrameAudio={onUpdateFrameAudio}
+                                onRemoveFrameAudio={onRemoveFrameAudio}
+                                forcedMode="properties"
+                                hideModeTabs
                             />
-                        </>
-                    )}
+                        )}
+
+                        {activeTab === "gif" && (
+                            <GifToolsTab
+                                frames={frames}
+                                currentFrameIndex={currentFrameIndex}
+                                animationPlaying={animationPlaying}
+                                animationTimeMs={animationTimeMs}
+                                advanceMode={advanceMode}
+                                onAdvanceModeChange={onAdvanceModeChange}
+                                onAddFrameAfter={onAddFrameAfter}
+                                onToggleFrameAnimation={onToggleFrameAnimation}
+                                onApplyFrameObjectOrderTiming={onApplyFrameObjectOrderTiming}
+                                onMergeFrameWithNext={onMergeFrameWithNext}
+                                onMergeAllFrames={onMergeAllFrames}
+                                onInsertGifPrimitive={onInsertGifPrimitive}
+                            />
+                        )}
 
 
-
-                    {activeTab === "gif" && (
-                        <GifToolsTab
-                            frames={frames}
-                            currentFrameIndex={currentFrameIndex}
-                            animationPlaying={animationPlaying}
-                            animationTimeMs={animationTimeMs}
-                            advanceMode={advanceMode}
-                            onAdvanceModeChange={onAdvanceModeChange}
-                            onAddFrameAfter={onAddFrameAfter}
-                            onToggleFrameAnimation={onToggleFrameAnimation}
-                            onApplyFrameObjectOrderTiming={onApplyFrameObjectOrderTiming}
-                            onMergeFrameWithNext={onMergeFrameWithNext}
-                            onMergeAllFrames={onMergeAllFrames}
-                            onInsertGifPrimitive={onInsertGifPrimitive}
-                        />
-                    )}
-
-                    {activeTab === "code" && (
-                        <CodeIllustratorTab
-                            onGenerateCodeIllustration={onGenerateCodeIllustration}
-                        />
-                    )}
-
-                    {activeTab === "system" && (
-                        <SystemDesignTab tool={tool} setTool={setTool} />
-                    )}
-
-                </div>
-            </aside>
-        </div>
+                    </div>
+                </aside>
+            </div>
+        </>
     );
 }

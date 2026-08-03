@@ -132,14 +132,62 @@ function getFrameAnimationEndMs(frame) {
     return getFrameTimelineEndMs(frame?.elements || []);
 }
 
-function getFrameDurationMs(frame, holdAfterMs, preAnimationDelayMs = 0) {
-    const configured = Number.isFinite(Number(frame?.durationMs))
-        ? Math.max(100, Number(frame.durationMs))
-        : 0;
+function getFrameAnimationStartMs(frame) {
+    const elements = (frame?.elements || []).filter(
+        (element) =>
+            element?.animation?.type &&
+            element.animation.type !== "none"
+    );
 
+    if (!elements.length) return 0;
+
+    const timings = resolveFrameAnimationTimings(elements);
+    let firstStartMs = Infinity;
+
+    elements.forEach((element) => {
+        const timing = timings.get(element.id);
+        if (timing && Number.isFinite(timing.startMs)) {
+            firstStartMs = Math.min(firstStartMs, timing.startMs);
+        }
+    });
+
+    return Number.isFinite(firstStartMs) ? Math.max(0, firstStartMs) : 0;
+}
+
+function getExportAnimationTimeMs(
+    frame,
+    elapsedMs,
+    preAnimationDelayMs = 0
+) {
+    const elapsed = Math.max(0, Number(elapsedMs) || 0);
+    const preDelay = Math.max(0, Number(preAnimationDelayMs) || 0);
+
+    // Honour only the delay selected in the export UI.
+    if (elapsed < preDelay) return 0;
+
+    // Imported drawings can contain a built-in 1–2 second delay before the
+    // first object starts. Shift the authored timeline so the first animation
+    // begins immediately after the explicit export delay.
+    return (
+        getFrameAnimationStartMs(frame) +
+        Math.max(0, elapsed - preDelay)
+    );
+}
+
+function getFrameDurationMs(frame, holdAfterMs, preAnimationDelayMs = 0) {
+    const animationStart = getFrameAnimationStartMs(frame);
     const animationEnd = getFrameAnimationEndMs(frame);
-    const calculated = Math.max(100, preAnimationDelayMs + animationEnd + holdAfterMs);
-    return Math.max(configured, calculated);
+    const activeAnimationDuration = Math.max(
+        0,
+        animationEnd - animationStart
+    );
+
+    // Export duration follows the actual animation span. Old/imported
+    // durationMs values such as 10000 must not force a long frozen frame.
+    return Math.max(
+        100,
+        preAnimationDelayMs + activeAnimationDuration + holdAfterMs
+    );
 }
 
 function drawFrame(canvas, frame, canvasSize, transform, canvasProps = {}, animationTimeMs = 0) {
@@ -332,7 +380,11 @@ async function recordFrameSegment({
                 canvasSize,
                 transform,
                 canvasProps,
-                Math.max(0, elapsed - preAnimationDelayMs)
+                getExportAnimationTimeMs(
+                    frame,
+                    elapsed,
+                    preAnimationDelayMs
+                )
             );
         },
         onTick,
@@ -512,7 +564,7 @@ async function recordTimelineSegment({
                     canvasSize,
                     transform,
                     canvasProps,
-                    Math.max(0, elapsed - preAnimationDelayMs)
+                    getExportAnimationTimeMs(frames[index], elapsed, preAnimationDelayMs)
                 );
             },
             onTick: (elapsed) => onTick?.({
@@ -690,7 +742,7 @@ async function exportBrowserVideo({
                     safeCanvasSize,
                     transform,
                     canvasProps,
-                    Math.max(0, elapsed - preAnimationDelayMs)
+                    getExportAnimationTimeMs(frames[index], elapsed, preAnimationDelayMs)
                 );
             },
             onTick: (elapsed) => {

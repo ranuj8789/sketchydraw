@@ -140,3 +140,119 @@
         padding: 16px;
     }
 }
+
+
+.frame-player-gif-btn,
+.frame-player-fullscreen-btn {
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #172033;
+    font-weight: 850;
+}
+
+.frame-player-gif-btn {
+    border-color: #f59e0b;
+    background: #fff8e7;
+    color: #8a5b08;
+}
+
+.frame-player-gif-btn:disabled {
+    opacity: 0.58;
+    cursor: wait;
+}
+
+.frame-player-screen:fullscreen {
+    width: 100vw;
+    height: 100vh;
+    background: #f8fafc;
+}
+
+.frame-player-screen:fullscreen .frame-player-stage {
+    min-height: calc(100vh - 150px);
+}
+
+@media (max-width: 980px) {
+    .frame-player-actions {
+        flex-wrap: wrap;
+    }
+
+    .frame-player-actions label {
+        display: none;
+    }
+}
+
+
+.frame-player-storyboard-heading {
+    position: absolute;
+    top: 18px;
+    left: 22px;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 13px;
+    border: 1px solid rgba(203, 213, 225, 0.9);
+    border-radius: 13px;
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
+    backdrop-filter: blur(10px);
+}
+
+.frame-player-storyboard-heading > div {
+    display: grid;
+    gap: 2px;
+}
+
+.frame-player-storyboard-heading span {
+    color: #7c3aed;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.frame-player-storyboard-heading strong {
+    color: #172033;
+    font-size: 13px;
+}
+
+.frame-player-storyboard-heading small {
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 800;
+}
+
+
+.frame-player-audio {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    width: min(760px, calc(100vw - 60px));
+    margin: 10px auto 0;
+    padding: 9px 12px;
+    border: 1px solid #dbe3ee;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.96);
+}
+
+.frame-player-audio > div {
+    display: grid;
+    gap: 2px;
+}
+
+.frame-player-audio strong {
+    color: #172033;
+    font-size: 11px;
+}
+
+.frame-player-audio span {
+    color: #64748b;
+    font-size: 10px;
+}
+
+.frame-player-audio audio {
+    flex: 1;
+    min-width: 240px;
+    height: 34px;
+}

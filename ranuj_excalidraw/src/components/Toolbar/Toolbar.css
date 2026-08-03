@@ -2331,3 +2331,946 @@
         max-height: calc(100vh - 94px) !important;
     }
 }
+
+/* Native File > Export > Video controls.
+   Visibility is controlled in Toolbar.js by REACT_APP_SHOW_VIDEO. */
+.native-video-export {
+    margin: 2px 0;
+}
+
+.native-video-export > summary {
+    min-height: 36px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: #1f2937;
+    font-size: 13px;
+    font-weight: 750;
+    list-style: none;
+    user-select: none;
+}
+
+.native-video-export > summary::-webkit-details-marker {
+    display: none;
+}
+
+.native-video-export > summary::before {
+    content: "▸";
+    margin-right: 6px;
+    color: #64748b;
+    transition: transform 140ms ease;
+}
+
+.native-video-export[open] > summary::before {
+    transform: rotate(90deg);
+}
+
+.native-video-export > summary:hover,
+.native-video-export[open] > summary {
+    background: #f3f6fa;
+}
+
+.native-video-export-panel {
+    display: grid;
+    gap: 9px;
+    margin: 5px 2px 4px;
+    padding: 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #f8fafc;
+}
+
+.native-video-export-panel label {
+    display: grid;
+    gap: 5px;
+    color: #475569;
+    font-size: 10px;
+    font-weight: 850;
+    letter-spacing: 0.035em;
+    text-transform: uppercase;
+}
+
+.native-video-export-panel input,
+.native-video-export-panel select {
+    width: 100%;
+    height: 34px;
+    box-sizing: border-box;
+    border: 1px solid #cbd5e1;
+    border-radius: 9px;
+    padding: 0 9px;
+    background: #ffffff;
+    color: #0f172a;
+    font-size: 12px;
+    font-weight: 750;
+    outline: none;
+}
+
+.native-video-export-panel input:focus,
+.native-video-export-panel select:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.native-video-frame-range {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.native-video-range-hint {
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.native-file-menu .native-video-export-button {
+    min-height: 38px;
+    justify-content: center;
+    border: 1px solid #111827;
+    background: #111827;
+    color: #ffffff;
+    font-weight: 850;
+}
+
+.native-file-menu .native-video-export-button:hover:not(:disabled) {
+    background: #1e293b;
+}
+
+.native-file-menu .native-video-export-button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.native-video-progress {
+    display: grid;
+    gap: 5px;
+    color: #475569;
+    font-size: 11px;
+    font-weight: 750;
+}
+
+.native-video-progress progress {
+    width: 100%;
+    height: 8px;
+    accent-color: #2563eb;
+}
+
+
+
+/* Integrated drawing strip inside main toolbar */
+.toolbar-canvas-strip {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    max-width: min(760px, calc(100vw - 610px));
+    padding: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border: 1px solid #dfe5ec;
+    border-radius: 13px;
+    background: rgba(255, 255, 255, .98);
+    box-shadow: 0 7px 20px rgba(15, 23, 42, .10);
+    transform: translate(-50%, -50%);
+    scrollbar-width: none;
+}
+.toolbar-canvas-strip::-webkit-scrollbar { display: none; }
+.toolbar-canvas-tool {
+    position: relative;
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    background: transparent;
+    color: #344054;
+    cursor: pointer;
+}
+.toolbar-canvas-tool:hover { border-color: #e2e7ee; background: #f7f9fc; color: #111827; }
+.toolbar-canvas-tool.active { border-color: #d7ad55; background: #fff5dc; color: #6f5014; }
+.toolbar-tool-shortcut { position: absolute; right: 4px; bottom: 2px; color: #98a2b3; font-size: 7px; font-weight: 800; }
+.toolbar-tool-pro { position: absolute; top: 1px; right: 1px; padding: 1px 3px; border-radius: 999px; background: #111827; color: #fff; font-size: 6px; font-weight: 900; }
+.toolbar-strip-divider { flex: 0 0 1px; width: 1px; height: 26px; margin: 0 2px; background: #e4e8ee; }
+.toolbar-more-tools,
+.toolbar-gif-tools {
+    flex: 0 0 auto;
+    height: 36px;
+    padding: 0 9px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    background: transparent;
+    color: #526070;
+    font-size: 10px;
+    font-weight: 850;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.toolbar-more-tools:hover,
+.toolbar-gif-tools:hover { border-color: #e2e7ee; background: #f7f9fc; color: #111827; }
+.toolbar-gif-tools { color: #6f5014; }
+@media (max-width: 1260px) {
+    .toolbar-canvas-strip { max-width: 520px; }
+    .toolbar-more-tools span,
+    .toolbar-gif-tools span { display: none; }
+    .toolbar-more-tools,
+    .toolbar-gif-tools { width: 36px; padding: 0; justify-content: center; }
+}
+
+
+/* ==========================================================================\n   2026 unified editor command bar\n   One continuous workspace surface: nothing is hidden behind the tool strip.\n   The center area scrolls horizontally on smaller screens instead of removing\n   File, New, Creator mode, Full screen, or drawing tools.\n   ========================================================================== */
+.topbar {
+    position: relative;
+    width: 100%;
+    height: 64px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 8px;
+    box-sizing: border-box;
+    border: 1px solid #e4e8ee;
+    border-radius: 17px;
+    background: rgba(255, 255, 255, .98);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, .07);
+    backdrop-filter: blur(16px);
+}
+
+.topbar-actions {
+    min-width: 0;
+    width: 100%;
+    justify-self: stretch;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    overflow-y: visible;
+    padding: 1px 4px 3px;
+    scrollbar-width: none;
+    overscroll-behavior-inline: contain;
+}
+.topbar-actions::-webkit-scrollbar { display: none; }
+
+.topbar-auth {
+    position: relative;
+    z-index: 8;
+    justify-self: end;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-left: 12px;
+    border-left: 1px solid #e8ebf0;
+    background: rgba(255, 255, 255, .98);
+}
+
+.topbar-actions > button,
+.topbar-actions .native-menu-trigger,
+.topbar-actions .toolbar-focus-button {
+    flex: 0 0 auto;
+    height: 40px;
+    border-radius: 11px;
+    border-color: #dce3eb;
+    background: #ffffff;
+    color: #263244;
+    font-weight: 800;
+    box-shadow: none;
+}
+
+.topbar-actions > button:hover:not(:disabled),
+.topbar-actions .native-menu-trigger:hover,
+.topbar-actions .toolbar-focus-button:hover {
+    border-color: #c9d2de;
+    background: #f8fafc;
+    transform: translateY(-1px);
+}
+
+.toolbar-save-status {
+    flex: 0 0 auto;
+    min-width: 96px;
+    height: 40px;
+    border-radius: 11px;
+}
+
+.presentation-cluster {
+    flex: 0 0 auto;
+    height: 42px;
+    border-radius: 12px;
+    background: #fffaf0;
+    border-color: #ead5a8;
+    box-shadow: inset 0 0 0 1px rgba(183, 133, 40, .04);
+}
+
+.toolbar-clear-action {
+    flex: 0 0 auto;
+    height: 40px !important;
+    border-radius: 11px !important;
+}
+
+.topbar-separator.toolbar-group-separator {
+    flex: 0 0 1px;
+    width: 1px;
+    height: 28px;
+    margin: 0 2px;
+    background: #e4e8ee;
+}
+
+/* Drawing tools now live in normal document flow, not over other commands. */
+.toolbar-canvas-strip {
+    position: relative;
+    left: auto;
+    top: auto;
+    z-index: 2;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    max-width: none;
+    padding: 3px;
+    overflow: visible;
+    border: 1px solid #e1e6ed;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    box-shadow: 0 3px 10px rgba(15, 23, 42, .05);
+    transform: none;
+}
+
+.toolbar-canvas-tool {
+    flex-basis: 36px;
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+    transition: background .14s ease, border-color .14s ease, color .14s ease, transform .14s ease;
+}
+.toolbar-canvas-tool:hover {
+    transform: translateY(-1px);
+}
+.toolbar-canvas-tool.active {
+    border-color: #d6a94c;
+    background: linear-gradient(180deg, #fffaf0 0%, #fff1cd 100%);
+    color: #765516;
+    box-shadow: 0 3px 9px rgba(129, 88, 17, .10);
+}
+
+.toolbar-more-tools,
+.toolbar-gif-tools {
+    height: 36px;
+    border-radius: 9px;
+    padding: 0 9px;
+}
+.toolbar-more-tools:hover,
+.toolbar-gif-tools:hover {
+    transform: translateY(-1px);
+}
+.toolbar-gif-tools {
+    border-color: #ead6aa;
+    background: #fffaf0;
+    color: #765516;
+}
+
+/* File, New, Creator mode, and Full screen remain visible beside the strip. */
+.toolbar-document-control,
+.toolbar-creator-control,
+.toolbar-view-control {
+    flex: 0 0 auto;
+}
+
+.toolbar-document-control .native-menu-trigger {
+    min-width: 68px;
+}
+
+.creator-toolbar-control.toolbar-creator-control {
+    flex: 0 0 auto;
+    min-width: 210px;
+    height: 40px;
+    border: 1px solid #dce3eb;
+    border-radius: 11px;
+    background: #ffffff;
+    box-shadow: none;
+}
+.creator-toolbar-control.toolbar-creator-control:hover {
+    border-color: #c9d2de;
+    background: #f8fafc;
+}
+.creator-toolbar-control.toolbar-creator-control.active {
+    border-color: #d6a94c;
+    background: #fffaf0;
+}
+.creator-toolbar-control.toolbar-creator-control select {
+    min-width: 170px;
+}
+
+.toolbar-focus-button.toolbar-view-control {
+    min-width: 116px;
+}
+
+.topbar-auth .login-btn {
+    min-width: 78px;
+    height: 40px;
+    border-radius: 11px;
+    border: 1px solid #dce3eb;
+    background: #ffffff;
+    color: #263244;
+    box-shadow: none;
+}
+.topbar-auth .login-btn:last-child {
+    border-color: #d6a94c;
+    background: #fffaf0;
+    color: #765516;
+}
+.topbar-auth .login-btn:hover {
+    transform: translateY(-1px);
+}
+
+/* Keep every command reachable. At narrower widths the command surface scrolls. */
+@media (max-width: 1320px) {
+    .creator-toolbar-control.toolbar-creator-control {
+        min-width: 170px;
+    }
+    .creator-toolbar-control.toolbar-creator-control select {
+        min-width: 132px;
+    }
+    .toolbar-more-tools span,
+    .toolbar-gif-tools span,
+    .toolbar-focus-button.toolbar-view-control span:last-child {
+        display: none;
+    }
+    .toolbar-more-tools,
+    .toolbar-gif-tools,
+    .toolbar-focus-button.toolbar-view-control {
+        min-width: 38px;
+        width: 38px;
+        padding: 0;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 820px) {
+    .topbar {
+        height: 60px;
+        padding: 5px 6px;
+        gap: 6px;
+        border-radius: 14px;
+    }
+    .topbar-auth {
+        padding-left: 7px;
+    }
+    .topbar-auth .login-btn {
+        min-width: 64px;
+        padding-inline: 10px;
+    }
+    .toolbar-save-status span:last-child,
+    .presentation-play span:last-child {
+        display: none;
+    }
+    .toolbar-save-status {
+        min-width: 40px;
+        width: 40px;
+        padding: 0;
+        justify-content: center;
+    }
+}
+
+
+/* TWO-ROW EDITOR TOOLBAR — commands above, drawing tools below. */
+.topbar {
+    min-height: 0 !important;
+    height: auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    border-radius: 0 0 16px 16px !important;
+    background: rgba(255, 255, 255, .985) !important;
+}
+
+.topbar-command-row {
+    min-height: 56px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 7px 10px;
+    border-bottom: 1px solid #edf0f4;
+}
+
+.topbar-command-row .topbar-actions {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex !important;
+    align-items: center !important;
+    gap: 7px !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    padding: 0 !important;
+    scrollbar-width: none;
+}
+.topbar-command-row .topbar-actions::-webkit-scrollbar { display: none; }
+
+/* Clear document hierarchy: File/New first, then history and view actions. */
+.topbar-command-row .toolbar-save-status { order: 0; }
+.topbar-command-row .file-native-menu-wrap { order: 1; }
+.topbar-command-row .new-native-menu-wrap { order: 2; }
+.topbar-command-row .topbar-actions > button[title="Undo last action"] { order: 3; }
+.topbar-command-row .topbar-actions > button[title="Redo last action"] { order: 4; }
+.topbar-command-row .toolbar-clear-action { order: 5; }
+.topbar-command-row .toolbar-creator-control { order: 6; }
+.topbar-command-row .toolbar-view-control { order: 7; }
+.topbar-command-row .legacy-toolbar-menu,
+.topbar-command-row .topbar-announcement { order: 20; }
+
+.topbar-command-row .topbar-auth {
+    flex: 0 0 auto;
+    align-self: center;
+    padding-left: 12px;
+    border-left: 1px solid #edf0f4;
+}
+
+.topbar-tools-row {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 12px 7px;
+    background: #fbfcfe;
+}
+
+.topbar-tools-row .toolbar-canvas-strip {
+    width: auto !important;
+    max-width: min(820px, calc(100vw - 40px)) !important;
+    min-height: 38px;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 3px !important;
+    padding: 3px 5px !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border: 1px solid #e2e7ed !important;
+    border-radius: 12px !important;
+    background: #fff !important;
+    box-shadow: 0 5px 16px rgba(15, 23, 42, .07) !important;
+    scrollbar-width: none;
+}
+.topbar-tools-row .toolbar-canvas-strip::-webkit-scrollbar { display: none; }
+
+.topbar-tools-row .toolbar-canvas-tool {
+    flex: 0 0 34px !important;
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+    padding: 0 !important;
+    border-radius: 9px !important;
+}
+.topbar-tools-row .toolbar-canvas-tool.active {
+    border-color: #d6aa50 !important;
+    background: #fff5dc !important;
+    color: #654812 !important;
+    box-shadow: none !important;
+}
+
+/* Numbers and large badges created visual noise; tooltips still explain access. */
+.topbar-tools-row .toolbar-tool-shortcut,
+.topbar-tools-row .toolbar-tool-pro { display: none !important; }
+
+.topbar-tools-row .toolbar-strip-divider {
+    width: 1px;
+    height: 24px;
+    margin: 0 3px;
+    background: #e3e7ec;
+}
+
+.topbar-tools-row .toolbar-more-tools,
+.topbar-tools-row .toolbar-gif-tools {
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 0 9px !important;
+    border-radius: 9px !important;
+    font-size: 11px !important;
+    white-space: nowrap;
+}
+.topbar-tools-row .toolbar-gif-tools {
+    border-color: #ddc27f !important;
+    background: #fffaf0 !important;
+    color: #684e18 !important;
+}
+
+@media (max-width: 900px) {
+    .topbar-command-row { gap: 6px; padding-inline: 7px; }
+    .topbar-command-row .topbar-auth { display: none !important; }
+    .topbar-tools-row { justify-content: flex-start; padding-inline: 7px; }
+    .topbar-tools-row .toolbar-canvas-strip { max-width: calc(100vw - 14px) !important; }
+}
+
+
+/* ==========================================================================
+   FINAL COMPACT TOOLBAR — 2026-08-03
+   Command bar stays thin; drawing strip remains a separate centered row.
+   ========================================================================== */
+.topbar-command-row {
+    min-height: 46px !important;
+    height: 46px !important;
+    gap: 8px !important;
+    padding: 5px 10px !important;
+}
+
+.topbar-command-row .topbar-actions {
+    gap: 6px !important;
+}
+
+.topbar-command-row .topbar-actions > button,
+.topbar-command-row .native-menu-trigger,
+.topbar-command-row .toolbar-focus-button,
+.topbar-command-row .toolbar-save-status,
+.topbar-command-row .creator-toolbar-control {
+    height: 34px !important;
+    min-height: 34px !important;
+    border-radius: 9px !important;
+}
+
+.topbar-command-row .topbar-actions > button,
+.topbar-command-row .native-menu-trigger,
+.topbar-command-row .toolbar-focus-button {
+    padding: 0 12px !important;
+    font-size: 12px !important;
+}
+
+.topbar-command-row .toolbar-document-control .native-menu-trigger {
+    min-width: 0 !important;
+}
+
+.topbar-command-row .creator-toolbar-control.toolbar-creator-control {
+    min-width: 194px !important;
+    padding: 0 8px !important;
+}
+
+.topbar-command-row .creator-toolbar-control select {
+    min-width: 152px !important;
+    font-size: 12px !important;
+}
+
+.topbar-command-row .toolbar-focus-button.toolbar-view-control {
+    min-width: 108px !important;
+}
+
+.topbar-command-row .topbar-auth {
+    gap: 7px !important;
+    padding-left: 10px !important;
+}
+
+.topbar-command-row .topbar-auth .login-btn {
+    height: 34px !important;
+    min-height: 34px !important;
+    min-width: 76px !important;
+    padding: 0 12px !important;
+    border-radius: 9px !important;
+    font-size: 12px !important;
+}
+
+.topbar-tools-row {
+    min-height: 44px !important;
+    height: 44px !important;
+    padding: 4px 12px 6px !important;
+}
+
+.topbar-tools-row .toolbar-canvas-strip {
+    min-height: 34px !important;
+    padding: 2px 4px !important;
+    border-radius: 10px !important;
+    box-shadow: 0 3px 12px rgba(15, 23, 42, .06) !important;
+}
+
+.topbar-tools-row .toolbar-canvas-tool {
+    flex-basis: 30px !important;
+    width: 30px !important;
+    min-width: 30px !important;
+    height: 30px !important;
+    border-radius: 7px !important;
+}
+
+.topbar-tools-row .toolbar-more-tools {
+    height: 30px !important;
+    min-height: 30px !important;
+    padding: 0 8px !important;
+    border-radius: 7px !important;
+    font-size: 10px !important;
+}
+
+.topbar-tools-row .toolbar-strip-divider {
+    height: 20px !important;
+}
+
+/* GIF tools belong to the sidebar/story workflow, not the primary draw strip. */
+.topbar-tools-row .toolbar-gif-tools {
+    display: none !important;
+}
+
+/* ==========================================================================
+   SINGLE ROW HEADER FIX — File/New dropdowns + compact creator + top tools
+   ========================================================================== */
+.topbar,
+.topbar-command-row,
+.topbar-actions,
+.file-native-menu-wrap,
+.new-native-menu-wrap {
+    overflow: visible !important;
+}
+
+.topbar {
+    position: relative;
+    z-index: 1200;
+}
+
+.topbar-command-row {
+    height: 50px !important;
+    min-height: 50px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 6px 10px !important;
+}
+
+.topbar-command-row .topbar-actions {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    overflow: visible !important;
+}
+
+.file-native-menu-wrap,
+.new-native-menu-wrap {
+    position: relative !important;
+    z-index: 1300 !important;
+}
+
+.native-file-menu,
+.native-new-menu {
+    z-index: 5000 !important;
+}
+
+/* Auto-save is an overlay; it must not consume header width or block File. */
+.topbar-command-row .toolbar-save-status {
+    position: absolute !important;
+    top: 2px !important;
+    left: 8px !important;
+    z-index: 1400 !important;
+    width: 22px !important;
+    min-width: 22px !important;
+    height: 18px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    pointer-events: none !important;
+    overflow: hidden !important;
+}
+
+.topbar-command-row .toolbar-save-status span:last-child {
+    display: none !important;
+}
+
+.topbar-command-row .file-native-menu-wrap {
+    margin-left: 0 !important;
+}
+
+/* Creator mode stays compact. */
+.topbar-command-row .creator-toolbar-control.toolbar-creator-control {
+    width: 138px !important;
+    min-width: 138px !important;
+    max-width: 138px !important;
+    padding: 0 7px !important;
+}
+
+.topbar-command-row .creator-toolbar-control select {
+    width: 108px !important;
+    min-width: 0 !important;
+    font-size: 11px !important;
+}
+
+/* Drawing tools now live in the same top row. */
+.topbar-command-row .topbar-tools-row {
+    flex: 0 1 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    padding: 0 !important;
+    background: transparent !important;
+    justify-content: flex-start !important;
+}
+
+.topbar-command-row .topbar-tools-row .toolbar-canvas-strip {
+    max-width: min(470px, 34vw) !important;
+    min-height: 34px !important;
+    height: 34px !important;
+    padding: 2px 4px !important;
+    border-radius: 9px !important;
+    box-shadow: none !important;
+}
+
+.topbar-command-row .topbar-tools-row .toolbar-canvas-tool {
+    width: 28px !important;
+    min-width: 28px !important;
+    flex-basis: 28px !important;
+    height: 28px !important;
+}
+
+.topbar-command-row .topbar-tools-row .toolbar-more-tools {
+    height: 28px !important;
+    min-height: 28px !important;
+}
+
+/* Logged out users see Login only. */
+.topbar-auth.logged-out .subscribe-button,
+.topbar-auth.logged-out .topbar-subscribe {
+    display: none !important;
+}
+
+@media (max-width: 1180px) {
+    .topbar-command-row .topbar-tools-row .toolbar-canvas-strip {
+        max-width: 330px !important;
+    }
+
+    .topbar-command-row .topbar-tools-row .toolbar-more-tools span {
+        display: none !important;
+    }
+}
+
+/* ==========================================================================
+   HEADER LAYOUT CORRECTION — 2026-08-03
+   Left commands | centered drawing tools | account on the right.
+   ========================================================================== */
+.topbar-command-row {
+    display: grid !important;
+    grid-template-columns: max-content minmax(300px, 1fr) max-content !important;
+    align-items: center !important;
+    column-gap: 12px !important;
+    height: 52px !important;
+    min-height: 52px !important;
+    padding: 6px 10px !important;
+    overflow: visible !important;
+}
+
+.topbar-command-row .topbar-actions {
+    display: flex !important;
+    flex: none !important;
+    align-items: center !important;
+    min-width: max-content !important;
+    gap: 6px !important;
+    overflow: visible !important;
+}
+
+/* Keep the desktop command sequence intentional even though the DOM is older. */
+.topbar-command-row .file-native-menu-wrap { order: 1 !important; }
+.topbar-command-row .new-native-menu-wrap { order: 2 !important; }
+.topbar-command-row .topbar-actions > button:not(.toolbar-focus-button) { order: 3 !important; }
+.topbar-command-row .topbar-actions > button:nth-of-type(2) { order: 4 !important; }
+.topbar-command-row .topbar-actions > .toolbar-clear-action { order: 5 !important; }
+.topbar-command-row .toolbar-creator-control { order: 6 !important; }
+.topbar-command-row .toolbar-view-control { order: 7 !important; }
+.topbar-command-row .legacy-toolbar-menu,
+.topbar-command-row .topbar-announcement { order: 20 !important; }
+
+/* Auto-save floats above File, consumes zero layout width, and never captures clicks. */
+.topbar-command-row .toolbar-save-status {
+    position: absolute !important;
+    top: -2px !important;
+    left: 34px !important;
+    z-index: 1000 !important;
+    width: 18px !important;
+    min-width: 18px !important;
+    height: 18px !important;
+    min-height: 18px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: #ecfdf3 !important;
+    color: #16814b !important;
+    border-radius: 999px !important;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, .12) !important;
+    pointer-events: none !important;
+    overflow: hidden !important;
+    display: grid !important;
+    place-items: center !important;
+    font-size: 11px !important;
+    line-height: 1 !important;
+}
+.topbar-command-row .toolbar-save-status span:last-child { display: none !important; }
+
+/* Creator mode should not dominate the command group. */
+.topbar-command-row .creator-toolbar-control.toolbar-creator-control {
+    width: 136px !important;
+    min-width: 136px !important;
+    max-width: 136px !important;
+}
+.topbar-command-row .creator-toolbar-control select {
+    width: 106px !important;
+    max-width: 106px !important;
+}
+
+/* Drawing strip owns the flexible middle column and stays visually centered. */
+.topbar-command-row > .topbar-tools-row {
+    grid-column: 2 !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 0 !important;
+    background: transparent !important;
+    overflow: visible !important;
+}
+.topbar-command-row > .topbar-tools-row .toolbar-canvas-strip {
+    width: max-content !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    overflow: hidden !important;
+    flex-wrap: nowrap !important;
+}
+
+/* Login/account always gets its own protected right column. */
+.topbar-command-row > .topbar-auth {
+    grid-column: 3 !important;
+    justify-self: end !important;
+    flex: none !important;
+    min-width: 76px !important;
+    padding-left: 0 !important;
+    position: relative !important;
+    z-index: 1300 !important;
+}
+
+.file-native-menu-wrap,
+.new-native-menu-wrap,
+.native-file-menu,
+.native-new-menu {
+    pointer-events: auto !important;
+}
+
+@media (max-width: 1320px) {
+    .topbar-command-row {
+        grid-template-columns: max-content minmax(250px, 1fr) max-content !important;
+        column-gap: 8px !important;
+    }
+    .topbar-command-row > .topbar-tools-row .toolbar-canvas-tool {
+        width: 27px !important;
+        min-width: 27px !important;
+        flex-basis: 27px !important;
+    }
+    .topbar-command-row > .topbar-tools-row .toolbar-more-tools span {
+        display: none !important;
+    }
+}

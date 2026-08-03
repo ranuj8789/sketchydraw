@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import "./Toolbar.css";
 import { SOCIAL_MEDIA_PRESETS } from "../../utils/socialMediaPresets";
 import { requestProUpgrade } from "../../utils/proFeatureGate";
+import { Pencil, Square, Circle, Slash, MousePointer2, Eraser, Type, MoveRight, Diamond, Hand, Image as ImageIcon, UserRound, MoreHorizontal, Film } from "lucide-react";
 
 import {
     getUser,
@@ -22,6 +23,21 @@ import {
     DEFAULT_NOTEBOOK_PAGE_COUNT,
     MAX_NOTEBOOK_PAGE_COUNT,
 } from "../../canvas/notebook/notebookPageConstants";
+
+const TOOLBAR_TOOLS = [
+    { id: "select", label: "Select", icon: MousePointer2 },
+    { id: "hand", label: "Hand", icon: Hand },
+    { id: "pencil", label: "Pencil", icon: Pencil },
+    { id: "line", label: "Line", icon: Slash },
+    { id: "arrow", label: "Arrow", icon: MoveRight },
+    { id: "rect", label: "Rectangle", icon: Square },
+    { id: "diamond", label: "Diamond", icon: Diamond },
+    { id: "ellipse", label: "Ellipse", icon: Circle },
+    { id: "user", label: "User", icon: UserRound, premium: true },
+    { id: "text", label: "Text", icon: Type },
+    { id: "image", label: "Image", icon: ImageIcon, premium: true },
+    { id: "eraser", label: "Eraser", icon: Eraser },
+];
 
 export default function Toolbar({
                                     undo,
@@ -63,6 +79,8 @@ export default function Toolbar({
                                     onToggleFocusMode,
                                     onOpenMarkdownGrid,
                                     onOpenExcelGrid,
+                                    tool,
+                                    setTool,
                                 }) {
     const [loginOpen, setLoginOpen] = useState(false);
     const [subscriptionOpen, setSubscriptionOpen] = useState(false);
@@ -98,6 +116,13 @@ export default function Toolbar({
     const [profileMessage, setProfileMessage] = useState("");
 
     const proUser = isProUser(user);
+
+    // Create React App exposes browser environment variables only when
+    // their names start with REACT_APP_. The value is read at build time.
+    const showVideo =
+        String(process.env.REACT_APP_SHOW_VIDEO || "")
+            .trim()
+            .toLowerCase() === "true";
 
     const selectCreatorPreset = (presetId) => {
         const nextPreset = presetId || null;
@@ -163,6 +188,20 @@ export default function Toolbar({
             return;
         }
         action?.();
+    };
+
+    const chooseToolbarTool = (item) => {
+        if (item.premium && !proUser) {
+            requestProUpgrade(`${item.label} tool`);
+            return;
+        }
+        setTool?.(item.id);
+    };
+
+    const openSidebarSection = (section) => {
+        window.dispatchEvent(new CustomEvent("sketchydraw:open-sidebar-section", {
+            detail: { section },
+        }));
     };
 
     useEffect(() => {
@@ -627,626 +666,801 @@ export default function Toolbar({
             </div>
 
             <div className="topbar">
-                <div className="topbar-actions">
-                    {saveStatus.message && (
-                        <div className={`toolbar-save-status ${saveStatus.state}`} title={saveStatus.message}>
-                            <span aria-hidden="true">{saveStatus.state === "saving" ? "↻" : "✓"}</span>
-                            <span>{saveStatus.state === "saved" ? "Auto-saved" : saveStatus.message}</span>
-                        </div>
-                    )}
-                    <button type="button" onClick={undo} disabled={!canUndo} title="Undo last action">
-                        Undo
-                    </button>
-
-                    <button type="button" onClick={redo} disabled={!canRedo} title="Redo last action">
-                        Redo
-                    </button>
-
-                    <div className={`presentation-cluster ${!proUser ? "pro-locked" : ""}`} aria-label="Frame presentation controls">
-                        <button
-                            type="button"
-                            className="presentation-step"
-                            onClick={() => runProOnly("Frames", onPreviousFrame)}
-                            disabled={proUser && currentFrameIndex <= 0}
-                            title="Previous frame"
-                        >
-                            ‹
-                        </button>
-                        <button
-                            type="button"
-                            className="presentation-play"
-                            onClick={() => runProOnly("Presentation and frame playback", onPresentFrames)}
-                            title="Play all frames as a slideshow"
-                        >
-                            <span className="presentation-play-icon">▶</span>
-                            <span>Present</span>
-                        </button>
-                        <button
-                            type="button"
-                            className="presentation-step"
-                            onClick={() => runProOnly("Frames", onNextFrame)}
-                            disabled={proUser && currentFrameIndex >= Math.max(0, (timelineFrames.length || 1) - 1)}
-                            title="Next frame"
-                        >
-                            ›
-                        </button>
-                        <button
-                            type="button"
-                            className="presentation-count"
-                            onClick={() => runProOnly("Frames", openFramesPanel)}
-                            title="Open frames"
-                        >
-                            {Math.min(currentFrameIndex + 1, timelineFrames.length || 1)}
-                            <span>/</span>
-                            {timelineFrames.length || 1}
-                        </button>
-                    </div>
-
-                    <button type="button" onClick={clearCanvas} className="toolbar-clear-action" title="Clear current canvas">
-                        Clear
-                    </button>
-
-                    <span className="topbar-separator" />
-
-                    <div className="file-native-menu-wrap" ref={fileRef}>
-                        <button
-                            type="button"
-                            className="native-menu-trigger"
-                            onClick={() => { setFileOpen((value) => !value); setNewOpen(false); }}
-                        >
-                            File <span>⌄</span>
-                        </button>
-
-                        {fileOpen && (
-                            <div className="native-file-menu">
-                                <button type="button" onClick={() => { createNewDrawing?.(); setFileOpen(false); }}>
-                                    <span>New drawing</span><kbd>⌘N</kbd>
-                                </button>
-                                <div className="native-menu-divider" />
-
-                                <button type="button" onClick={() => { window.dispatchEvent(new Event("sketchydraw:open-my-drawings")); setFileOpen(false); }}>
-                                    <span>Open drawing…</span><kbd>⌘O</kbd>
-                                </button>
-
-                                <div className="native-submenu-row">
-                                    <button type="button"><span>Import</span><span className="submenu-arrow">›</span></button>
-                                    <div className="native-submenu native-import-submenu">
-                                        <button type="button" onClick={() => { (openImportPicker || openJsonPicker)?.("json"); setFileOpen(false); }}>JSON…</button>
-                                        <button type="button" onClick={() => { openImportPicker?.("ppt"); setFileOpen(false); }}>PowerPoint…</button>
-                                        <button type="button" onClick={() => { openImportPicker?.("word"); setFileOpen(false); }}>Word…</button>
-                                        <button type="button" onClick={() => { openImportPicker?.("excel"); setFileOpen(false); }}>Excel / CSV…</button>
-                                        <button type="button" onClick={() => { openImportPicker?.("protected"); setFileOpen(false); }}>Protected drawing…</button>
-                                    </div>
-                                </div>
-
-                                <div className="native-submenu-row">
-                                    <button type="button"><span>Export</span><span className="submenu-arrow">›</span></button>
-                                    <div className="native-submenu native-export-submenu">
-                                        <button type="button" onClick={() => { runExport(exportPNG); setFileOpen(false); }}>PNG…</button>
-                                        <button type="button" onClick={() => { runExport(exportJPEG); setFileOpen(false); }}>JPEG…</button>
-                                        <button type="button" onClick={() => { runExport(exportSVG); setFileOpen(false); }}>SVG…</button>
-                                        <button type="button" onClick={() => { runExport(exportPDF); setFileOpen(false); }}>PDF…</button>
-                                        <button type="button" onClick={() => { runExport(exportJSON); setFileOpen(false); }}>JSON…</button>
-                                        <button type="button" onClick={() => { runExport(exportProtectedDrawing); setFileOpen(false); }}>Password-protected…</button>
-                                        <div className="native-menu-divider" />
-                                        <button type="button" onClick={() => { runProOnly("PowerPoint export", () => runExport(exportPPT)); setFileOpen(false); }}>PowerPoint… <span className="native-pro-badge">PRO</span></button>
-                                        <button type="button" onClick={() => { runProOnly("Excel export", () => runExport(exportExcel)); setFileOpen(false); }}>Excel… <span className="native-pro-badge">PRO</span></button>
-                                        <button type="button" onClick={() => { runProOnly("CSV export", () => runExport(exportCSV)); setFileOpen(false); }}>CSV… <span className="native-pro-badge">PRO</span></button>
-                                        <div className="native-menu-divider" />
-                                        <button type="button" onClick={() => { runExport(() => exportInstagram?.("post")); setFileOpen(false); }}>Instagram Post…</button>
-                                        <button type="button" onClick={() => { runExport(() => exportInstagram?.("portrait")); setFileOpen(false); }}>Instagram Portrait…</button>
-                                        <button type="button" onClick={() => { runExport(() => exportInstagram?.("story")); setFileOpen(false); }}>Instagram Story…</button>
-                                        <button type="button" onClick={() => { runExport(() => exportInstagram?.("status")); setFileOpen(false); }}>WhatsApp Status…</button>
-                                        <div className="native-menu-divider" />
-                                        <button type="button" onClick={() => { runProOnly("GIF export", () => runExport(exportGIF)); setFileOpen(false); }}>GIF… <span className="native-pro-badge">PRO</span></button>
-                                    </div>
-                                </div>
-
-                                <div className="native-menu-divider" />
-                                <button type="button" onClick={() => { runExport(printCanvas); setFileOpen(false); }}>
-                                    <span>Print…</span><kbd>⌘P</kbd>
-                                </button>
+                <div className="topbar-command-row">
+                    <div className="topbar-actions">
+                        {saveStatus.message && (
+                            <div className={`toolbar-save-status ${saveStatus.state}`} title={saveStatus.message}>
+                                <span aria-hidden="true">{saveStatus.state === "saving" ? "↻" : "✓"}</span>
+                                <span>{saveStatus.state === "saved" ? "Auto-saved" : saveStatus.message}</span>
                             </div>
                         )}
-                    </div>
-
-                    <div className="new-native-menu-wrap" ref={newRef}>
-                        <button
-                            type="button"
-                            className="native-menu-trigger native-new-trigger"
-                            onClick={() => { setNewOpen((value) => !value); setFileOpen(false); }}
-                        >
-                            New <span>⌄</span>
-                        </button>
-                        {newOpen && (
-                            <div className="native-file-menu native-new-menu">
-                                <button type="button" onClick={() => { createNewDrawing?.(); setNewOpen(false); }}>New drawing</button>
-                                <div className="native-menu-divider" />
-                                <button type="button" onClick={() => { applyCanvasPattern("blank"); setNewOpen(false); }}>Blank canvas</button>
-                                <button type="button" onClick={() => { applyCanvasPattern("grid"); setNewOpen(false); }}>Grid canvas</button>
-                                <button type="button" onClick={() => { applyCanvasPattern("notebook"); setNewOpen(false); }}>Notebook</button>
-                                <button type="button" onClick={() => { applyCanvasPattern("dots"); setNewOpen(false); }}>Dot grid</button>
-                                <button type="button" onClick={() => { applyCanvasPattern("blocks"); setNewOpen(false); }}>Blocks</button>
-                                <button type="button" onClick={() => { onOpenExcelGrid?.(); setNewOpen(false); }}>New Excel</button>
-                                <button type="button" onClick={() => { onOpenMarkdownGrid?.(); setNewOpen(false); }}>New Markdown</button>
-                                <div className="native-menu-divider" />
-                                <button type="button" onClick={() => { selectCreatorPreset(null); setNewOpen(false); }}>Free canvas</button>
-                                <button type="button" onClick={() => { selectCreatorPreset("post"); setNewOpen(false); }}>Instagram Post{!proUser ? " · PRO" : ""}</button>
-                                <button type="button" onClick={() => { selectCreatorPreset("portrait"); setNewOpen(false); }}>Instagram Portrait{!proUser ? " · PRO" : ""}</button>
-                                <button type="button" onClick={() => { selectCreatorPreset("story"); setNewOpen(false); }}>Instagram Story{!proUser ? " · PRO" : ""}</button>
-                                <button type="button" onClick={() => { selectCreatorPreset("status"); setNewOpen(false); }}>WhatsApp Status · FREE</button>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className={`creator-toolbar-control ${socialCreatorPreset ? "active" : ""}`}>
-                        <span className="creator-toolbar-icon" aria-hidden="true">✦</span>
-                        <select
-                            value={socialCreatorPreset || ""}
-                            onChange={(event) => selectCreatorPreset(event.target.value)}
-                            title="Choose a creator canvas size"
-                            aria-label="Creator mode"
-                        >
-                            <option value="">Creator mode</option>
-                            {Object.values(SOCIAL_MEDIA_PRESETS).map((preset) => (
-                                <option key={preset.id} value={preset.id}>
-                                    {preset.shortLabel} · {preset.width}×{preset.height}{!proUser && preset.id !== "status" ? " · PRO" : preset.id === "status" ? " · FREE" : ""}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <button
-                        type="button"
-                        className="toolbar-focus-button"
-                        onClick={onToggleFocusMode}
-                        title="Open full-screen canvas"
-                        aria-label="Open full-screen canvas"
-                    >
-                        <span aria-hidden="true">⛶</span>
-                        <span>Full screen</span>
-                    </button>
-
-                    <div className="save-menu-wrap legacy-toolbar-menu" title="Save this drawing" ref={saveRef}>
-                        <button
-                            type="button"
-                            className="toolbar-primary-action save-trigger-btn"
-                            onClick={() => setSaveOpen((v) => !v)}
-                            title="Save this drawing"
-                        >
-                            Save <span title="Save this drawing">⌄</span>
+                        <button type="button" onClick={undo} disabled={!canUndo} title="Undo last action">
+                            Undo
                         </button>
 
-                        {saveOpen && (
-                            <div className="save-dropdown">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        createNewDrawing?.();
-                                        setSaveOpen(false);
-                                    }}
-                                >
-                                    ✨ New Drawing
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        triggerSaveExisting?.();
-                                        setSaveOpen(false);
-                                    }}
-                                >
-                                    💾 Save
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        triggerSaveAsNew?.();
-                                        setSaveOpen(false);
-                                    }}
-                                >
-                                    🆕 Save As
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        window.dispatchEvent(new Event("sketchydraw:open-my-drawings"));
-                                        setSaveOpen(false);
-                                    }}
-                                >
-                                    📂 View Saved Drawings
-                                </button>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="export-menu-wrap legacy-toolbar-menu" ref={importRef}>
-                        <button
-                            type="button"
-                            className="toolbar-dark-action export-trigger-btn"
-                            onClick={() => setImportOpen((value) => !value)}
-                            title="Import JSON, PowerPoint, or Excel"
-                        >
-                            Import <span>⌄</span>
+                        <button type="button" onClick={redo} disabled={!canRedo} title="Redo last action">
+                            Redo
                         </button>
 
-                        {importOpen && (
-                            <div className="export-dropdown">
-                                <button type="button" onClick={() => { (openImportPicker || openJsonPicker)?.("json"); setImportOpen(false); }}>
-                                    📄 Import JSON
-                                </button>
-                                <button type="button" onClick={() => { openImportPicker?.("ppt"); setImportOpen(false); }}>
-                                    📊 Import PowerPoint
-                                </button>
-                                <button type="button" onClick={() => { openImportPicker?.("word"); setImportOpen(false); }}>
-                                    📝 Import Word
-                                </button>
-                                <button type="button" onClick={() => { openImportPicker?.("excel"); setImportOpen(false); }}>
-                                    📈 Import Excel / CSV
-                                </button>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="social-creator-control legacy-toolbar-menu">
-                        <span className="social-creator-label">Creator canvas</span>
-                        <select
-                            value={socialCreatorPreset || ""}
-                            onChange={(event) => selectCreatorPreset(event.target.value)}
-                            title="Show Instagram or WhatsApp composition guides"
-                        >
-                            <option value="">Off / Free canvas</option>
-                            {Object.values(SOCIAL_MEDIA_PRESETS).map((preset) => (
-                                <option key={preset.id} value={preset.id}>
-                                    {preset.shortLabel} · {preset.width}×{preset.height}{!proUser && preset.id !== "status" ? " · PRO" : preset.id === "status" ? " · FREE" : ""}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div className="export-menu-wrap legacy-toolbar-menu" ref={exportRef}>
-                        <button
-                            type="button"
-                            className="toolbar-dark-action export-trigger-btn"
-                            onClick={() => setExportOpen((v) => !v)}
-                            title="Export this drawing"
-                        >
-                            Export <span>⌄</span>
+                        <button type="button" onClick={clearCanvas} className="toolbar-clear-action" title="Clear current canvas">
+                            Clear
                         </button>
 
-                        {exportOpen && (
-                            <div className="export-dropdown export-dropdown-wide">
-                                <div className="export-dropdown-section-title">Quick export</div>
-                                <button type="button" onClick={() => runExport(exportPNG)}>
-                                    🖼️ Export as PNG
-                                </button>
-                                <button type="button" onClick={() => runExport(exportJPEG)}>
-                                    🖼️ Export as JPEG
-                                </button>
-                                <button type="button" onClick={() => runExport(exportSVG)}>
-                                    🧩 Export as SVG
-                                </button>
-                                <button type="button" onClick={() => runExport(exportPDF)}>
-                                    📕 Export as PDF
-                                </button>
-                                <button type="button" className="export-print-btn" onClick={() => runExport(printCanvas)}>
-                                    🖨️ Print Canvas
-                                </button>
-                                <button type="button" onClick={() => runExport(exportJSON)}>
-                                    📄 Export as JSON
-                                </button>
-                                <button type="button" onClick={() => runProOnly("PowerPoint export", () => runExport(exportPPT))}>
-                                    📊 Export as PowerPoint
-                                </button>
-                                <button type="button" onClick={() => runProOnly("Excel export", () => runExport(exportExcel))}>
-                                    📗 Export as Excel
-                                </button>
-                                <button type="button" onClick={() => runProOnly("CSV export", () => runExport(exportCSV))}>
-                                    🧾 Export as CSV
-                                </button>
-
-                                <div className="export-dropdown-divider" />
-                                <div className="export-dropdown-section-title">Social sizes</div>
-                                <button type="button" onClick={() => runExport(() => exportInstagram?.("portrait"))}>
-                                    📱 Instagram Portrait (1080×1350)
-                                </button>
-                                <button type="button" onClick={() => runExport(() => exportInstagram?.("story"))}>
-                                    📲 Instagram Story (1080×1920)
-                                </button>
-                                <button type="button" onClick={() => runExport(() => exportInstagram?.("status"))}>
-                                    💬 WhatsApp Status (1080×1920)
-                                </button>
-                                <button type="button" onClick={() => runExport(() => exportInstagram?.("post"))}>
-                                    ⬜ Instagram Post (1080×1080)
-                                </button>
-
-                                <div className="export-dropdown-divider" />
-                                <div className="export-dropdown-section-title">Animation</div>
-                                <button type="button" onClick={() => runProOnly("GIF export", () => runExport(exportGIF))} disabled={gifExporting}>
-                                    🎞️ {gifExporting
-                                    ? `Exporting GIF ${Math.round((gifExportProgress || 0) * 100)}%`
-                                    : "Export as GIF · PRO"}
-                                </button>
-
-                                {/*{proUser ? (*/}
-                                {/*    <details className="export-advanced-section">*/}
-                                {/*        <summary>🎬 Export video <span className="pro-inline-badge">PRO</span></summary>*/}
-                                {/*        <div className="export-video-box">*/}
-                                {/*            <label>*/}
-                                {/*                Delay before animation (seconds)*/}
-                                {/*                <input*/}
-                                {/*                    type="number"*/}
-                                {/*                    min="0"*/}
-                                {/*                    max="120"*/}
-                                {/*                    step="0.5"*/}
-                                {/*                    value={videoPreAnimationDelaySeconds}*/}
-                                {/*                    onChange={(event) => setVideoPreAnimationDelaySeconds(event.target.value)}*/}
-                                {/*                />*/}
-                                {/*            </label>*/}
-
-                                {/*            <label>*/}
-                                {/*                Hold after animation before next slide (seconds)*/}
-                                {/*                <input*/}
-                                {/*                    type="number"*/}
-                                {/*                    min="0"*/}
-                                {/*                    max="120"*/}
-                                {/*                    step="0.5"*/}
-                                {/*                    value={videoGapSeconds}*/}
-                                {/*                    onChange={(event) => setVideoGapSeconds(event.target.value)}*/}
-                                {/*                />*/}
-                                {/*            </label>*/}
-
-                                {/*            <div className="video-frame-range">*/}
-                                {/*                <label>*/}
-                                {/*                    From frame*/}
-                                {/*                    <input*/}
-                                {/*                        type="number"*/}
-                                {/*                        min="1"*/}
-                                {/*                        max={Math.max(1, timelineFrames.length)}*/}
-                                {/*                        step="1"*/}
-                                {/*                        value={videoFrameFrom}*/}
-                                {/*                        onChange={(event) => setVideoFrameFrom(event.target.value)}*/}
-                                {/*                        disabled={videoExportState.exporting || timelineFrames.length === 0}*/}
-                                {/*                    />*/}
-                                {/*                </label>*/}
-
-                                {/*                <label>*/}
-                                {/*                    To frame*/}
-                                {/*                    <input*/}
-                                {/*                        type="number"*/}
-                                {/*                        min="1"*/}
-                                {/*                        max={Math.max(1, timelineFrames.length)}*/}
-                                {/*                        step="1"*/}
-                                {/*                        value={videoFrameTo}*/}
-                                {/*                        onChange={(event) => setVideoFrameTo(event.target.value)}*/}
-                                {/*                        disabled={videoExportState.exporting || timelineFrames.length === 0}*/}
-                                {/*                    />*/}
-                                {/*                </label>*/}
-                                {/*            </div>*/}
-
-                                {/*            <div className="video-range-hint">*/}
-                                {/*                Exporting {Math.max(0, Math.min(timelineFrames.length, Number(videoFrameTo) || 0) - Math.max(1, Number(videoFrameFrom) || 1) + 1)} of {timelineFrames.length} frames*/}
-                                {/*            </div>*/}
-
-                                {/*            <label>*/}
-                                {/*                Export using*/}
-                                {/*                <select*/}
-                                {/*                    value={videoExportMode}*/}
-                                {/*                    onChange={(event) => {*/}
-                                {/*                        const value = event.target.value;*/}
-                                {/*                        setVideoExportMode(value);*/}
-                                {/*                        localStorage.setItem("sketchydraw.videoExportMode", value);*/}
-                                {/*                    }}*/}
-                                {/*                >*/}
-                                {/*                    <option value="server">Server MP4 (recommended)</option>*/}
-                                {/*                    <option value="browser">Browser WebM</option>*/}
-                                {/*                </select>*/}
-                                {/*            </label>*/}
-
-                                {/*            <button type="button" onClick={() => runProOnly("Video export", runVideoExport)} disabled={videoExportState.exporting}>*/}
-                                {/*                {videoExportState.exporting*/}
-                                {/*                    ? `⏳ ${Math.round(videoExportState.progress || 0)}%`*/}
-                                {/*                    : (videoExportMode === "server" ? "🎬 Export MP4 on server" : "🎬 Export WebM in browser")}*/}
-                                {/*            </button>*/}
-                                {/*            {videoExportState.exporting && (*/}
-                                {/*                <div className="video-export-progress" role="status" aria-live="polite">*/}
-                                {/*                    <progress max="100" value={Math.round(videoExportState.progress || 0)} />*/}
-                                {/*                    <span>{videoExportState.status || "Exporting video..."}</span>*/}
-                                {/*                </div>*/}
-                                {/*            )}*/}
-                                {/*        </div>*/}
-                                {/*    </details>*/}
-                                {/*) : (*/}
-                                {/*    <button type="button" className="export-pro-locked-row" onClick={() => requestProUpgrade("Video export")}>*/}
-                                {/*        🎬 Export video <span className="pro-inline-badge">PRO</span>*/}
-                                {/*    </button>*/}
-                                {/*)}*/}
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="grid-menu-wrap legacy-toolbar-menu" ref={gridRef}>
-                        <button
-                            type="button"
-                            className="toolbar-dark-action grid-trigger-btn"
-                            onClick={() => setGridOpen((v) => !v)}
-                            title="Canvas grid style"
-                        >
-                            Grid <span>{currentGridLabel} ⌄</span>
-                        </button>
-
-                        {gridOpen && (
-                            <div className="grid-dropdown">
-                                <button type="button" onClick={() => applyCanvasPattern("blank")}>
-                                    ⬜ Blank
-                                </button>
-
-                                <button type="button" onClick={() => applyCanvasPattern("grid")}>
-                                    #️⃣ Grid Lines
-                                </button>
-
-                                <button type="button" onClick={() => applyCanvasPattern("notebook")}>
-                                    📓 Notebook Pages
-                                </button>
-
-                                {activePattern === "notebook" && (
-                                    <>
-                                        <div className="grid-dropdown-divider" />
-
-                                        <div className="grid-dropdown-label">
-                                            Notebook Pages: {canvasProps?.pageCount || DEFAULT_NOTEBOOK_PAGE_COUNT}
-                                        </div>
-
-                                        <button type="button" onClick={addNotebookPage}>
-                                            ➕ Add Page
-                                        </button>
-
-                                        <button
-                                            type="button"
-                                            onClick={removeNotebookPage}
-                                            disabled={(canvasProps?.pageCount || DEFAULT_NOTEBOOK_PAGE_COUNT) <= 1}
-                                        >
-                                            ➖ Remove Last Page
-                                        </button>
-                                    </>
-                                )}
-
-                                <button type="button" onClick={() => applyCanvasPattern("dots")}>
-                                    ⠿ Dot Grid
-                                </button>
-
-                                <button type="button" onClick={() => applyCanvasPattern("blocks")}>
-                                    ▦ Blocks
-                                </button>
-                            </div>
-                        )}
-                    </div>
-
-                    {announcement && (
-                        <div className="topbar-announcement" title={announcement}>
-                            {announcement}
-                        </div>
-                    )}
-                </div>
-
-                <div className={`topbar-auth ${!loggedIn ? "logged-out" : "logged-in"}`}>
-                    {!loggedIn ? (
-                        <>
+                        <div className="file-native-menu-wrap toolbar-document-control" ref={fileRef}>
                             <button
                                 type="button"
-                                className="login-btn"
-                                onClick={() => setLoginOpen(true)}
+                                className="native-menu-trigger"
+                                onClick={() => { setFileOpen((value) => !value); setNewOpen(false); }}
                             >
-                                Login
+                                File <span>⌄</span>
                             </button>
 
-                            <button
-                                type="button"
-                                className="login-btn"
-                                onClick={() => setSubscriptionOpen(true)}
-                            >
-                                Subscribe
-                            </button>
-                        </>
-                    ) : (
-                        <div className="profile-menu-wrap" ref={profileRef}>
-                            <button
-                                type="button"
-                                className="profile-trigger"
-                                onClick={() => setProfileOpen((v) => !v)}
-                            >
-                                <span className="profile-avatar">
-                                    {(user?.fullName || user?.email || "U").charAt(0).toUpperCase()}
-                                </span>
+                            {fileOpen && (
+                                <div className="native-file-menu">
+                                    <button type="button" onClick={() => { createNewDrawing?.(); setFileOpen(false); }}>
+                                        <span>New drawing</span><kbd>⌘N</kbd>
+                                    </button>
+                                    <div className="native-menu-divider" />
 
-                                <span className="profile-email">
-                                    {user?.email || user?.fullName || "My Account"}
-                                </span>
-
-                                <span className={proUser ? "topbar-pro-pill" : "topbar-free-pill"}>
-                                    {proUser ? "PRO" : "FREE"}
-                                </span>
-
-                                <span className="profile-caret">⌄</span>
-                            </button>
-
-                            {profileOpen && (
-                                <div className="profile-dropdown">
-                                    <div className="profile-signed-box">
-                                        <span>SIGNED IN AS</span>
-
-                                        <strong>
-                                            {user?.email || user?.fullName || "User"}
-                                        </strong>
-
-                                        <div className={proUser ? "profile-plan-badge pro" : "profile-plan-badge free"}>
-                                            {proUser ? "⭐ PRO ACTIVE" : "FREE PLAN"}
-                                        </div>
-
-                                        {proUser && expiryDate && (
-                                            <small className="profile-plan-expiry">
-                                                Valid till {new Date(expiryDate).toLocaleDateString()}
-                                            </small>
-                                        )}
-
-                                        {!proUser && (
-                                            <small className="profile-plan-expiry">
-                                                Free exports include SketchyDraw watermark.
-                                            </small>
-                                        )}
-                                    </div>
-
-                                    <button
-                                        type="button"
-                                        className="profile-menu-item"
-                                        onClick={openProfileModal}
-                                    >
-                                        👤 My Profile
+                                    <button type="button" onClick={() => { window.dispatchEvent(new Event("sketchydraw:open-my-drawings")); setFileOpen(false); }}>
+                                        <span>Open drawing…</span><kbd>⌘O</kbd>
                                     </button>
 
-                                    <button
-                                        type="button"
-                                        className="profile-menu-item"
-                                        onClick={triggerMyDrawings}
-                                    >
-                                        🖼️ My Drawings
-                                    </button>
+                                    <div className="native-menu-divider" />
 
                                     <button
                                         type="button"
-                                        className="profile-menu-item"
-                                        onClick={openPaymentHistory}
-                                    >
-                                        🧾 Payment History
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        className="profile-menu-item"
                                         onClick={() => {
-                                            setProfileOpen(false);
-                                            setSubscriptionOpen(true);
+                                            triggerSaveExisting();
+                                            setFileOpen(false);
                                         }}
                                     >
-                                        {proUser ? "⭐ Manage Pro" : "⭐ Subscribe / Buy Credits"}
+                                        <span>Save</span>
+                                        <kbd>⌘S</kbd>
                                     </button>
-
-                                    <div className="profile-menu-divider" />
 
                                     <button
                                         type="button"
-                                        className="profile-menu-item logout-menu-item"
-                                        onClick={handleLogout}
+                                        onClick={() => {
+                                            triggerSaveAsNew();
+                                            setFileOpen(false);
+                                        }}
                                     >
-                                        Logout
+                                        <span>Save As…</span>
+                                        <kbd>⇧⌘S</kbd>
+                                    </button>
+
+                                    <div className="native-menu-divider" />
+
+                                    <div className="native-submenu-row">
+                                        <button type="button"><span>Import</span><span className="submenu-arrow">›</span></button>
+                                        <div className="native-submenu native-import-submenu">
+                                            <button type="button" onClick={() => { (openImportPicker || openJsonPicker)?.("json"); setFileOpen(false); }}>JSON…</button>
+                                            <button type="button" onClick={() => { openImportPicker?.("ppt"); setFileOpen(false); }}>PowerPoint…</button>
+                                            <button type="button" onClick={() => { openImportPicker?.("word"); setFileOpen(false); }}>Word…</button>
+                                            <button type="button" onClick={() => { openImportPicker?.("excel"); setFileOpen(false); }}>Excel / CSV…</button>
+                                            <button type="button" onClick={() => { openImportPicker?.("protected"); setFileOpen(false); }}>Protected drawing…</button>
+                                        </div>
+                                    </div>
+
+                                    <div className="native-submenu-row">
+                                        <button type="button"><span>Export</span><span className="submenu-arrow">›</span></button>
+                                        <div className="native-submenu native-export-submenu">
+                                            <button type="button" onClick={() => { runExport(exportPNG); setFileOpen(false); }}>PNG…</button>
+                                            <button type="button" onClick={() => { runExport(exportJPEG); setFileOpen(false); }}>JPEG…</button>
+                                            <button type="button" onClick={() => { runExport(exportSVG); setFileOpen(false); }}>SVG…</button>
+                                            <button type="button" onClick={() => { runExport(exportPDF); setFileOpen(false); }}>PDF…</button>
+                                            <button type="button" onClick={() => { runExport(exportJSON); setFileOpen(false); }}>JSON…</button>
+                                            <button type="button" onClick={() => { runExport(exportProtectedDrawing); setFileOpen(false); }}>Password-protected…</button>
+                                            <div className="native-menu-divider" />
+                                            <button type="button" onClick={() => { runProOnly("PowerPoint export", () => runExport(exportPPT)); setFileOpen(false); }}>PowerPoint… <span className="native-pro-badge">PRO</span></button>
+                                            <button type="button" onClick={() => { runProOnly("Excel export", () => runExport(exportExcel)); setFileOpen(false); }}>Excel… <span className="native-pro-badge">PRO</span></button>
+                                            <button type="button" onClick={() => { runProOnly("CSV export", () => runExport(exportCSV)); setFileOpen(false); }}>CSV… <span className="native-pro-badge">PRO</span></button>
+                                            <div className="native-menu-divider" />
+                                            <button type="button" onClick={() => { runExport(() => exportInstagram?.("post")); setFileOpen(false); }}>Instagram Post…</button>
+                                            <button type="button" onClick={() => { runExport(() => exportInstagram?.("portrait")); setFileOpen(false); }}>Instagram Portrait…</button>
+                                            <button type="button" onClick={() => { runExport(() => exportInstagram?.("story")); setFileOpen(false); }}>Instagram Story…</button>
+                                            <button type="button" onClick={() => { runExport(() => exportInstagram?.("status")); setFileOpen(false); }}>WhatsApp Status…</button>
+                                            <div className="native-menu-divider" />
+                                            <button type="button" onClick={() => { runProOnly("GIF export", () => runExport(exportGIF)); setFileOpen(false); }}>GIF… <span className="native-pro-badge">PRO</span></button>
+
+                                            {showVideo && (
+                                                <>
+                                                    <div className="native-menu-divider" />
+
+                                                    {proUser ? (
+                                                        <details className="native-video-export">
+                                                            <summary>
+                                                                <span>Export video…</span>
+                                                                <span className="native-pro-badge">PRO</span>
+                                                            </summary>
+
+                                                            <div className="native-video-export-panel">
+                                                                <label>
+                                                                    <span>Delay before animation</span>
+                                                                    <input
+                                                                        type="number"
+                                                                        min="0"
+                                                                        max="120"
+                                                                        step="0.5"
+                                                                        value={videoPreAnimationDelaySeconds}
+                                                                        onChange={(event) =>
+                                                                            setVideoPreAnimationDelaySeconds(event.target.value)
+                                                                        }
+                                                                        disabled={videoExportState.exporting}
+                                                                    />
+                                                                </label>
+
+                                                                <label>
+                                                                    <span>Hold after each frame</span>
+                                                                    <input
+                                                                        type="number"
+                                                                        min="0"
+                                                                        max="120"
+                                                                        step="0.5"
+                                                                        value={videoGapSeconds}
+                                                                        onChange={(event) =>
+                                                                            setVideoGapSeconds(event.target.value)
+                                                                        }
+                                                                        disabled={videoExportState.exporting}
+                                                                    />
+                                                                </label>
+
+                                                                <div className="native-video-frame-range">
+                                                                    <label>
+                                                                        <span>From frame</span>
+                                                                        <input
+                                                                            type="number"
+                                                                            min="1"
+                                                                            max={Math.max(1, timelineFrames.length)}
+                                                                            step="1"
+                                                                            value={videoFrameFrom}
+                                                                            onChange={(event) =>
+                                                                                setVideoFrameFrom(event.target.value)
+                                                                            }
+                                                                            disabled={
+                                                                                videoExportState.exporting ||
+                                                                                timelineFrames.length === 0
+                                                                            }
+                                                                        />
+                                                                    </label>
+
+                                                                    <label>
+                                                                        <span>To frame</span>
+                                                                        <input
+                                                                            type="number"
+                                                                            min="1"
+                                                                            max={Math.max(1, timelineFrames.length)}
+                                                                            step="1"
+                                                                            value={videoFrameTo}
+                                                                            onChange={(event) =>
+                                                                                setVideoFrameTo(event.target.value)
+                                                                            }
+                                                                            disabled={
+                                                                                videoExportState.exporting ||
+                                                                                timelineFrames.length === 0
+                                                                            }
+                                                                        />
+                                                                    </label>
+                                                                </div>
+
+                                                                <div className="native-video-range-hint">
+                                                                    {timelineFrames.length > 0
+                                                                        ? `Frames ${videoFrameFrom}–${videoFrameTo} of ${timelineFrames.length}`
+                                                                        : "No frames available"}
+                                                                </div>
+
+                                                                <label>
+                                                                    <span>Export using</span>
+                                                                    <select
+                                                                        value={videoExportMode}
+                                                                        onChange={(event) => {
+                                                                            const mode = event.target.value;
+                                                                            setVideoExportMode(mode);
+                                                                            localStorage.setItem(
+                                                                                "sketchydraw.videoExportMode",
+                                                                                mode
+                                                                            );
+                                                                        }}
+                                                                        disabled={videoExportState.exporting}
+                                                                    >
+                                                                        <option value="server">
+                                                                            Server MP4 (recommended)
+                                                                        </option>
+                                                                        <option value="browser">
+                                                                            Browser WebM
+                                                                        </option>
+                                                                    </select>
+                                                                </label>
+
+                                                                <button
+                                                                    type="button"
+                                                                    className="native-video-export-button"
+                                                                    onClick={() =>
+                                                                        runProOnly("Video export", runVideoExport)
+                                                                    }
+                                                                    disabled={
+                                                                        videoExportState.exporting ||
+                                                                        timelineFrames.length === 0
+                                                                    }
+                                                                >
+                                                                    {videoExportState.exporting
+                                                                        ? `Exporting ${Math.round(
+                                                                            videoExportState.progress || 0
+                                                                        )}%`
+                                                                        : videoExportMode === "server"
+                                                                            ? "Export MP4"
+                                                                            : "Export WebM"}
+                                                                </button>
+
+                                                                {videoExportState.exporting && (
+                                                                    <div
+                                                                        className="native-video-progress"
+                                                                        role="status"
+                                                                        aria-live="polite"
+                                                                    >
+                                                                        <progress
+                                                                            max="100"
+                                                                            value={Math.round(
+                                                                                videoExportState.progress || 0
+                                                                            )}
+                                                                        />
+                                                                        <span>
+                                                                        {videoExportState.status ||
+                                                                            "Exporting video…"}
+                                                                    </span>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </details>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                requestProUpgrade("Video export");
+                                                                setFileOpen(false);
+                                                            }}
+                                                        >
+                                                            <span>Export video…</span>
+                                                            <span className="native-pro-badge">PRO</span>
+                                                        </button>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="native-menu-divider" />
+                                    <button type="button" onClick={() => { runExport(printCanvas); setFileOpen(false); }}>
+                                        <span>Print…</span><kbd>⌘P</kbd>
                                     </button>
                                 </div>
                             )}
                         </div>
-                    )}
+
+                        <div className="new-native-menu-wrap toolbar-document-control" ref={newRef}>
+                            <button
+                                type="button"
+                                className="native-menu-trigger native-new-trigger"
+                                onClick={() => { setNewOpen((value) => !value); setFileOpen(false); }}
+                            >
+                                New <span>⌄</span>
+                            </button>
+                            {newOpen && (
+                                <div className="native-file-menu native-new-menu">
+                                    <button type="button" onClick={() => { createNewDrawing?.(); setNewOpen(false); }}>New drawing</button>
+                                    <div className="native-menu-divider" />
+                                    <button type="button" onClick={() => { applyCanvasPattern("blank"); setNewOpen(false); }}>Blank canvas</button>
+                                    <button type="button" onClick={() => { applyCanvasPattern("grid"); setNewOpen(false); }}>Grid canvas</button>
+                                    <button type="button" onClick={() => { applyCanvasPattern("notebook"); setNewOpen(false); }}>Notebook</button>
+                                    <button type="button" onClick={() => { applyCanvasPattern("dots"); setNewOpen(false); }}>Dot grid</button>
+                                    <button type="button" onClick={() => { applyCanvasPattern("blocks"); setNewOpen(false); }}>Blocks</button>
+                                    <button type="button" onClick={() => { onOpenExcelGrid?.(); setNewOpen(false); }}>New Excel</button>
+                                    <button type="button" onClick={() => { onOpenMarkdownGrid?.(); setNewOpen(false); }}>New Markdown</button>
+                                    <div className="native-menu-divider" />
+                                    <button type="button" onClick={() => { selectCreatorPreset(null); setNewOpen(false); }}>Free canvas</button>
+                                    <button type="button" onClick={() => { selectCreatorPreset("post"); setNewOpen(false); }}>Instagram Post{!proUser ? " · PRO" : ""}</button>
+                                    <button type="button" onClick={() => { selectCreatorPreset("portrait"); setNewOpen(false); }}>Instagram Portrait{!proUser ? " · PRO" : ""}</button>
+                                    <button type="button" onClick={() => { selectCreatorPreset("story"); setNewOpen(false); }}>Instagram Story{!proUser ? " · PRO" : ""}</button>
+                                    <button type="button" onClick={() => { selectCreatorPreset("status"); setNewOpen(false); }}>WhatsApp Status · FREE</button>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className={`creator-toolbar-control toolbar-creator-control ${socialCreatorPreset ? "active" : ""}`}>
+                            <span className="creator-toolbar-icon" aria-hidden="true">✦</span>
+                            <select
+                                value={socialCreatorPreset || ""}
+                                onChange={(event) => selectCreatorPreset(event.target.value)}
+                                title="Choose a creator canvas size"
+                                aria-label="Creator mode"
+                            >
+                                <option value="">Creator mode</option>
+                                {Object.values(SOCIAL_MEDIA_PRESETS).map((preset) => (
+                                    <option key={preset.id} value={preset.id}>
+                                        {preset.shortLabel} · {preset.width}×{preset.height}{!proUser && preset.id !== "status" ? " · PRO" : preset.id === "status" ? " · FREE" : ""}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <button
+                            type="button"
+                            className="toolbar-focus-button toolbar-view-control"
+                            onClick={onToggleFocusMode}
+                            title="Open full-screen canvas"
+                            aria-label="Open full-screen canvas"
+                        >
+                            <span aria-hidden="true">⛶</span>
+                            <span>Full screen</span>
+                        </button>
+
+                        <div className="save-menu-wrap legacy-toolbar-menu" title="Save this drawing" ref={saveRef}>
+                            <button
+                                type="button"
+                                className="toolbar-primary-action save-trigger-btn"
+                                onClick={() => setSaveOpen((v) => !v)}
+                                title="Save this drawing"
+                            >
+                                Save <span title="Save this drawing">⌄</span>
+                            </button>
+
+                            {saveOpen && (
+                                <div className="save-dropdown">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            createNewDrawing?.();
+                                            setSaveOpen(false);
+                                        }}
+                                    >
+                                        ✨ New Drawing
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            triggerSaveExisting?.();
+                                            setSaveOpen(false);
+                                        }}
+                                    >
+                                        💾 Save
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            triggerSaveAsNew?.();
+                                            setSaveOpen(false);
+                                        }}
+                                    >
+                                        🆕 Save As
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            window.dispatchEvent(new Event("sketchydraw:open-my-drawings"));
+                                            setSaveOpen(false);
+                                        }}
+                                    >
+                                        📂 View Saved Drawings
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="export-menu-wrap legacy-toolbar-menu" ref={importRef}>
+                            <button
+                                type="button"
+                                className="toolbar-dark-action export-trigger-btn"
+                                onClick={() => setImportOpen((value) => !value)}
+                                title="Import JSON, PowerPoint, or Excel"
+                            >
+                                Import <span>⌄</span>
+                            </button>
+
+                            {importOpen && (
+                                <div className="export-dropdown">
+                                    <button type="button" onClick={() => { (openImportPicker || openJsonPicker)?.("json"); setImportOpen(false); }}>
+                                        📄 Import JSON
+                                    </button>
+                                    <button type="button" onClick={() => { openImportPicker?.("ppt"); setImportOpen(false); }}>
+                                        📊 Import PowerPoint
+                                    </button>
+                                    <button type="button" onClick={() => { openImportPicker?.("word"); setImportOpen(false); }}>
+                                        📝 Import Word
+                                    </button>
+                                    <button type="button" onClick={() => { openImportPicker?.("excel"); setImportOpen(false); }}>
+                                        📈 Import Excel / CSV
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="social-creator-control legacy-toolbar-menu">
+                            <span className="social-creator-label">Creator canvas</span>
+                            <select
+                                value={socialCreatorPreset || ""}
+                                onChange={(event) => selectCreatorPreset(event.target.value)}
+                                title="Show Instagram or WhatsApp composition guides"
+                            >
+                                <option value="">Off / Free canvas</option>
+                                {Object.values(SOCIAL_MEDIA_PRESETS).map((preset) => (
+                                    <option key={preset.id} value={preset.id}>
+                                        {preset.shortLabel} · {preset.width}×{preset.height}{!proUser && preset.id !== "status" ? " · PRO" : preset.id === "status" ? " · FREE" : ""}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="export-menu-wrap legacy-toolbar-menu" ref={exportRef}>
+                            <button
+                                type="button"
+                                className="toolbar-dark-action export-trigger-btn"
+                                onClick={() => setExportOpen((v) => !v)}
+                                title="Export this drawing"
+                            >
+                                Export <span>⌄</span>
+                            </button>
+
+                            {exportOpen && (
+                                <div className="export-dropdown export-dropdown-wide">
+                                    <div className="export-dropdown-section-title">Quick export</div>
+                                    <button type="button" onClick={() => runExport(exportPNG)}>
+                                        🖼️ Export as PNG
+                                    </button>
+                                    <button type="button" onClick={() => runExport(exportJPEG)}>
+                                        🖼️ Export as JPEG
+                                    </button>
+                                    <button type="button" onClick={() => runExport(exportSVG)}>
+                                        🧩 Export as SVG
+                                    </button>
+                                    <button type="button" onClick={() => runExport(exportPDF)}>
+                                        📕 Export as PDF
+                                    </button>
+                                    <button type="button" className="export-print-btn" onClick={() => runExport(printCanvas)}>
+                                        🖨️ Print Canvas
+                                    </button>
+                                    <button type="button" onClick={() => runExport(exportJSON)}>
+                                        📄 Export as JSON
+                                    </button>
+                                    <button type="button" onClick={() => runProOnly("PowerPoint export", () => runExport(exportPPT))}>
+                                        📊 Export as PowerPoint
+                                    </button>
+                                    <button type="button" onClick={() => runProOnly("Excel export", () => runExport(exportExcel))}>
+                                        📗 Export as Excel
+                                    </button>
+                                    <button type="button" onClick={() => runProOnly("CSV export", () => runExport(exportCSV))}>
+                                        🧾 Export as CSV
+                                    </button>
+
+                                    <div className="export-dropdown-divider" />
+                                    <div className="export-dropdown-section-title">Social sizes</div>
+                                    <button type="button" onClick={() => runExport(() => exportInstagram?.("portrait"))}>
+                                        📱 Instagram Portrait (1080×1350)
+                                    </button>
+                                    <button type="button" onClick={() => runExport(() => exportInstagram?.("story"))}>
+                                        📲 Instagram Story (1080×1920)
+                                    </button>
+                                    <button type="button" onClick={() => runExport(() => exportInstagram?.("status"))}>
+                                        💬 WhatsApp Status (1080×1920)
+                                    </button>
+                                    <button type="button" onClick={() => runExport(() => exportInstagram?.("post"))}>
+                                        ⬜ Instagram Post (1080×1080)
+                                    </button>
+
+                                    <div className="export-dropdown-divider" />
+                                    <div className="export-dropdown-section-title">Animation</div>
+                                    <button type="button" onClick={() => runProOnly("GIF export", () => runExport(exportGIF))} disabled={gifExporting}>
+                                        🎞️ {gifExporting
+                                        ? `Exporting GIF ${Math.round((gifExportProgress || 0) * 100)}%`
+                                        : "Export as GIF · PRO"}
+                                    </button>
+
+                                    {proUser ? (
+                                        <details className="export-advanced-section">
+                                            <summary>🎬 Export video <span className="pro-inline-badge">PRO</span></summary>
+                                            <div className="export-video-box">
+                                                <label>
+                                                    Delay before animation (seconds)
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        max="120"
+                                                        step="0.5"
+                                                        value={videoPreAnimationDelaySeconds}
+                                                        onChange={(event) => setVideoPreAnimationDelaySeconds(event.target.value)}
+                                                    />
+                                                </label>
+
+                                                <label>
+                                                    Hold after animation before next slide (seconds)
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        max="120"
+                                                        step="0.5"
+                                                        value={videoGapSeconds}
+                                                        onChange={(event) => setVideoGapSeconds(event.target.value)}
+                                                    />
+                                                </label>
+
+                                                <div className="video-frame-range">
+                                                    <label>
+                                                        From frame
+                                                        <input
+                                                            type="number"
+                                                            min="1"
+                                                            max={Math.max(1, timelineFrames.length)}
+                                                            step="1"
+                                                            value={videoFrameFrom}
+                                                            onChange={(event) => setVideoFrameFrom(event.target.value)}
+                                                            disabled={videoExportState.exporting || timelineFrames.length === 0}
+                                                        />
+                                                    </label>
+
+                                                    <label>
+                                                        To frame
+                                                        <input
+                                                            type="number"
+                                                            min="1"
+                                                            max={Math.max(1, timelineFrames.length)}
+                                                            step="1"
+                                                            value={videoFrameTo}
+                                                            onChange={(event) => setVideoFrameTo(event.target.value)}
+                                                            disabled={videoExportState.exporting || timelineFrames.length === 0}
+                                                        />
+                                                    </label>
+                                                </div>
+
+                                                <div className="video-range-hint">
+                                                    Exporting {Math.max(0, Math.min(timelineFrames.length, Number(videoFrameTo) || 0) - Math.max(1, Number(videoFrameFrom) || 1) + 1)} of {timelineFrames.length} frames
+                                                </div>
+
+                                                <label>
+                                                    Export using
+                                                    <select
+                                                        value={videoExportMode}
+                                                        onChange={(event) => {
+                                                            const value = event.target.value;
+                                                            setVideoExportMode(value);
+                                                            localStorage.setItem("sketchydraw.videoExportMode", value);
+                                                        }}
+                                                    >
+                                                        <option value="server">Server MP4 (recommended)</option>
+                                                        <option value="browser">Browser WebM</option>
+                                                    </select>
+                                                </label>
+
+                                                <button type="button" onClick={() => runProOnly("Video export", runVideoExport)} disabled={videoExportState.exporting}>
+                                                    {videoExportState.exporting
+                                                        ? `⏳ ${Math.round(videoExportState.progress || 0)}%`
+                                                        : (videoExportMode === "server" ? "🎬 Export MP4 on server" : "🎬 Export WebM in browser")}
+                                                </button>
+                                                {videoExportState.exporting && (
+                                                    <div className="video-export-progress" role="status" aria-live="polite">
+                                                        <progress max="100" value={Math.round(videoExportState.progress || 0)} />
+                                                        <span>{videoExportState.status || "Exporting video..."}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </details>
+                                    ) : (
+                                        <button type="button" className="export-pro-locked-row" onClick={() => requestProUpgrade("Video export")}>
+                                            🎬 Export video <span className="pro-inline-badge">PRO</span>
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="grid-menu-wrap legacy-toolbar-menu" ref={gridRef}>
+                            <button
+                                type="button"
+                                className="toolbar-dark-action grid-trigger-btn"
+                                onClick={() => setGridOpen((v) => !v)}
+                                title="Canvas grid style"
+                            >
+                                Grid <span>{currentGridLabel} ⌄</span>
+                            </button>
+
+                            {gridOpen && (
+                                <div className="grid-dropdown">
+                                    <button type="button" onClick={() => applyCanvasPattern("blank")}>
+                                        ⬜ Blank
+                                    </button>
+
+                                    <button type="button" onClick={() => applyCanvasPattern("grid")}>
+                                        #️⃣ Grid Lines
+                                    </button>
+
+                                    <button type="button" onClick={() => applyCanvasPattern("notebook")}>
+                                        📓 Notebook Pages
+                                    </button>
+
+                                    {activePattern === "notebook" && (
+                                        <>
+                                            <div className="grid-dropdown-divider" />
+
+                                            <div className="grid-dropdown-label">
+                                                Notebook Pages: {canvasProps?.pageCount || DEFAULT_NOTEBOOK_PAGE_COUNT}
+                                            </div>
+
+                                            <button type="button" onClick={addNotebookPage}>
+                                                ➕ Add Page
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={removeNotebookPage}
+                                                disabled={(canvasProps?.pageCount || DEFAULT_NOTEBOOK_PAGE_COUNT) <= 1}
+                                            >
+                                                ➖ Remove Last Page
+                                            </button>
+                                        </>
+                                    )}
+
+                                    <button type="button" onClick={() => applyCanvasPattern("dots")}>
+                                        ⠿ Dot Grid
+                                    </button>
+
+                                    <button type="button" onClick={() => applyCanvasPattern("blocks")}>
+                                        ▦ Blocks
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {announcement && (
+                            <div className="topbar-announcement" title={announcement}>
+                                {announcement}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="topbar-tools-row">
+                        <div className="toolbar-canvas-strip" role="toolbar" aria-label="Drawing tools">
+                            {TOOLBAR_TOOLS.map((item, index) => {
+                                const Icon = item.icon;
+                                return (
+                                    <button
+                                        key={item.id}
+                                        type="button"
+                                        className={`toolbar-canvas-tool ${tool === item.id ? "active" : ""}`}
+                                        onClick={() => chooseToolbarTool(item)}
+                                        title={`${item.label}${item.premium ? " · PRO" : ""}`}
+                                        aria-label={item.label}
+                                        aria-pressed={tool === item.id}
+                                    >
+                                        <Icon size={17} strokeWidth={1.9} />
+                                        {index < 9 && <span className="toolbar-tool-shortcut">{index + 1}</span>}
+                                        {item.premium && !proUser && <span className="toolbar-tool-pro">PRO</span>}
+                                    </button>
+                                );
+                            })}
+
+                            <span className="toolbar-strip-divider" aria-hidden="true" />
+
+                            <button type="button" className="toolbar-more-tools" onClick={() => openSidebarSection("draw")} title="Open all tools">
+                                <MoreHorizontal size={18} />
+                                <span>More tools</span>
+                            </button>
+
+                        </div>
+                    </div>
+
+                    <div className={`topbar-auth ${!loggedIn ? "logged-out" : "logged-in"}`}>
+                        {!loggedIn ? (
+                            <>
+                                <button
+                                    type="button"
+                                    className="login-btn"
+                                    onClick={() => setLoginOpen(true)}
+                                >
+                                    Login
+                                </button>
+
+                            </>
+                        ) : (
+                            <div className="profile-menu-wrap" ref={profileRef}>
+                                <button
+                                    type="button"
+                                    className="profile-trigger"
+                                    onClick={() => setProfileOpen((v) => !v)}
+                                >
+                                <span className="profile-avatar">
+                                    {(user?.fullName || user?.email || "U").charAt(0).toUpperCase()}
+                                </span>
+
+                                    <span className="profile-email">
+                                    {user?.email || user?.fullName || "My Account"}
+                                </span>
+
+                                    <span className={proUser ? "topbar-pro-pill" : "topbar-free-pill"}>
+                                    {proUser ? "PRO" : "FREE"}
+                                </span>
+
+                                    <span className="profile-caret">⌄</span>
+                                </button>
+
+                                {profileOpen && (
+                                    <div className="profile-dropdown">
+                                        <div className="profile-signed-box">
+                                            <span>SIGNED IN AS</span>
+
+                                            <strong>
+                                                {user?.email || user?.fullName || "User"}
+                                            </strong>
+
+                                            <div className={proUser ? "profile-plan-badge pro" : "profile-plan-badge free"}>
+                                                {proUser ? "⭐ PRO ACTIVE" : "FREE PLAN"}
+                                            </div>
+
+                                            {proUser && expiryDate && (
+                                                <small className="profile-plan-expiry">
+                                                    Valid till {new Date(expiryDate).toLocaleDateString()}
+                                                </small>
+                                            )}
+
+                                            {!proUser && (
+                                                <small className="profile-plan-expiry">
+                                                    Free exports include SketchyDraw watermark.
+                                                </small>
+                                            )}
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            className="profile-menu-item"
+                                            onClick={openProfileModal}
+                                        >
+                                            👤 My Profile
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            className="profile-menu-item"
+                                            onClick={triggerMyDrawings}
+                                        >
+                                            🖼️ My Drawings
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            className="profile-menu-item"
+                                            onClick={openPaymentHistory}
+                                        >
+                                            🧾 Payment History
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            className="profile-menu-item"
+                                            onClick={() => {
+                                                setProfileOpen(false);
+                                                setSubscriptionOpen(true);
+                                            }}
+                                        >
+                                            {proUser ? "⭐ Manage Pro" : "⭐ Subscribe / Buy Credits"}
+                                        </button>
+
+                                        <div className="profile-menu-divider" />
+
+                                        <button
+                                            type="button"
+                                            className="profile-menu-item logout-menu-item"
+                                            onClick={handleLogout}
+                                        >
+                                            Logout
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
+
             </div>
 
             <SketchyLoginModal

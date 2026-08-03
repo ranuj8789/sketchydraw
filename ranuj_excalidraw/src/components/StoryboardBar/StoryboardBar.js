@@ -13,8 +13,12 @@ export default function StoryboardBar({
                                         onAddFrame,
                                         onOpenManager,
                                         onPresent,
+                                        onPreviousFrame,
+                                        onNextFrame,
                                         onPlayCurrent,
                                         onMergeAll,
+                                        onUndoFrameAction,
+                                        canUndoFrameAction = false,
                                         onReorderFrames,
                                       }) {
   const [expanded, setExpanded] = useState(false);
@@ -136,9 +140,55 @@ export default function StoryboardBar({
             {pinned ? "📌" : "📍"}
           </button>
           <div className="storyboard-actions">
+            <div className="storyboard-presentation-cluster" aria-label="Frame presentation controls">
+              <button
+                  type="button"
+                  className="storyboard-step"
+                  onClick={() => proAction("Frames", onPreviousFrame)}
+                  disabled={proUser && currentIndex <= 0}
+                  title="Previous frame"
+              >
+                ‹
+              </button>
+              <button
+                  type="button"
+                  className="storyboard-present"
+                  onClick={() => proAction("Presentation and frame playback", onPresent)}
+                  title="Present all frames"
+              >
+                ▶ Present
+              </button>
+              <button
+                  type="button"
+                  className="storyboard-step"
+                  onClick={() => proAction("Frames", onNextFrame)}
+                  disabled={proUser && currentIndex >= Math.max(0, frames.length - 1)}
+                  title="Next frame"
+              >
+                ›
+              </button>
+              <button
+                  type="button"
+                  className="storyboard-frame-count"
+                  onClick={() => proAction("Frames", onOpenManager)}
+                  title="Open frame manager"
+              >
+                {Math.min(currentIndex + 1, frames.length || 1)} / {frames.length || 1}
+              </button>
+            </div>
+            <span className="storyboard-action-divider" aria-hidden="true" />
             <button type="button" onClick={() => proAction("Frame playback", onPlayCurrent)}>▶ Play frame</button>
-            <button type="button" className="storyboard-present" onClick={() => proAction("Presentation and frame playback", onPresent)}>▶ Play all</button>
+            <button type="button" className="storyboard-play-all" onClick={() => proAction("Presentation and frame playback", onPresent)}>▶ Play all</button>
             <button type="button" className="storyboard-merge-all" disabled={frames.length <= 1} onClick={() => proAction("Merge frames", onMergeAll)}>Merge all</button>
+            <button
+                type="button"
+                className="storyboard-undo-frame-action"
+                disabled={!canUndoFrameAction}
+                onClick={onUndoFrameAction}
+                title="Undo the most recent frame merge"
+            >
+              ↶ Undo merge
+            </button>
             <button type="button" onClick={() => proAction("Frames", onOpenManager)}>Manage</button>
           </div>
         </div>

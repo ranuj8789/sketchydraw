@@ -263,3 +263,66 @@
   opacity: 1;
   transform: translateY(0);
 }
+
+
+.storyboard-undo-frame-action:not(:disabled) {
+  border-color: #818cf8;
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+
+/* Frame navigation and presentation belong to the storyboard, not the app toolbar. */
+.storyboard-actions {
+  align-items: center;
+  gap: 6px;
+}
+.storyboard-presentation-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid #e1e5eb;
+  border-radius: 11px;
+  background: #f8fafc;
+}
+.storyboard-presentation-cluster button {
+  height: 28px !important;
+  min-height: 28px;
+  padding: 0 9px !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+}
+.storyboard-presentation-cluster .storyboard-step {
+  width: 29px;
+  padding: 0 !important;
+  font-size: 18px !important;
+  line-height: 1;
+}
+.storyboard-presentation-cluster .storyboard-present {
+  border-color: #d8b66a !important;
+  background: #fff7e5 !important;
+  color: #654b18 !important;
+}
+.storyboard-presentation-cluster .storyboard-frame-count {
+  min-width: 48px;
+  color: #475569;
+  font-variant-numeric: tabular-nums;
+}
+.storyboard-action-divider {
+  width: 1px;
+  height: 25px;
+  margin: 0 2px;
+  background: #e4e8ee;
+}
+.storyboard-actions .storyboard-play-all {
+  border-color: #d8b66a;
+  background: #fffaf0;
+  color: #694f1d;
+}
+@media (max-width: 900px) {
+  .storyboard-presentation-cluster .storyboard-present { font-size: 0 !important; width: 32px; padding: 0 !important; }
+  .storyboard-presentation-cluster .storyboard-present::before { content: "▶"; font-size: 11px; }
+  .storyboard-action-divider,
+  .storyboard-actions .storyboard-play-all { display: none; }
+}

@@ -6,6 +6,7 @@ import {
 } from "../../canvas/textStyle";
 import "./PropertiesPanel.css";
 import { isSystemDesignType } from "../../canvas/canvasConstants";
+import { getAnimationPresetsForElement } from "../../canvas/animationRegistry";
 
 const LINE_WIDTHS = [1, 2, 3, 4, 6, 8];
 
@@ -201,6 +202,81 @@ function loadGoogleFont(fontName) {
     document.head.appendChild(link);
 }
 
+
+function SidebarFrameAudioRecorder({ frame, frameIndex, onAudioSaved, onAudioRemoved }) {
+    const recorderRef = React.useRef(null);
+    const streamRef = React.useRef(null);
+    const chunksRef = React.useRef([]);
+    const startedAtRef = React.useRef(0);
+    const [recording, setRecording] = useState(false);
+    const [error, setError] = useState("");
+
+    useEffect(() => () => {
+        streamRef.current?.getTracks?.().forEach((track) => track.stop());
+    }, []);
+
+    const start = async () => {
+        setError("");
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            streamRef.current = stream;
+            chunksRef.current = [];
+            const recorder = new MediaRecorder(stream);
+            recorderRef.current = recorder;
+            startedAtRef.current = Date.now();
+            recorder.ondataavailable = (event) => {
+                if (event.data?.size) chunksRef.current.push(event.data);
+            };
+            recorder.onstop = () => {
+                const blob = new Blob(chunksRef.current, {
+                    type: recorder.mimeType || "audio/webm",
+                });
+                const reader = new FileReader();
+                reader.onloadend = () =>
+                    onAudioSaved?.(frameIndex, String(reader.result || ""), {
+                        name: `Frame ${frameIndex + 1} narration`,
+                        durationMs: Math.max(0, Date.now() - startedAtRef.current),
+                    });
+                reader.readAsDataURL(blob);
+                streamRef.current?.getTracks?.().forEach((track) => track.stop());
+                streamRef.current = null;
+            };
+            recorder.start();
+            setRecording(true);
+        } catch (err) {
+            setError(err?.message || "Microphone permission failed.");
+        }
+    };
+
+    const stop = () => {
+        if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+        setRecording(false);
+    };
+
+    return (
+        <div className="sidebar-frame-audio">
+            <div>
+                <strong>Frame narration</strong>
+                <small>Record audio for the current frame.</small>
+            </div>
+            {frame?.audioDataUrl ? (
+                <>
+                    <audio controls src={frame.audioDataUrl} />
+                    <div className="sidebar-frame-audio-actions">
+                        <button type="button" onClick={start}>Replace</button>
+                        <button type="button" onClick={() => onAudioRemoved?.(frameIndex)}>Remove</button>
+                    </div>
+                </>
+            ) : (
+                <button type="button" className={recording ? "recording" : ""} onClick={recording ? stop : start}>
+                    {recording ? "Stop recording" : "Record narration"}
+                </button>
+            )}
+            {error && <small className="sidebar-frame-audio-error">{error}</small>}
+        </div>
+    );
+}
+
 export default function PropertiesPanel({
                                             selectedElement,
                                             colors,
@@ -212,6 +288,11 @@ export default function PropertiesPanel({
                                             updateCanvasProps,
                                             frames = [],
                                             currentFrameIndex = 0,
+                                            onUpdateFrameAudio,
+                                            onRemoveFrameAudio,
+                                            forcedMode = null,
+                                            hideModeTabs = false,
+                                            compactHeader = false,
                                         }) {
     const isText = selectedElement?.type === "text";
     const isImage = selectedElement?.type === "image";
@@ -220,13 +301,24 @@ export default function PropertiesPanel({
     const [customFontSize, setCustomFontSize] = useState(
         String(FONT_SIZE_OPTIONS.M.fontSize)
     );
-    const [activeInspectorTab, setActiveInspectorTab] = useState("properties");
+    const [activeInspectorTab, setActiveInspectorTab] = useState(
+        forcedMode || "properties"
+    );
+    const [animationCategory, setAnimationCategory] = useState("entrance");
+    const [advancedSequenceOpen, setAdvancedSequenceOpen] = useState(false);
+
+    const inspectorTab = forcedMode || activeInspectorTab;
 
     useEffect(() => {
+        if (forcedMode) {
+            setActiveInspectorTab(forcedMode);
+            return;
+        }
+
         if (!selectedElement && activeInspectorTab === "animation") {
             setActiveInspectorTab("properties");
         }
-    }, [selectedElement, activeInspectorTab]);
+    }, [selectedElement, activeInspectorTab, forcedMode]);
 
     useEffect(() => {
         if (!isText) return;
@@ -262,7 +354,64 @@ export default function PropertiesPanel({
     const isCurved = selectedElement?.lineStyle === "curved";
 
     const animation = getAnimation(selectedElement);
-    const supportedAnimationOptions = getSupportedAnimationOptions(selectedElement);
+
+    const supportedAnimationOptions = getAnimationPresetsForElement(
+        selectedElement
+    ).map((preset) => ({
+        label: preset.label,
+        value: preset.type,
+        durationMs: preset.durationMs,
+        loop: !!preset.loop,
+        description: preset.description || "",
+    }));
+
+    const animationGroups = {
+        entrance: supportedAnimationOptions.filter((item) =>
+            [
+                "none",
+                "appear",
+                "fadeIn",
+                "flyInLeft",
+                "flyInRight",
+                "flyInTop",
+                "flyInBottom",
+                "zoomIn",
+                "floatIn",
+                "slideUp",
+                "scaleIn",
+                "typewriter",
+                "draw",
+            ].includes(item.value)
+        ),
+        emphasis: supportedAnimationOptions.filter((item) =>
+            [
+                "pulse",
+                "glow",
+                "pulseRing",
+                "spotlight",
+                "blink",
+                "movingHead",
+                "movingDashes",
+            ].includes(item.value)
+        ),
+    };
+
+    const visibleAnimationOptions =
+        animationGroups[animationCategory] || animationGroups.entrance;
+
+    const applyAnimationPreset = (item) => {
+        updateSelectedElementStyle?.({
+            animation: {
+                ...animation,
+                type: item.value,
+                durationMs:
+                    item.value === "none"
+                        ? animation.durationMs
+                        : item.durationMs || animation.durationMs,
+                loop: !!item.loop,
+            },
+        });
+    };
     const currentFrame = frames[currentFrameIndex] || frames[0] || null;
     const frameElements = currentFrame?.elements || [];
     const dependencyCandidates = frameElements.filter((item) => item?.id && item.id !== selectedElement?.id);
@@ -282,42 +431,46 @@ export default function PropertiesPanel({
     const canvasCornerRadius = canvasProps.cornerRadius ?? 16;
 
     return (
-        <div className="properties-panel">
+        <div className={`properties-panel ${compactHeader ? "compact-animation-panel" : ""}`}>
             <div className="properties-header">
                 <div>
-                    <h3>Properties</h3>
+                    <h3>{forcedMode === "animation" ? "Animation" : "Properties"}</h3>
                     <p>
                         {selectedElement
                             ? `Selected: ${selectedElement.type}`
-                            : "Canvas settings"}
+                            : forcedMode === "animation"
+                                ? "Select an object to animate it"
+                                : "Canvas settings"}
                     </p>
                 </div>
             </div>
 
-            <div className="properties-mode-tabs" role="tablist" aria-label="Inspector mode">
-                <button
-                    type="button"
-                    role="tab"
-                    aria-selected={activeInspectorTab === "properties"}
-                    className={activeInspectorTab === "properties" ? "active" : ""}
-                    onClick={() => setActiveInspectorTab("properties")}
-                >
-                    Properties
-                </button>
-                <button
-                    type="button"
-                    role="tab"
-                    aria-selected={activeInspectorTab === "animation"}
-                    className={activeInspectorTab === "animation" ? "active" : ""}
-                    onClick={() => selectedElement && setActiveInspectorTab("animation")}
-                    disabled={!selectedElement}
-                    title={!selectedElement ? "Select an object to animate it" : "Object animation settings"}
-                >
-                    Animation
-                </button>
-            </div>
+            {!hideModeTabs && (
+                <div className="properties-mode-tabs" role="tablist" aria-label="Inspector mode">
+                    <button
+                        type="button"
+                        role="tab"
+                        aria-selected={activeInspectorTab === "properties"}
+                        className={activeInspectorTab === "properties" ? "active" : ""}
+                        onClick={() => setActiveInspectorTab("properties")}
+                    >
+                        Properties
+                    </button>
+                    <button
+                        type="button"
+                        role="tab"
+                        aria-selected={activeInspectorTab === "animation"}
+                        className={activeInspectorTab === "animation" ? "active" : ""}
+                        onClick={() => selectedElement && setActiveInspectorTab("animation")}
+                        disabled={!selectedElement}
+                        title={!selectedElement ? "Select an object to animate it" : "Object animation settings"}
+                    >
+                        Animation
+                    </button>
+                </div>
+            )}
 
-            {activeInspectorTab === "properties" && (
+            {inspectorTab === "properties" && (
                 <div className="properties-tab-content">
 
                     {!selectedElement && (
@@ -865,153 +1018,450 @@ export default function PropertiesPanel({
                 </div>
             )}
 
-            {activeInspectorTab === "animation" && selectedElement && (
-                <div className="animation-inspector">
-                    <section className="animation-selected-object">
-                        <ObjectDiagram element={selectedElement} />
-                        <div>
-                            <span>Selected object</span>
-                            <strong>{getObjectLabel(selectedElement, 0)}</strong>
-                            <small>Only this object will be changed below.</small>
+            {inspectorTab === "animation" && !selectedElement && (
+                <div className="animation-empty-state">
+                    <strong>Select an object</strong>
+                    <span>
+                        Click a shape, arrow, text or image on the canvas. Its
+                        PowerPoint-style animation controls will appear here.
+                    </span>
+                </div>
+            )}
+
+            {inspectorTab === "animation" && selectedElement && (
+                <div className="animation-inspector intuitive-animation-inspector">
+                    <section className="animation-summary-card">
+                        <div className="animation-summary-object">
+                            <ObjectDiagram element={selectedElement} />
+                            <div>
+                                <span>Selected</span>
+                                <strong>{getObjectLabel(selectedElement, 0)}</strong>
+                            </div>
+                        </div>
+
+                        <div className="animation-summary-effect">
+                            <span>Animation</span>
+                            <strong>
+                                {
+                                    supportedAnimationOptions.find(
+                                        (item) => item.value === animation.type
+                                    )?.label || "None"
+                                }
+                            </strong>
+                            <small>
+                                {animation.dependencyMode === "afterStart"
+                                    ? "With previous"
+                                    : animation.dependencyMode === "afterEnd"
+                                        ? "After previous"
+                                        : "On timeline"}
+                                {" · "}
+                                {(animation.durationMs / 1000).toFixed(1)} sec
+                            </small>
+                        </div>
+
+                        <div className="animation-summary-actions">
+                            <button
+                                type="button"
+                                className="animation-replay-button"
+                                onClick={() =>
+                                    window.dispatchEvent(
+                                        new Event(
+                                            "sketchydraw:open-animation-storyboard"
+                                        )
+                                    )
+                                }
+                                disabled={animation.type === "none"}
+                            >
+                                ▶ Preview frame
+                            </button>
+
+                            <button
+                                type="button"
+                                className="animation-storyboard-button"
+                                onClick={() =>
+                                    window.dispatchEvent(
+                                        new Event(
+                                            "sketchydraw:open-animation-storyboard"
+                                        )
+                                    )
+                                }
+                            >
+                                Storyboard
+                            </button>
                         </div>
                     </section>
 
-                    <div className="animation-group-label">
-                        <span>1</span>
-                        <div><strong>Object animation</strong><small>How this selected object enters the frame.</small></div>
-                    </div>
-
                     <section className="animation-card animation-card-hero">
-                        <div className="animation-section-heading">
-                            <div>
-                                <span className="animation-eyebrow">Frame {currentFrameIndex + 1}</span>
-                                <label>Entrance effect</label>
-                                <small>Click the object on canvas, then choose its effect here.</small>
-                            </div>
-                            <strong>{(animation.delayMs / 1000).toFixed(2)}s → {((animation.delayMs + animation.durationMs) / 1000).toFixed(2)}s</strong>
+                        <div className="animation-card-title">
+                            <strong>How should this object animate?</strong>
+                            <span>
+                                Choose an effect, then use Preview frame to review it safely.
+                            </span>
                         </div>
 
-                        <div className="animation-effect-grid">
-                            {supportedAnimationOptions.map((item) => (
+                        <div className="animation-category-tabs" role="tablist">
+                            <button
+                                type="button"
+                                className={animationCategory === "entrance" ? "active" : ""}
+                                onClick={() => setAnimationCategory("entrance")}
+                            >
+                                Entrance
+                            </button>
+                            <button
+                                type="button"
+                                className={animationCategory === "emphasis" ? "active" : ""}
+                                onClick={() => setAnimationCategory("emphasis")}
+                            >
+                                Emphasis
+                            </button>
+                        </div>
+
+                        <div className="animation-effect-grid intuitive-effect-grid">
+                            {visibleAnimationOptions.map((item) => (
                                 <button
                                     key={item.value}
                                     type="button"
                                     className={animation.type === item.value ? "active" : ""}
-                                    onClick={() => updateSelectedElementStyle?.({ animation: { ...animation, type: item.value } })}
+                                    onClick={() => applyAnimationPreset(item)}
+                                    title={item.description || item.label}
                                 >
-                                    <span className={`effect-preview effect-${item.value}`}><ObjectDiagram element={selectedElement} compact /></span>
-                                    <b>{item.label}</b>
+                                    <span className={`effect-preview effect-${item.value}`}>
+                                        <ObjectDiagram element={selectedElement} compact />
+                                    </span>
+                                    <b>
+                                        {animation.type === item.value && item.value !== "none"
+                                            ? `✓ ${item.label}`
+                                            : item.label}
+                                    </b>
+                                    <small>
+                                        {item.value === "none"
+                                            ? "Remove animation"
+                                            : "Click to apply"}
+                                    </small>
                                 </button>
                             ))}
                         </div>
                     </section>
 
-                    <section className="animation-card">
+                    <section className="animation-card simple-animation-settings">
                         <div className="animation-card-title">
-                            <strong>When should this object appear?</strong>
-                            <span>Start by time, or visually choose which diagram object it should follow.</span>
+                            <strong>Timing</strong>
+                            <span>Use familiar PowerPoint-style controls.</span>
                         </div>
 
-                        <div className="animation-start-rule-grid">
-                            {[{value:"absolute",label:"At a time",hint:"Use the frame clock"},{value:"afterStart",label:"Start together",hint:"Follow another object"},{value:"afterEnd",label:"Start after",hint:"Wait until it finishes"}].map((rule) => (
+                        <label className="animation-simple-field">
+                            <span>Start</span>
+                            <select
+                                value={animation.dependencyMode || "absolute"}
+                                onChange={(event) =>
+                                    updateSelectedElementStyle?.({
+                                        animation: {
+                                            ...animation,
+                                            dependencyMode: event.target.value,
+                                            ...(event.target.value === "absolute"
+                                                ? { dependsOnId: "" }
+                                                : {}),
+                                        },
+                                    })
+                                }
+                            >
+                                <option value="absolute">On timeline</option>
+                                <option value="afterStart">With previous</option>
+                                <option value="afterEnd">After previous</option>
+                            </select>
+                        </label>
+
+                        <div className="animation-speed-row">
+                            <span>Speed</span>
+                            <div>
                                 <button
-                                    key={rule.value}
                                     type="button"
-                                    className={(animation.dependencyMode || "absolute") === rule.value ? "active" : ""}
-                                    onClick={() => updateSelectedElementStyle?.({ animation: { ...animation, dependencyMode: rule.value, ...(rule.value === "absolute" ? { dependsOnId: "" } : {}) } })}
+                                    className={animation.durationMs <= 700 ? "active" : ""}
+                                    onClick={() => {
+                                        updateSelectedElementStyle?.({
+                                            animation: { ...animation, durationMs: 600 },
+                                        });
+                                    }}
                                 >
-                                    <i className={`start-rule-icon ${rule.value}`} />
-                                    <strong>{rule.label}</strong>
-                                    <small>{rule.hint}</small>
+                                    Fast
                                 </button>
-                            ))}
+                                <button
+                                    type="button"
+                                    className={
+                                        animation.durationMs > 700 &&
+                                        animation.durationMs <= 1300
+                                            ? "active"
+                                            : ""
+                                    }
+                                    onClick={() => {
+                                        updateSelectedElementStyle?.({
+                                            animation: { ...animation, durationMs: 1000 },
+                                        });
+                                    }}
+                                >
+                                    Normal
+                                </button>
+                                <button
+                                    type="button"
+                                    className={animation.durationMs > 1300 ? "active" : ""}
+                                    onClick={() => {
+                                        updateSelectedElementStyle?.({
+                                            animation: { ...animation, durationMs: 1800 },
+                                        });
+                                    }}
+                                >
+                                    Slow
+                                </button>
+                            </div>
                         </div>
 
-                        {(animation.dependencyMode === "afterStart" || animation.dependencyMode === "afterEnd") && (
-                            <div className="dependency-picker">
-                                <span className="dependency-picker-title">Click the diagram object to follow</span>
-                                <div className="dependency-object-grid">
+                        <label className="animation-simple-field">
+                            <span>Delay</span>
+                            <div className="animation-delay-seconds">
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="30"
+                                    step="0.1"
+                                    value={(
+                                        (animation.dependencyMode === "absolute"
+                                            ? animation.delayMs
+                                            : animation.dependencyOffsetMs) / 1000
+                                    ).toFixed(1)}
+                                    onChange={(event) => {
+                                        const milliseconds =
+                                            Math.max(0, Number(event.target.value) || 0) * 1000;
+
+                                        updateSelectedElementStyle?.({
+                                            animation: {
+                                                ...animation,
+                                                ...(animation.dependencyMode === "absolute"
+                                                    ? { delayMs: milliseconds }
+                                                    : { dependencyOffsetMs: milliseconds }),
+                                            },
+                                        });
+                                    }}
+                                />
+                                <em>sec</em>
+                            </div>
+                        </label>
+
+                        {(animation.dependencyMode === "afterStart" ||
+                            animation.dependencyMode === "afterEnd") && (
+                            <label className="animation-simple-field">
+                                <span className="animation-field-title-with-info">
+                                    Select previous object
+                                    <button
+                                        type="button"
+                                        className="animation-info-button"
+                                        title="Choose the object whose animation should play before this object."
+                                        aria-label="About previous object"
+                                    >
+                                        i
+                                    </button>
+                                </span>
+                                <small className="animation-field-help">
+                                    This animation starts relative to the object you select.
+                                </small>
+                                <select
+                                    value={animation.dependsOnId || ""}
+                                    onChange={(event) =>
+                                        updateSelectedElementStyle?.({
+                                            animation: {
+                                                ...animation,
+                                                dependsOnId: event.target.value,
+                                            },
+                                        })
+                                    }
+                                >
+                                    <option value="">Select previous object…</option>
                                     {dependencyCandidates.map((item, index) => (
-                                        <button
-                                            key={item.id}
-                                            type="button"
-                                            className={animation.dependsOnId === item.id ? "active" : ""}
-                                            onClick={() => updateSelectedElementStyle?.({ animation: { ...animation, dependsOnId: item.id } })}
-                                            title={getObjectLabel(item, index)}
-                                        >
-                                            <ObjectDiagram element={item} />
-                                            <span>{getObjectLabel(item, index)}</span>
-                                            {animation.dependsOnId === item.id && <b>✓</b>}
-                                        </button>
+                                        <option key={item.id} value={item.id}>
+                                            {getObjectLabel(item, index)}
+                                        </option>
                                     ))}
+                                </select>
+                            </label>
+                        )}
+
+                        {String(process.env.REACT_APP_SHOW_AUDIO || "false").toLowerCase() === "true" && (
+                            <SidebarFrameAudioRecorder
+                                frame={currentFrame}
+                                frameIndex={currentFrameIndex}
+                                onAudioSaved={onUpdateFrameAudio}
+                                onAudioRemoved={onRemoveFrameAudio}
+                            />
+                        )}
+
+                        <div className="animation-sidebar-actions">
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    window.dispatchEvent(
+                                        new CustomEvent("sketchydraw:open-frame-animation-manager", {
+                                            detail: { frameIndex: currentFrameIndex },
+                                        })
+                                    )
+                                }
+                            >
+                                Manage frame animations
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    window.dispatchEvent(
+                                        new Event("sketchydraw:open-animation-storyboard")
+                                    )
+                                }
+                            >
+                                Preview frame
+                            </button>
+                            {!!currentFrame?.audioDataUrl && (
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        window.dispatchEvent(
+                                            new CustomEvent("sketchydraw:export-video", {
+                                                detail: {
+                                                    timelineFrames: [currentFrame],
+                                                    frameFrom: currentFrameIndex + 1,
+                                                    frameTo: currentFrameIndex + 1,
+                                                    totalFrames: 1,
+                                                    mode: "server",
+                                                    gapSeconds: 0,
+                                                    preAnimationDelaySeconds: 0,
+                                                    fileName: `sketchydraw-frame-${currentFrameIndex + 1}.mp4`,
+                                                },
+                                            })
+                                        )
+                                    }
+                                >
+                                    Export frame video
+                                </button>
+                            )}
+                        </div>
+
+                        <button
+                            type="button"
+                            className="animation-advanced-toggle"
+                            onClick={() => setAdvancedSequenceOpen((value) => !value)}
+                        >
+                            {advancedSequenceOpen ? "Hide advanced timing" : "Advanced timing"}
+                            <span>{advancedSequenceOpen ? "⌃" : "⌄"}</span>
+                        </button>
+
+                        {advancedSequenceOpen && (
+                            <div className="animation-advanced-panel">
+                                <label className="animation-field">
+                                    <span>Exact duration</span>
+                                    <div className="animation-number-input">
+                                        <input
+                                            type="number"
+                                            min="50"
+                                            step="50"
+                                            value={animation.durationMs}
+                                            onChange={(event) =>
+                                                updateSelectedElementStyle?.({
+                                                    animation: {
+                                                        ...animation,
+                                                        durationMs: Math.max(
+                                                            50,
+                                                            Number(event.target.value) || 50
+                                                        ),
+                                                    },
+                                                })
+                                            }
+                                        />
+                                        <em>ms</em>
+                                    </div>
+                                </label>
+
+                                <div className="visibility-choice-grid compact-visibility-grid">
+                                    <button
+                                        type="button"
+                                        className={
+                                            animation.beforeStart === "visible" &&
+                                            animation.afterEnd === "visible"
+                                                ? "active"
+                                                : ""
+                                        }
+                                        onClick={() =>
+                                            updateSelectedElementStyle?.({
+                                                animation: {
+                                                    ...animation,
+                                                    beforeStart: "visible",
+                                                    afterEnd: "visible",
+                                                },
+                                            })
+                                        }
+                                    >
+                                        <strong>Always visible</strong>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={
+                                            animation.beforeStart === "hidden" &&
+                                            animation.afterEnd === "visible"
+                                                ? "active"
+                                                : ""
+                                        }
+                                        onClick={() =>
+                                            updateSelectedElementStyle?.({
+                                                animation: {
+                                                    ...animation,
+                                                    beforeStart: "hidden",
+                                                    afterEnd: "visible",
+                                                },
+                                            })
+                                        }
+                                    >
+                                        <strong>Reveal on turn</strong>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={
+                                            animation.beforeStart === "hidden" &&
+                                            animation.afterEnd === "hidden"
+                                                ? "active"
+                                                : ""
+                                        }
+                                        onClick={() =>
+                                            updateSelectedElementStyle?.({
+                                                animation: {
+                                                    ...animation,
+                                                    beforeStart: "hidden",
+                                                    afterEnd: "hidden",
+                                                },
+                                            })
+                                        }
+                                    >
+                                        <strong>Only while animating</strong>
+                                    </button>
                                 </div>
                             </div>
                         )}
 
-                        <div className="animation-settings-grid">
-                            <label className="animation-field">
-                                <span>{animation.dependencyMode !== "absolute" ? "Extra pause" : "Start at"}</span>
-                                <div className="animation-number-input">
-                                    <input type="number" min="0" step="100"
-                                           value={animation.dependencyMode !== "absolute" ? animation.dependencyOffsetMs : animation.delayMs}
-                                           onChange={(event) => {
-                                               const value = Math.max(0, Number(event.target.value) || 0);
-                                               const patch = animation.dependencyMode !== "absolute" ? { dependencyOffsetMs: value } : { delayMs: value };
-                                               updateSelectedElementStyle?.({ animation: { ...animation, ...patch } });
-                                           }} />
-                                    <em>ms</em>
-                                </div>
-                            </label>
-                            <label className="animation-field">
-                                <span>Animation duration</span>
-                                <div className="animation-number-input">
-                                    <input type="number" min="50" step="50" value={animation.durationMs}
-                                           onChange={(event) => updateSelectedElementStyle?.({ animation: { ...animation, durationMs: Math.max(50, Number(event.target.value) || 50) } })} />
-                                    <em>ms</em>
-                                </div>
-                            </label>
-                        </div>
-
-                        <div className="animation-preset-row">
-                            <button type="button" onClick={() => updateSelectedElementStyle?.({ animation: { ...animation, durationMs: 700 } })}>Fast</button>
-                            <button type="button" onClick={() => updateSelectedElementStyle?.({ animation: { ...animation, durationMs: 1200 } })}>Natural</button>
-                            <button type="button" onClick={() => updateSelectedElementStyle?.({ animation: { ...animation, durationMs: 2000 } })}>Explain slowly</button>
-                        </div>
+                        <button
+                            type="button"
+                            className="animation-remove-button"
+                            onClick={() =>
+                                updateSelectedElementStyle?.({
+                                    animation: {
+                                        ...animation,
+                                        type: "none",
+                                        loop: false,
+                                    },
+                                })
+                            }
+                            disabled={animation.type === "none"}
+                        >
+                            Remove animation
+                        </button>
                     </section>
-
-                    <div className="animation-group-label frame-level">
-                        <span>2</span>
-                        <div><strong>Frame visibility</strong><small>Separate from animation: decide when this object is visible in this frame.</small></div>
-                    </div>
-
-                    <section className="animation-card frame-visibility-card">
-                        <div className="visibility-choice-grid">
-                            <button type="button" className={animation.beforeStart === "visible" && animation.afterEnd === "visible" ? "active" : ""}
-                                    onClick={() => updateSelectedElementStyle?.({ animation: { ...animation, beforeStart: "visible", afterEnd: "visible" } })}>
-                                <span className="visibility-diagram always"><ObjectDiagram element={selectedElement} compact /><i /><ObjectDiagram element={selectedElement} compact /></span>
-                                <strong>Show all the time</strong><small>Visible before and after</small>
-                            </button>
-                            <button type="button" className={animation.beforeStart === "hidden" && animation.afterEnd === "visible" ? "active" : ""}
-                                    onClick={() => updateSelectedElementStyle?.({ animation: { ...animation, beforeStart: "hidden", afterEnd: "visible" } })}>
-                                <span className="visibility-diagram reveal"><em /><i /><ObjectDiagram element={selectedElement} compact /></span>
-                                <strong>Show after its turn</strong><small>Best for step-by-step diagrams</small>
-                            </button>
-                            <button type="button" className={animation.beforeStart === "hidden" && animation.afterEnd === "hidden" ? "active" : ""}
-                                    onClick={() => updateSelectedElementStyle?.({ animation: { ...animation, beforeStart: "hidden", afterEnd: "hidden" } })}>
-                                <span className="visibility-diagram moment"><em /><ObjectDiagram element={selectedElement} compact /><em /></span>
-                                <strong>Show only while animating</strong><small>Hide again when finished</small>
-                            </button>
-                        </div>
-                    </section>
-
-                    <div className="animation-timing-preview">
-                        <span style={{ width: `${Math.min(65, (animation.dependencyMode !== "absolute" ? animation.dependencyOffsetMs : animation.delayMs) / 80)}%` }} />
-                        <b style={{ width: `${Math.max(8, Math.min(80, animation.durationMs / 40))}%` }} />
-                    </div>
                 </div>
             )}
 
-            {activeInspectorTab === "properties" && selectedElement && (
+            {inspectorTab === "properties" && selectedElement && (
                 <button
                     type="button"
                     className="delete-selected-btn"

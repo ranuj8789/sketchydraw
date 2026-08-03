@@ -1,0 +1,10 @@
+{
+  "name": "SketchyDraw \u2014 Animated Diagram Maker",
+  "short_name": "SketchyDraw",
+  "description": "Create animated diagrams, explainers, presentations, GIFs and videos.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#111827",
+  "icons": []
+}
