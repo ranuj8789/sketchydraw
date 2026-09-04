@@ -49,6 +49,22 @@ export function getFrameTimelineEndMs(elements = []) {
   return endMs;
 }
 
+export function getFramePlaybackDurationMs(frame, staticFallbackMs = 1300) {
+  const elements = frame?.elements || [];
+  const hasAnimatedElements = elements.some(
+      (element) => element?.animation?.type && element.animation.type !== "none"
+  );
+
+  if (hasAnimatedElements) {
+    return Math.max(1, getFrameTimelineEndMs(elements));
+  }
+
+  const authoredDurationMs = Number(frame?.durationMs);
+  return Number.isFinite(authoredDurationMs) && authoredDurationMs > 0
+      ? authoredDurationMs
+      : staticFallbackMs;
+}
+
 export function isElementVisibleAtTime(element, timeMs, timing) {
   const animation = element?.animation || {};
   const type = animation.type || "none";

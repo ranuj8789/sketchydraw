@@ -1,5 +1,6 @@
 import { renderCanvas } from "../canvas/canvasRender";
 import { drawExportBranding } from "./exportBoard";
+import { getFramePlaybackDurationMs, resolveFrameAnimationTimings } from "../canvas/animationTimeline";
 
 const GIF_JS_URLS = [
     "https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js",
@@ -9,7 +10,7 @@ const GIF_WORKER_URLS = [
     "https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js",
     "https://unpkg.com/gif.js@0.2.0/dist/gif.worker.js",
 ];
-const DEFAULT_FPS = 12;
+const DEFAULT_FPS = 8;
 const MAX_EXPORT_WIDTH = 900;
 const MAX_EXPORT_HEIGHT = 700;
 
@@ -95,23 +96,7 @@ function cloneElements(elements) {
 }
 
 function getFrameAnimationDurationMs(frame) {
-    const animatedElements = (frame?.elements || []).filter(
-        (element) => element?.animation?.type && element.animation.type !== "none"
-    );
-
-    if (!animatedElements.length) {
-        return Math.max(800, Number(frame?.durationMs) || 1100);
-    }
-
-    return Math.max(
-        Math.max(900, Number(frame?.durationMs) || 0),
-        ...animatedElements.map((element) => {
-            const animation = element.animation || {};
-            const delayMs = Math.max(0, Number(animation.delayMs) || 0);
-            const durationMs = Math.max(1, Number(animation.durationMs) || 1000);
-            return delayMs + durationMs;
-        })
-    );
+    return getFramePlaybackDurationMs(frame);
 }
 
 function getAnimatedElementIds(elements = []) {
@@ -122,7 +107,7 @@ function getAnimatedElementIds(elements = []) {
     );
 }
 
-function getExportSizing(canvasSize = {}, viewport = {}) {
+function getExportSizing(canvasSize = {}, viewport = {}, exportScale = 1.1) {
     const sourceWidth = Math.max(1, Number(canvasSize.width) || 1200);
     const sourceHeight = Math.max(1, Number(canvasSize.height) || 700);
     const scale = Math.min(
@@ -131,15 +116,18 @@ function getExportSizing(canvasSize = {}, viewport = {}) {
         MAX_EXPORT_HEIGHT / sourceHeight
     );
 
+    const outputWidth = Math.max(1, Math.round(sourceWidth * scale));
+    const outputHeight = Math.max(1, Math.round(sourceHeight * scale));
+    const zoomScale = Math.max(0.5, Math.min(2, Number(exportScale) || 1));
+    const baseOffsetX = (Number(viewport.offsetX) || 0) * scale;
+    const baseOffsetY = (Number(viewport.offsetY) || 0) * scale;
+
     return {
-        canvasSize: {
-            width: Math.max(1, Math.round(sourceWidth * scale)),
-            height: Math.max(1, Math.round(sourceHeight * scale)),
-        },
+        canvasSize: { width: outputWidth, height: outputHeight },
         viewport: {
-            zoom: (Number(viewport.zoom) || 1) * scale,
-            offsetX: (Number(viewport.offsetX) || 0) * scale,
-            offsetY: (Number(viewport.offsetY) || 0) * scale,
+            zoom: (Number(viewport.zoom) || 1) * scale * zoomScale,
+            offsetX: outputWidth / 2 + (baseOffsetX - outputWidth / 2) * zoomScale,
+            offsetY: outputHeight / 2 + (baseOffsetY - outputHeight / 2) * zoomScale,
         },
     };
 }
@@ -153,6 +141,8 @@ function renderGifFrame({
                             animationTimeMs,
                         }) {
     const elements = cloneElements(frame?.elements || []);
+
+    const resolvedAnimationTimings = resolveFrameAnimationTimings(elements);
 
     renderCanvas({
         canvas,
@@ -169,6 +159,7 @@ function renderGifFrame({
             animationTimeMs,
             activeAnimatedElementIds: getAnimatedElementIds(elements),
             hiddenElementIds: new Set(frame?.hiddenElementIds || []),
+            resolvedAnimationTimings,
             loopAnimation: false,
         },
     });
@@ -178,14 +169,24 @@ function renderGifFrame({
 }
 
 function downloadBlob(blob, fileName) {
+    if (!blob?.size) throw new Error("The exported GIF file was empty.");
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
     link.download = fileName || "sketchydraw.gif";
+    link.rel = "noopener";
+    link.style.display = "none";
     document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+
+    // Revoking synchronously can cancel the download, especially in Safari or
+    // when the GIF is large. Click after insertion and clean up later.
+    window.requestAnimationFrame(() => {
+        link.click();
+        setTimeout(() => {
+            link.remove();
+            URL.revokeObjectURL(url);
+        }, 60_000);
+    });
 }
 
 export async function exportTimelineGif({
@@ -195,13 +196,14 @@ export async function exportTimelineGif({
                                             canvasProps,
                                             fileName = "sketchydraw.gif",
                                             fps = DEFAULT_FPS,
+                                            exportScale = 1.1,
                                             onProgress,
                                         } = {}) {
     const safeFrames = frames.length ? frames : [{ elements: [] }];
-    const safeFps = Math.max(4, Math.min(30, Number(fps) || DEFAULT_FPS));
+    const safeFps = Math.max(4, Math.min(10, Number(fps) || DEFAULT_FPS));
     const frameDelayMs = Math.round(1000 / safeFps);
     const { GIF, workerScript } = await ensureGifEncoder();
-    const sizing = getExportSizing(canvasSize, viewport);
+    const sizing = getExportSizing(canvasSize, viewport, exportScale);
     const canvas = document.createElement("canvas");
 
     // First paint sets the actual pixel size used by renderCanvas.
@@ -242,16 +244,25 @@ export async function exportTimelineGif({
             return;
         }
 
-        for (let timeMs = 0; timeMs <= durationMs; timeMs += frameDelayMs) {
+        // Sample the authored timeline deterministically. Every GIF frame gets
+        // the exact amount of time until the next sample, including the final
+        // remainder. This prevents the animation from becoming faster than the
+        // configured delay/duration values.
+        for (let timeMs = 0; timeMs < durationMs; timeMs += frameDelayMs) {
+            const remainingMs = durationMs - timeMs;
+            const renderTimeMs = remainingMs <= frameDelayMs ? durationMs : timeMs;
             renderGifFrame({
                 canvas,
                 frame,
                 canvasSize: sizing.canvasSize,
                 viewport: sizing.viewport,
                 canvasProps,
-                animationTimeMs: timeMs,
+                animationTimeMs: renderTimeMs,
             });
-            gif.addFrame(canvas, { copy: true, delay: frameDelayMs });
+            gif.addFrame(canvas, {
+                copy: true,
+                delay: Math.min(frameDelayMs, remainingMs),
+            });
         }
     });
 

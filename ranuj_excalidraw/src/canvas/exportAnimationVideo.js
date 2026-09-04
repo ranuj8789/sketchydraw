@@ -2,7 +2,7 @@ import { drawElement, preloadDrawingImages } from "../utils/drawing";
 import { getElementBounds } from "../utils/elementBounds";
 import { apiUrl } from "../config/api";
 import { authHeaders } from "../utils/auth";
-import { getFrameTimelineEndMs, isElementVisibleAtTime, resolveFrameAnimationTimings } from "./animationTimeline";
+import { getFramePlaybackDurationMs, isElementVisibleAtTime, resolveFrameAnimationTimings } from "./animationTimeline";
 
 const CONFIGURED_VIDEO_EXPORT_API_BASE = (
     process.env.REACT_APP_VIDEO_EXPORT_API_BASE ||
@@ -29,7 +29,15 @@ function getVideoExportApiBase() {
 function videoApiUrl(path) {
     const cleanPath = path.startsWith("/") ? path : `/${path}`;
     const base = getVideoExportApiBase();
-    return base ? `${base}${cleanPath}` : apiUrl(cleanPath);
+    if (!base) return apiUrl(cleanPath);
+
+    // REACT_APP_API_BASE is commonly configured as https://host/api. Avoid
+    // producing https://host/api/api/video-exports/... in that setup.
+    if (base.endsWith("/api") && cleanPath.startsWith("/api/")) {
+        return `${base}${cleanPath.slice(4)}`;
+    }
+
+    return `${base}${cleanPath}`;
 }
 
 function wait(ms) {
@@ -105,13 +113,18 @@ function getFramesContentBounds(frames = []) {
     };
 }
 
-function getVideoTransform(bounds, canvasSize) {
+function normalizeExportScale(value) {
+    return Math.max(0.5, Math.min(2, Number(value) || 1));
+}
+
+function getVideoTransform(bounds, canvasSize, exportScale = 1) {
     if (!bounds) return { scale: 1, offsetX: 0, offsetY: 0 };
 
     const padding = 56;
     const availableWidth = Math.max(1, canvasSize.width - padding * 2);
     const availableHeight = Math.max(1, canvasSize.height - padding * 2);
-    const scale = Math.min(1, availableWidth / bounds.w, availableHeight / bounds.h);
+    const fitScale = Math.min(1, availableWidth / bounds.w, availableHeight / bounds.h);
+    const scale = fitScale * normalizeExportScale(exportScale);
 
     return {
         scale,
@@ -129,29 +142,7 @@ function getAnimatedElementIds(elements = []) {
 }
 
 function getFrameAnimationEndMs(frame) {
-    return getFrameTimelineEndMs(frame?.elements || []);
-}
-
-function getFrameAnimationStartMs(frame) {
-    const elements = (frame?.elements || []).filter(
-        (element) =>
-            element?.animation?.type &&
-            element.animation.type !== "none"
-    );
-
-    if (!elements.length) return 0;
-
-    const timings = resolveFrameAnimationTimings(elements);
-    let firstStartMs = Infinity;
-
-    elements.forEach((element) => {
-        const timing = timings.get(element.id);
-        if (timing && Number.isFinite(timing.startMs)) {
-            firstStartMs = Math.min(firstStartMs, timing.startMs);
-        }
-    });
-
-    return Number.isFinite(firstStartMs) ? Math.max(0, firstStartMs) : 0;
+    return getFramePlaybackDurationMs(frame);
 }
 
 function getExportAnimationTimeMs(
@@ -165,29 +156,20 @@ function getExportAnimationTimeMs(
     // Honour only the delay selected in the export UI.
     if (elapsed < preDelay) return 0;
 
-    // Imported drawings can contain a built-in 1–2 second delay before the
-    // first object starts. Shift the authored timeline so the first animation
-    // begins immediately after the explicit export delay.
-    return (
-        getFrameAnimationStartMs(frame) +
-        Math.max(0, elapsed - preDelay)
-    );
+    // Preserve the exact authored timeline. The previous implementation
+    // shifted the first animation to time zero, silently removing delayMs from
+    // imported drawings and making exported GIF/video timing look faster than
+    // the editor preview.
+    return Math.max(0, elapsed - preDelay);
 }
 
-function getFrameDurationMs(frame, holdAfterMs, preAnimationDelayMs = 0) {
-    const animationStart = getFrameAnimationStartMs(frame);
+function getFrameDurationMs(
+    frame,
+    holdAfterMs,
+    preAnimationDelayMs = 0
+) {
     const animationEnd = getFrameAnimationEndMs(frame);
-    const activeAnimationDuration = Math.max(
-        0,
-        animationEnd - animationStart
-    );
-
-    // Export duration follows the actual animation span. Old/imported
-    // durationMs values such as 10000 must not force a long frozen frame.
-    return Math.max(
-        100,
-        preAnimationDelayMs + activeAnimationDuration + holdAfterMs
-    );
+    return Math.max(1, preAnimationDelayMs + animationEnd + holdAfterMs);
 }
 
 function drawFrame(canvas, frame, canvasSize, transform, canvasProps = {}, animationTimeMs = 0) {
@@ -250,14 +232,11 @@ function createRecordingCanvas(canvasSize) {
 }
 
 function createCanvasCapture(canvas, fps) {
-    let stream = canvas.captureStream(0);
-    let track = stream.getVideoTracks()[0];
-
-    if (!track || typeof track.requestFrame !== "function") {
-        stream.getTracks().forEach((item) => item.stop());
-        stream = canvas.captureStream(fps);
-        track = stream.getVideoTracks()[0];
-    }
+    // Fixed-rate capture is more reliable for long Chrome recordings.
+    // Manual-only captureStream(0) can stop emitting encoded frames even while
+    // requestFrame() continues to be called.
+    const stream = canvas.captureStream(fps);
+    const track = stream.getVideoTracks()[0];
 
     return {
         stream,
@@ -272,6 +251,18 @@ function pickWebmMimeType() {
         "video/webm",
     ];
     return candidates.find((type) => MediaRecorder.isTypeSupported(type)) || "";
+}
+
+function pickBrowserVideoFormat() {
+    const candidates = [
+        { mimeType: "video/mp4;codecs=avc1.42E01E", extension: "mp4" },
+        { mimeType: "video/mp4", extension: "mp4" },
+        { mimeType: "video/webm;codecs=vp9", extension: "webm" },
+        { mimeType: "video/webm;codecs=vp8", extension: "webm" },
+        { mimeType: "video/webm", extension: "webm" },
+    ];
+
+    return candidates.find(({ mimeType }) => MediaRecorder.isTypeSupported(mimeType)) || null;
 }
 
 function makeRecorder(stream, mimeType, canvasSize = {}) {
@@ -504,6 +495,7 @@ async function completeExport(exportId, fileName, onStatus) {
 }
 
 function downloadBlob(blob, fileName) {
+    if (!blob?.size) throw new Error("The exported video file was empty.");
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -511,11 +503,17 @@ function downloadBlob(blob, fileName) {
     link.rel = "noopener";
     link.style.display = "none";
     document.body.appendChild(link);
-    link.click();
-    setTimeout(() => {
-        link.remove();
-        URL.revokeObjectURL(url);
-    }, 5000);
+
+    // Allow the anchor to enter the document before clicking. Keep the Blob URL
+    // alive long enough for Chrome, Safari and large-file downloads to consume
+    // it; revoking immediately can result in no download at all.
+    window.requestAnimationFrame(() => {
+        link.click();
+        setTimeout(() => {
+            link.remove();
+            URL.revokeObjectURL(url);
+        }, 60_000);
+    });
 }
 
 
@@ -596,9 +594,10 @@ async function exportServerVideo({
                                      canvasSize = { width: 1200, height: 700 },
                                      canvasProps = {},
                                      fileName = "sketchy-animation.mp4",
-                                     frameDelayMs = 500,
+                                     frameDelayMs = 0,
                                      gapSeconds,
                                      preAnimationDelaySeconds = 0,
+                                     exportScale = 1.1,
                                      onProgress,
                                      onStatus,
                                  }) {
@@ -633,9 +632,17 @@ async function exportServerVideo({
     try {
         await preloadImages(frames);
         await waitForExportAssets();
-        const transform = getVideoTransform(getFramesContentBounds(frames), safeCanvasSize);
+        const transform = getVideoTransform(
+            getFramesContentBounds(frames),
+            safeCanvasSize,
+            exportScale
+        );
         const durations = frames.map((frame) =>
-            getFrameDurationMs(frame, holdAfterMs, preAnimationDelayMs)
+            getFrameDurationMs(
+                frame,
+                holdAfterMs,
+                preAnimationDelayMs
+            )
         );
 
         onStatus?.({ phase: "STARTING", message: "Starting server MP4 export", progress: 0 });
@@ -687,12 +694,14 @@ async function exportServerVideo({
 async function exportBrowserVideo({
                                       historyStates = [], currentElements = [], timelineFrames = [],
                                       canvasSize = { width: 1200, height: 700 }, canvasProps = {},
-                                      fileName = "sketchy-animation.webm", frameDelayMs = 500, gapSeconds,
-                                      preAnimationDelaySeconds = 0, onProgress,
+                                      fileName = "sketchy-animation.webm", frameDelayMs = 0, gapSeconds,
+                                      preAnimationDelaySeconds = 0, exportScale = 1.1,
+                                      onProgress, onStatus,
                                   }) {
     if (typeof MediaRecorder === "undefined") throw new Error("Browser video export needs Chrome or Edge.");
-    const mimeType = pickWebmMimeType();
-    if (!mimeType) throw new Error("This browser cannot record WebM video.");
+    const browserFormat = pickBrowserVideoFormat();
+    if (!browserFormat) throw new Error("This browser cannot record MP4 or WebM video.");
+    const { mimeType, extension } = browserFormat;
 
     const frames = normalizeTimelineFrames({ timelineFrames, historyStates, currentElements })
         .filter((frame) => frame.elements.length > 0);
@@ -710,11 +719,25 @@ async function exportBrowserVideo({
     const canvas = createRecordingCanvas(safeCanvasSize);
     await preloadImages(frames);
     await waitForExportAssets();
-    const transform = getVideoTransform(getFramesContentBounds(frames), safeCanvasSize);
+    const transform = getVideoTransform(
+        getFramesContentBounds(frames),
+        safeCanvasSize,
+        exportScale
+    );
     const durations = frames.map((frame) =>
-        getFrameDurationMs(frame, holdAfterMs, preAnimationDelayMs)
+        getFrameDurationMs(
+            frame,
+            holdAfterMs,
+            preAnimationDelayMs
+        )
     );
     const totalDuration = durations.reduce((sum, duration) => sum + duration, 0);
+
+    onStatus?.({
+        phase: "RECORDING",
+        message: `Recording ${extension.toUpperCase()} in the browser`,
+        progress: 0,
+    });
 
     drawFrame(canvas, frames[0], safeCanvasSize, transform, canvasProps, 0);
     const capture = createCanvasCapture(canvas, fps);
@@ -760,26 +783,48 @@ async function exportBrowserVideo({
     stream.getTracks().forEach((track) => track.stop());
     const blob = new Blob(chunks, { type: mimeType });
     if (!blob.size) throw new Error("Browser export produced an empty video.");
-    downloadBlob(blob, fileName.replace(/\.mp4$/i, ".webm"));
+    const normalizedName = /\.(mp4|webm)$/i.test(fileName)
+        ? fileName.replace(/\.(mp4|webm)$/i, `.${extension}`)
+        : `${fileName}.${extension}`;
+    downloadBlob(blob, normalizedName);
     canvas.remove();
     onProgress?.(100);
+    onStatus?.({
+        phase: "READY",
+        message: `${extension.toUpperCase()} is ready. Downloading now.`,
+        progress: 100,
+    });
 }
 
 export async function exportUndoRedoAnimationVideo(options = {}) {
     const mode = options.mode === "browser" ? "browser" : "server";
     if (mode === "browser") return exportBrowserVideo(options);
 
-    // Server MP4 means MP4 only. Never silently replace it with a WebM download.
+    // Prefer server MP4, but never leave the user with a button that appears to
+    // do nothing when the server/FFmpeg endpoint is unavailable. Modern
+    // browsers may record MP4 directly; otherwise this falls back to WebM.
     try {
         return await exportServerVideo(options);
     } catch (error) {
         console.error("Server MP4 export failed:", error);
         options.onStatus?.({
-            phase: "FAILED",
-            message: error?.message || "Server MP4 export failed.",
+            phase: "FALLBACK",
+            message: "Server MP4 unavailable. Trying browser export…",
             progress: 0,
             error: error?.message || String(error),
         });
-        throw error;
+
+        try {
+            return await exportBrowserVideo({
+                ...options,
+                mode: "browser",
+                fileName: options.fileName || "sketchy-animation.mp4",
+            });
+        } catch (fallbackError) {
+            throw new Error(
+                `Server MP4 failed: ${error?.message || error}. ` +
+                `Browser export also failed: ${fallbackError?.message || fallbackError}`
+            );
+        }
     }
 }

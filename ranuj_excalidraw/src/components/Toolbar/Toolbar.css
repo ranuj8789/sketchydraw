@@ -1941,6 +1941,7 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
+    z-index: 1000002;
 }
 .native-new-trigger { background:#fff; border-color:#d8e0ea; color:#1f2937; }
 .native-file-menu {
@@ -1959,6 +1960,7 @@
     width:100%;
     min-height:36px;
     padding: 7px 10px;
+    z-index: 1000002;
     border:0;
     border-radius:8px;
     background:transparent;
@@ -2198,6 +2200,7 @@
    Keep Import/Export attached to the File menu instead of using viewport-fixed
    offsets. The File menu is short, so it does not need to clip its submenus. */
 .native-file-menu {
+    padding-right: 4px;
     overflow: visible;
     scrollbar-gutter: auto;
 }
@@ -3272,5 +3275,83 @@
     }
     .topbar-command-row > .topbar-tools-row .toolbar-more-tools span {
         display: none !important;
+    }
+}
+
+/* =========================================================
+   FINAL STACKING ORDER — File / New / Import / Export
+   ========================================================= */
+.topbar,
+.topbar-command-row {
+    position: relative !important;
+    z-index: 1200 !important;
+    overflow: visible !important;
+}
+
+.file-native-menu-wrap,
+.new-native-menu-wrap,
+.save-menu-wrap,
+.export-menu-wrap,
+.grid-menu-wrap,
+.align-menu-wrap {
+    position: relative !important;
+    z-index: 1300 !important;
+}
+
+.native-file-menu,
+.native-new-menu,
+.native-submenu,
+.native-import-submenu,
+.native-export-submenu {
+    z-index: 5000 !important;
+    pointer-events: auto !important;
+}
+
+.save-dropdown,
+.grid-dropdown,
+.align-dropdown,
+.export-dropdown,
+.export-dropdown.export-dropdown-wide {
+    z-index: 5100 !important;
+    pointer-events: auto !important;
+}
+
+.profile-dropdown {
+    z-index: 5200 !important;
+}
+
+/* Modals must always stay above toolbar menus and dropdowns. */
+.account-modal-backdrop {
+    z-index: 10000 !important;
+}
+
+/* Keep the drawing strip's container from clipping external popovers. */
+.topbar-command-row > .topbar-tools-row {
+    overflow: visible !important;
+}
+
+/* FINAL PORTAL FIX — menus escape every toolbar/canvas stacking context. */
+.native-menu-portal {
+    position: fixed !important;
+    right: auto !important;
+    bottom: auto !important;
+    margin: 0 !important;
+    transform: none !important;
+    z-index: 2147483000 !important;
+    overflow: visible !important;
+    pointer-events: auto !important;
+}
+.native-menu-portal.native-file-menu {
+    max-height: calc(100vh - 84px) !important;
+}
+.native-menu-portal .native-submenu,
+.native-menu-portal .native-import-submenu,
+.native-menu-portal .native-export-submenu {
+    z-index: 2147483001 !important;
+}
+@media (max-width: 900px) {
+    .native-menu-portal {
+        left: 12px !important;
+        width: min(270px, calc(100vw - 24px)) !important;
     }
 }

@@ -29,6 +29,7 @@ import {
 } from "./components/DrawingGroupStore/drawingGroupStore";
 import { DEFAULT_TEXT_STYLE } from "./canvas/textStyle";
 import { createAnimationConfig } from "./canvas/animationRegistry";
+import { getFramePlaybackDurationMs } from "./canvas/animationTimeline";
 import { buildTextElement } from "./canvas/canvasFactories";
 import { buildCodeIllustrationFrames, parseCodeIllustratorNumbers } from "./codeIllustrator";
 import { exportTimelineGif } from "./utils/exportGif";
@@ -126,7 +127,7 @@ function createTimelineFrame(elements = [], index = 0, patch = {}) {
     elements: cloneElements(elements),
     hiddenElementIds: [],
     durationMs: 1300,
-    gapAfterMs: 500,
+    gapAfterMs: 0,
     transition: "none",
     ...patch,
   };
@@ -172,24 +173,7 @@ function getAnimatedElementIds(elements = []) {
 }
 
 function getFrameAnimationDurationMs(frame) {
-  const animatedElements = (frame?.elements || []).filter(
-      (element) => element?.animation?.type && element.animation.type !== "none"
-  );
-
-  if (!animatedElements.length) {
-    // Static frame still plays so user can preview/present frames without animations.
-    return 1300;
-  }
-
-  return Math.max(
-      Math.max(900, Number(frame?.durationMs) || 0),
-      ...animatedElements.map((element) => {
-        const animation = element.animation || {};
-        const delayMs = Math.max(0, Number(animation.delayMs) || 0);
-        const durationMs = Math.max(1, Number(animation.durationMs) || 1000);
-        return delayMs + durationMs;
-      })
-  );
+  return getFramePlaybackDurationMs(frame);
 }
 
 function VerifyPage() {
@@ -459,8 +443,7 @@ function SketchyDrawPage() {
       animationTimeMs: frameAnimationTimeMs,
       activeAnimatedElementIds: getAnimatedElementIds(elements),
       hiddenElementIds: new Set(currentTimelineFrame?.hiddenElementIds || []),
-      loopAnimation: frameAnimationPlaying,
-      loopPauseMs: 450,
+      loopAnimation: false,
     };
   }, [elements, frameAnimationPlaying, frameAnimationTimeMs, currentTimelineFrame]);
 
@@ -481,9 +464,17 @@ function SketchyDrawPage() {
 
     let rafId = null;
     const startedAt = performance.now();
+    const durationMs = getFramePlaybackDurationMs(currentTimelineFrame);
 
     const tick = (now) => {
-      setFrameAnimationTimeMs(now - startedAt);
+      const elapsedMs = now - startedAt;
+      if (elapsedMs >= durationMs) {
+        setFrameAnimationTimeMs(durationMs);
+        setFrameAnimationPlaying(false);
+        return;
+      }
+
+      setFrameAnimationTimeMs(elapsedMs);
       rafId = window.requestAnimationFrame(tick);
     };
 
@@ -495,7 +486,7 @@ function SketchyDrawPage() {
         window.cancelAnimationFrame(rafId);
       }
     };
-  }, [frameAnimationPlaying]);
+  }, [frameAnimationPlaying, currentTimelineFrame]);
 
   const advanceAnimationPlayerFrame = useCallback(() => {
     setAnimationPlayerFrameIndex((prevIndex) => {
@@ -541,7 +532,7 @@ function SketchyDrawPage() {
             setAnimationPlayerWaitingForNext(false);
             animationPlayerAdvanceTimeoutRef.current = window.setTimeout(() => {
               advanceAnimationPlayerFrame();
-            }, Math.max(0, (Number(animationPlayerFrame?.gapAfterMs) || 650) / speed));
+            }, Math.max(0, (Number(animationPlayerFrame?.gapAfterMs) || 0) / speed));
           } else {
             setAnimationPlayerWaitingForNext(true);
           }
@@ -1249,7 +1240,7 @@ function SketchyDrawPage() {
         viewport,
         canvasProps,
         fileName: `${currentDrawingMeta.title || DEFAULT_TITLE}.gif`,
-        fps: 12,
+        fps: 8,
         onProgress: (progress) => setGifExportProgress(progress || 0),
       });
     } catch (error) {

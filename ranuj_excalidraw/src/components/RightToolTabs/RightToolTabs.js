@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { renderCanvas } from "../../canvas/canvasRender";
-import { getFrameTimelineEndMs, resolveFrameAnimationTimings } from "../../canvas/animationTimeline";
+import { getFramePlaybackDurationMs, resolveFrameAnimationTimings } from "../../canvas/animationTimeline";
 import "./RightToolTabs.css";
 
 const OBJECT_ORDER_DELAY_STEP_MS = 500;
@@ -105,7 +105,7 @@ export default function RightToolTabs({
     const currentFrame = frames[currentFrameIndex] || frames[0] || null;
     const currentElements = currentFrame?.elements || [];
     const resolvedTimings = useMemo(() => resolveFrameAnimationTimings(currentElements), [currentElements]);
-    const timelineEndMs = useMemo(() => Math.max(1000, getFrameTimelineEndMs(currentElements)), [currentElements]);
+    const timelineEndMs = useMemo(() => getFramePlaybackDurationMs(currentFrame), [currentFrame]);
 
     useEffect(() => {
         if (!currentElements.length) {

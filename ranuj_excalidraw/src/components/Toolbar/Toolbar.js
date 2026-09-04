@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import "./Toolbar.css";
 import { SOCIAL_MEDIA_PRESETS } from "../../utils/socialMediaPresets";
 import { requestProUpgrade } from "../../utils/proFeatureGate";
@@ -90,9 +91,13 @@ export default function Toolbar({
     const [importOpen, setImportOpen] = useState(false);
     const [gridOpen, setGridOpen] = useState(false);
     const [fileOpen, setFileOpen] = useState(false);
+    const [fileMenuPosition, setFileMenuPosition] = useState({ top: 70, left: 16 });
     const [newOpen, setNewOpen] = useState(false);
-    const [videoGapSeconds, setVideoGapSeconds] = useState("2");
-    const [videoPreAnimationDelaySeconds, setVideoPreAnimationDelaySeconds] = useState("10");
+    const [newMenuPosition, setNewMenuPosition] = useState({ top: 70, left: 88 });
+    const [videoGapSeconds, setVideoGapSeconds] = useState("0");
+    const [videoPreAnimationDelaySeconds, setVideoPreAnimationDelaySeconds] = useState("0");
+    const [animationExportZoomPercent, setAnimationExportZoomPercent] = useState("110");
+    const [trimVideoTrailingPause, setTrimVideoTrailingPause] = useState(true);
     const [videoFrameFrom, setVideoFrameFrom] = useState("1");
     const [videoFrameTo, setVideoFrameTo] = useState("1");
     const [videoExportMode, setVideoExportMode] = useState(() => localStorage.getItem("sketchydraw.videoExportMode") || "server");
@@ -144,7 +149,11 @@ export default function Toolbar({
     const gridRef = useRef(null);
     const legalRef = useRef(null);
     const fileRef = useRef(null);
+    const fileTriggerRef = useRef(null);
+    const filePortalRef = useRef(null);
     const newRef = useRef(null);
+    const newTriggerRef = useRef(null);
+    const newPortalRef = useRef(null);
 
     useEffect(() => {
         const totalFrames = Math.max(1, timelineFrames.length || 1);
@@ -261,11 +270,15 @@ export default function Toolbar({
                 setLegalOpen(false);
             }
 
-            if (fileRef.current && !fileRef.current.contains(e.target)) {
+            const clickedFileTrigger = fileRef.current?.contains(e.target);
+            const clickedFilePortal = filePortalRef.current?.contains(e.target);
+            if (!clickedFileTrigger && !clickedFilePortal) {
                 setFileOpen(false);
             }
 
-            if (newRef.current && !newRef.current.contains(e.target)) {
+            const clickedNewTrigger = newRef.current?.contains(e.target);
+            const clickedNewPortal = newPortalRef.current?.contains(e.target);
+            if (!clickedNewTrigger && !clickedNewPortal) {
                 setNewOpen(false);
             }
         };
@@ -477,14 +490,18 @@ export default function Toolbar({
         const requestedGapSeconds = Number(videoGapSeconds);
         const gapSeconds = Math.max(
             0,
-            Math.min(120, Number.isFinite(requestedGapSeconds) ? requestedGapSeconds : 2)
+            Math.min(120, Number.isFinite(requestedGapSeconds) ? requestedGapSeconds : 0)
         );
         const requestedPreAnimationDelaySeconds = Number(videoPreAnimationDelaySeconds);
         const preAnimationDelaySeconds = Math.max(
             0,
             Math.min(120, Number.isFinite(requestedPreAnimationDelaySeconds)
                 ? requestedPreAnimationDelaySeconds
-                : 10)
+                : 0)
+        );
+        const exportScale = Math.max(
+            0.5,
+            Math.min(2, (Number(animationExportZoomPercent) || 110) / 100)
         );
         const selectedFrames = timelineFrames.slice(frameFrom - 1, frameTo);
         const paddedFrom = String(frameFrom).padStart(2, "0");
@@ -495,6 +512,8 @@ export default function Toolbar({
                 detail: {
                     gapSeconds,
                     preAnimationDelaySeconds,
+                    exportScale,
+                    trimTrailingPause: trimVideoTrailingPause,
                     timelineFrames: JSON.parse(JSON.stringify(selectedFrames)),
                     mode: videoExportMode,
                     frameFrom,
@@ -688,15 +707,25 @@ export default function Toolbar({
 
                         <div className="file-native-menu-wrap toolbar-document-control" ref={fileRef}>
                             <button
+                                ref={fileTriggerRef}
                                 type="button"
                                 className="native-menu-trigger"
-                                onClick={() => { setFileOpen((value) => !value); setNewOpen(false); }}
+                                onClick={() => {
+                                    const rect = fileTriggerRef.current?.getBoundingClientRect();
+                                    if (rect) setFileMenuPosition({ top: rect.bottom + 8, left: rect.left });
+                                    setFileOpen((value) => !value);
+                                    setNewOpen(false);
+                                }}
                             >
                                 File <span>⌄</span>
                             </button>
 
-                            {fileOpen && (
-                                <div className="native-file-menu">
+                            {fileOpen && createPortal(
+                                <div
+                                    ref={filePortalRef}
+                                    className="native-file-menu native-menu-portal"
+                                    style={{ top: fileMenuPosition.top, left: fileMenuPosition.left }}
+                                >
                                     <button type="button" onClick={() => { createNewDrawing?.(); setFileOpen(false); }}>
                                         <span>New drawing</span><kbd>⌘N</kbd>
                                     </button>
@@ -762,7 +791,7 @@ export default function Toolbar({
                                             <button type="button" onClick={() => { runExport(() => exportInstagram?.("story")); setFileOpen(false); }}>Instagram Story…</button>
                                             <button type="button" onClick={() => { runExport(() => exportInstagram?.("status")); setFileOpen(false); }}>WhatsApp Status…</button>
                                             <div className="native-menu-divider" />
-                                            <button type="button" onClick={() => { runProOnly("GIF export", () => runExport(exportGIF)); setFileOpen(false); }}>GIF… <span className="native-pro-badge">PRO</span></button>
+                                            <button type="button" onClick={() => { runProOnly("GIF export", () => runExport(() => exportGIF?.({ exportScale: (Number(animationExportZoomPercent) || 110) / 100 }))); setFileOpen(false); }}>GIF… <span className="native-pro-badge">PRO</span></button>
 
                                             {showVideo && (
                                                 <>
@@ -801,6 +830,34 @@ export default function Toolbar({
                                                                         value={videoGapSeconds}
                                                                         onChange={(event) =>
                                                                             setVideoGapSeconds(event.target.value)
+                                                                        }
+                                                                        disabled={videoExportState.exporting}
+                                                                    />
+                                                                </label>
+
+                                                                <label>
+                                                                    <span>Frame zoom</span>
+                                                                    <select
+                                                                        value={animationExportZoomPercent}
+                                                                        onChange={(event) =>
+                                                                            setAnimationExportZoomPercent(event.target.value)
+                                                                        }
+                                                                        disabled={videoExportState.exporting}
+                                                                    >
+                                                                        <option value="100">100% · Fit</option>
+                                                                        <option value="110">110% · Recommended</option>
+                                                                        <option value="120">120% · Close</option>
+                                                                        <option value="130">130% · Presenter</option>
+                                                                    </select>
+                                                                </label>
+
+                                                                <label>
+                                                                    <span>Remove trailing dead air</span>
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={trimVideoTrailingPause}
+                                                                        onChange={(event) =>
+                                                                            setTrimVideoTrailingPause(event.target.checked)
                                                                         }
                                                                         disabled={videoExportState.exporting}
                                                                     />
@@ -934,20 +991,31 @@ export default function Toolbar({
                                     <button type="button" onClick={() => { runExport(printCanvas); setFileOpen(false); }}>
                                         <span>Print…</span><kbd>⌘P</kbd>
                                     </button>
-                                </div>
+                                </div>,
+                                document.body
                             )}
                         </div>
 
                         <div className="new-native-menu-wrap toolbar-document-control" ref={newRef}>
                             <button
+                                ref={newTriggerRef}
                                 type="button"
                                 className="native-menu-trigger native-new-trigger"
-                                onClick={() => { setNewOpen((value) => !value); setFileOpen(false); }}
+                                onClick={() => {
+                                    const rect = newTriggerRef.current?.getBoundingClientRect();
+                                    if (rect) setNewMenuPosition({ top: rect.bottom + 8, left: rect.left });
+                                    setNewOpen((value) => !value);
+                                    setFileOpen(false);
+                                }}
                             >
                                 New <span>⌄</span>
                             </button>
-                            {newOpen && (
-                                <div className="native-file-menu native-new-menu">
+                            {newOpen && createPortal(
+                                <div
+                                    ref={newPortalRef}
+                                    className="native-file-menu native-new-menu native-menu-portal"
+                                    style={{ top: newMenuPosition.top, left: newMenuPosition.left }}
+                                >
                                     <button type="button" onClick={() => { createNewDrawing?.(); setNewOpen(false); }}>New drawing</button>
                                     <div className="native-menu-divider" />
                                     <button type="button" onClick={() => { applyCanvasPattern("blank"); setNewOpen(false); }}>Blank canvas</button>
@@ -963,7 +1031,8 @@ export default function Toolbar({
                                     <button type="button" onClick={() => { selectCreatorPreset("portrait"); setNewOpen(false); }}>Instagram Portrait{!proUser ? " · PRO" : ""}</button>
                                     <button type="button" onClick={() => { selectCreatorPreset("story"); setNewOpen(false); }}>Instagram Story{!proUser ? " · PRO" : ""}</button>
                                     <button type="button" onClick={() => { selectCreatorPreset("status"); setNewOpen(false); }}>WhatsApp Status · FREE</button>
-                                </div>
+                                </div>,
+                                document.body
                             )}
                         </div>
 
@@ -1152,7 +1221,20 @@ export default function Toolbar({
 
                                     <div className="export-dropdown-divider" />
                                     <div className="export-dropdown-section-title">Animation</div>
-                                    <button type="button" onClick={() => runProOnly("GIF export", () => runExport(exportGIF))} disabled={gifExporting}>
+                                    <label>
+                                        Animation export zoom
+                                        <select
+                                            value={animationExportZoomPercent}
+                                            onChange={(event) => setAnimationExportZoomPercent(event.target.value)}
+                                            disabled={gifExporting || videoExportState.exporting}
+                                        >
+                                            <option value="100">100% · Fit</option>
+                                            <option value="110">110% · Recommended</option>
+                                            <option value="120">120% · Close</option>
+                                            <option value="130">130% · Presenter</option>
+                                        </select>
+                                    </label>
+                                    <button type="button" onClick={() => runProOnly("GIF export", () => runExport(() => exportGIF?.({ exportScale: (Number(animationExportZoomPercent) || 110) / 100 })))} disabled={gifExporting}>
                                         🎞️ {gifExporting
                                         ? `Exporting GIF ${Math.round((gifExportProgress || 0) * 100)}%`
                                         : "Export as GIF · PRO"}
@@ -1184,6 +1266,30 @@ export default function Toolbar({
                                                         value={videoGapSeconds}
                                                         onChange={(event) => setVideoGapSeconds(event.target.value)}
                                                     />
+                                                </label>
+
+                                                <label>
+                                                    Frame zoom
+                                                    <select
+                                                        value={animationExportZoomPercent}
+                                                        onChange={(event) => setAnimationExportZoomPercent(event.target.value)}
+                                                        disabled={videoExportState.exporting}
+                                                    >
+                                                        <option value="100">100% · Fit</option>
+                                                        <option value="110">110% · Recommended</option>
+                                                        <option value="120">120% · Close</option>
+                                                        <option value="130">130% · Presenter</option>
+                                                    </select>
+                                                </label>
+
+                                                <label>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={trimVideoTrailingPause}
+                                                        onChange={(event) => setTrimVideoTrailingPause(event.target.checked)}
+                                                        disabled={videoExportState.exporting}
+                                                    />
+                                                    Remove trailing dead air
                                                 </label>
 
                                                 <div className="video-frame-range">

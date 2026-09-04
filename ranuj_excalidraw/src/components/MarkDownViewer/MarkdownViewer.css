@@ -270,3 +270,37 @@
     .md-preview{padding:24px 34px!important;overflow:visible!important}
     .md-viewer-header,.md-editor-pane,.md-pane-label{display:none!important}
 }
+
+/* Backend document conversion controls */
+.md-hidden-file-input {
+    display: none;
+}
+
+.md-viewer button:disabled {
+    opacity: 0.55;
+    cursor: wait;
+}
+
+.md-action-message {
+    max-width: 190px;
+    overflow: hidden;
+    color: #475569;
+    font-size: 11px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.md-close-button {
+    width: auto;
+    min-width: max-content;
+    padding: 7px 11px !important;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.md-viewer-actions {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}

@@ -45,7 +45,7 @@
 
 .left-toolbar-tabs {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 34px minmax(0, 132px);
     gap: 6px;
     padding: 6px;
     border: 1px solid #e2e8f0;
@@ -1867,8 +1867,8 @@
     min-width: 276px !important;
     height: min(700px, calc(100vh - 108px)) !important;
     max-height: calc(100vh - 108px) !important;
-    padding: 9px !important;
-    gap: 9px !important;
+    padding: 3px !important;
+    gap: 3px !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
     box-sizing: border-box;
@@ -1884,10 +1884,12 @@
 .floating-sidebar-host.fullscreen-sidebar .floating-sidebar-panel {
     height: calc(100vh - 36px) !important;
     max-height: calc(100vh - 36px) !important;
+    padding: 3px;
 }
 
 .floating-sidebar-host.closed .floating-sidebar-panel,
 .floating-sidebar-host.pin-compact .floating-sidebar-panel {
+    padding: 3px;
     opacity: 0 !important;
     visibility: hidden !important;
     pointer-events: none !important;
@@ -1899,12 +1901,14 @@
     opacity: 1 !important;
     visibility: visible !important;
     pointer-events: auto !important;
+    padding: 3px;
     transform: translateX(0) scale(1) !important;
 }
 
 .floating-sidebar-host .sidebar-logo-box {
     position: sticky !important;
     top: 0 !important;
+    padding: 3px;
     z-index: 5;
     height: 48px !important;
     padding: 7px 9px !important;
@@ -1919,7 +1923,8 @@
 .floating-sidebar-host .sidebar-display-controls {
     margin-left: auto;
     display: flex;
-    gap: 4px;
+    padding: 3px;
+    gap: 0px;
 }
 .floating-sidebar-host .sidebar-pin-button {
     width: 28px !important;
@@ -1930,6 +1935,7 @@
     overflow: hidden;
     color: transparent !important;
     position: relative;
+    padding: 3px;
 }
 .floating-sidebar-host .sidebar-pin-button:first-child::after { content:"▮"; }
 .floating-sidebar-host .sidebar-pin-button:nth-child(2)::after { content:"▣"; }
@@ -2816,4 +2822,227 @@
         width: 36px;
         height: 36px;
     }
+}
+
+/* Compact normal SketchyDraw sidebar: keeps more canvas visible. */
+.floating-sidebar-host.normal-sidebar .floating-sidebar-panel {
+    width: 252px;
+    min-width: 252px;
+    padding: 8px;
+    gap: 8px;
+}
+
+.floating-sidebar-host.normal-sidebar .sidebar-logo-box {
+    height: 46px;
+    padding: 7px 9px;
+}
+
+.floating-sidebar-host.normal-sidebar .left-toolbar-tabs {
+    padding: 4px;
+    gap: 3px;
+}
+
+.floating-sidebar-host.normal-sidebar .panel,
+.floating-sidebar-host.normal-sidebar .left-tool-card,
+.floating-sidebar-host.normal-sidebar .properties-panel {
+    padding: 9px;
+}
+
+.floating-sidebar-host.normal-sidebar .tool-grid {
+    gap: 5px;
+}
+
+.floating-sidebar-host.normal-sidebar .tool-btn {
+    min-height: 33px;
+    padding: 0 7px;
+    gap: 6px;
+    font-size: 11px;
+}
+
+@media (max-width: 1100px) {
+    .floating-sidebar-host.normal-sidebar .floating-sidebar-panel {
+        width: 238px;
+        min-width: 238px;
+    }
+}
+
+@media (max-width: 720px) {
+    .floating-sidebar-host.normal-sidebar .floating-sidebar-panel {
+        width: min(238px, calc(100vw - 88px));
+        min-width: 0;
+    }
+}
+
+/* =========================================================
+   FINAL SAFE COMPACT SPACING FIX
+   Preserve the sidebar's original full height and visibility.
+   Only remove excess right/bottom whitespace inside its scroll area.
+   ========================================================= */
+.floating-sidebar-host.normal-sidebar .floating-sidebar-panel {
+    width: 244px !important;
+    min-width: 244px !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    padding: 7px !important;
+    gap: 7px !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+.floating-sidebar-host.normal-sidebar {
+    width: 244px !important;
+    /* Keep the existing calculated viewport height. */
+}
+
+.floating-sidebar-host .floating-sidebar-scroll-body,
+.floating-sidebar-host.normal-sidebar .floating-sidebar-scroll-body {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    padding: 0 2px 8px 0 !important;
+    margin: 0 !important;
+    scroll-padding-bottom: 8px !important;
+    scrollbar-gutter: auto !important;
+}
+
+.floating-sidebar-scroll-body > *,
+.floating-sidebar-scroll-body .properties-panel,
+.floating-sidebar-scroll-body .panel,
+.floating-sidebar-scroll-body .left-tool-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    margin-right: 0 !important;
+}
+
+.floating-sidebar-scroll-body .properties-panel,
+.floating-sidebar-scroll-body .panel,
+.floating-sidebar-scroll-body .left-tool-card {
+    padding: 8px !important;
+    padding-bottom: 8px !important;
+}
+
+.floating-sidebar-scroll-body .delete-selected-btn {
+    margin-bottom: 4px !important;
+}
+
+@media (max-width: 1100px) {
+    .floating-sidebar-host.normal-sidebar,
+    .floating-sidebar-host.normal-sidebar .floating-sidebar-panel {
+        width: 236px !important;
+        min-width: 236px !important;
+    }
+}
+
+@media (max-width: 720px) {
+    .floating-sidebar-host.normal-sidebar {
+        width: min(236px, calc(100vw - 88px)) !important;
+    }
+
+    .floating-sidebar-host.normal-sidebar .floating-sidebar-panel {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+}
+
+/* =========================================================
+   Final compact colour editor
+   Keep the colour preview visible and prevent the hex field
+   from consuming the entire Properties panel width.
+   ========================================================= */
+.floating-sidebar-host .properties-panel input[type="color"] {
+    flex: 0 0 38px !important;
+    width: 38px !important;
+    min-width: 38px !important;
+    max-width: 38px !important;
+    height: 36px !important;
+    padding: 3px !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 10px !important;
+    background: #ffffff !important;
+    cursor: pointer !important;
+    overflow: hidden !important;
+    appearance: auto !important;
+    -webkit-appearance: auto !important;
+}
+
+.floating-sidebar-host .properties-panel input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 0 !important;
+}
+
+.floating-sidebar-host .properties-panel input[type="color"]::-webkit-color-swatch {
+    border: 1px solid #94a3b8 !important;
+    border-radius: 5px !important;
+}
+
+.floating-sidebar-host .properties-panel input[type="color"]::-moz-color-swatch {
+    border: 1px solid #94a3b8 !important;
+    border-radius: 5px !important;
+}
+
+/* Most colour controls place the picker and hex value in one row. */
+.floating-sidebar-host .properties-panel :is(.color-input-row, .color-picker-row, .property-color-row, .stroke-color-row, .fill-color-row),
+.floating-sidebar-host .properties-panel label:has(> input[type="color"]) {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+}
+
+.floating-sidebar-host .properties-panel :is(.color-input-row, .color-picker-row, .property-color-row, .stroke-color-row, .fill-color-row) input:not([type="color"]),
+.floating-sidebar-host .properties-panel label:has(> input[type="color"]) > input:not([type="color"]) {
+    flex: 0 1 132px !important;
+    width: 132px !important;
+    max-width: 132px !important;
+    min-width: 0 !important;
+}
+
+/* =========================================================
+   FINAL USER-REQUESTED SIDEBAR SPACING OVERRIDE
+   Keep the existing sidebar dimensions/behaviour intact.
+   Only reduce the expanded aside's inner gutter and keep
+   colour controls inside the Properties panel.
+   ========================================================= */
+.floating-sidebar-host.normal-sidebar .floating-sidebar-panel,
+.floating-sidebar-host.open .floating-sidebar-panel,
+.floating-sidebar-host.pin-expanded .floating-sidebar-panel {
+    padding: 3px !important;
+}
+
+.floating-sidebar-host .floating-sidebar-scroll-body {
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    padding-right: 0 !important;
+    padding-bottom: 8px !important;
+    scrollbar-gutter: auto !important;
+}
+
+.floating-sidebar-host .floating-sidebar-scroll-body > *,
+.floating-sidebar-host .properties-panel,
+.floating-sidebar-host .panel,
+.floating-sidebar-host .left-tool-card {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+.floating-sidebar-host .properties-panel :is(
+    .color-input-row,
+    .color-picker-row,
+    .property-color-row,
+    .stroke-color-row,
+    .fill-color-row
+) input:not([type="color"]),
+.floating-sidebar-host .properties-panel label:has(> input[type="color"]) > input:not([type="color"]) {
+    flex: 0 1 118px !important;
+    width: 118px !important;
+    max-width: 118px !important;
+    min-width: 0 !important;
 }

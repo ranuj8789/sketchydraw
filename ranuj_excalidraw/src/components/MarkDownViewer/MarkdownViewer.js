@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import "./MarkdownViewer.css";
+import { exportMarkdownPdf, exportMarkdownXlsx, importDocumentAsMarkdown } from "../../api/markdownDocumentApi";
 
 const STARTER_MARKDOWN = `# Markdown Grid
 
@@ -118,6 +119,9 @@ export default function MarkdownViewer({
                                          onClose,
                                        }) {
   const [view, setView] = useState("split");
+  const [busyAction, setBusyAction] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
+  const importInputRef = useRef(null);
   const markdown = content || "";
   const html = useMemo(() => renderMarkdown(markdown), [markdown]);
 
@@ -129,6 +133,42 @@ export default function MarkdownViewer({
     } catch {
       window.prompt("Copy Markdown:", markdown);
     }
+  };
+
+
+  const runDocumentAction = async (name, action) => {
+    if (busyAction) return;
+    setBusyAction(name);
+    setActionMessage("");
+    try {
+      await action();
+      setActionMessage(name === "import" ? "Document converted to Markdown" : "Download ready");
+    } catch (error) {
+      setActionMessage(error?.message || "Document operation failed");
+    } finally {
+      setBusyAction("");
+    }
+  };
+
+  const exportPdf = () => runDocumentAction("pdf", () =>
+      exportMarkdownPdf({ title: title || "Markdown Grid", markdown })
+  );
+
+  const exportExcel = () => runDocumentAction("xlsx", () =>
+      exportMarkdownXlsx({ title: title || "Markdown Grid", markdown })
+  );
+
+  const importOfficeDocument = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    await runDocumentAction("import", async () => {
+      const result = await importDocumentAsMarkdown(file);
+      onTitleChange?.(result.title || title || "Markdown Grid");
+      onChange?.(result.markdown || "");
+      setView("split");
+    });
   };
 
   return (
@@ -151,11 +191,27 @@ export default function MarkdownViewer({
               <button className={view === "preview" ? "active" : ""} onClick={() => setView("preview")}>Preview</button>
             </div>
             <button onClick={copyMarkdown}>Copy</button>
-            <button onClick={() => window.print()}>Export PDF</button>
+            <button onClick={exportPdf} disabled={Boolean(busyAction)}>
+              {busyAction === "pdf" ? "Creating PDF…" : "Export PDF"}
+            </button>
+            <button onClick={exportExcel} disabled={Boolean(busyAction)}>
+              {busyAction === "xlsx" ? "Creating Excel…" : "Export Excel"}
+            </button>
+            <button onClick={() => importInputRef.current?.click()} disabled={Boolean(busyAction)}>
+              {busyAction === "import" ? "Converting…" : "Import → .md"}
+            </button>
+            <input
+                ref={importInputRef}
+                className="md-hidden-file-input"
+                type="file"
+                accept=".md,.markdown,.txt,.csv,.xlsx,.docx,.html,.htm"
+                onChange={importOfficeDocument}
+            />
             <button onClick={() => { const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([markdown], { type: "text/markdown;charset=utf-8" })); link.download = `${title || "document"}.md`; link.click(); URL.revokeObjectURL(link.href); }}>Download .md</button>
             <button onClick={() => onChange?.(STARTER_MARKDOWN)}>Example</button>
             <button onClick={() => onChange?.("")}>Clear</button>
             <button className="md-close-button" onClick={onClose}>Back to canvas</button>
+            {actionMessage && <span className="md-action-message" title={actionMessage}>{actionMessage}</span>}
           </div>
         </header>
 

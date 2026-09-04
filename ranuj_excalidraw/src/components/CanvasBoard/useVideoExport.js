@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { exportUndoRedoAnimationVideo } from "../../canvas/exportAnimationVideo";
 
-const DEFAULT_GAP_SECONDS = 0.5;
+const DEFAULT_GAP_SECONDS = 0;
 
 export function useVideoExport({ history, elements, timelineFrames, canvasSize, canvasProps }) {
     const [isVideoExporting, setIsVideoExporting] = useState(false);
@@ -55,6 +55,8 @@ export function useVideoExport({ history, elements, timelineFrames, canvasSize, 
                 canvasProps,
                 gapSeconds,
                 preAnimationDelaySeconds: options.preAnimationDelaySeconds,
+                exportScale: options.exportScale,
+                trimTrailingPause: options.trimTrailingPause,
                 mode: options.mode || "server",
                 fileName: options.fileName || `sketchydraw-frames-${frameFrom}-${frameTo}.${options.mode === "browser" ? "webm" : "mp4"}`,
                 onProgress: (progress) => {
