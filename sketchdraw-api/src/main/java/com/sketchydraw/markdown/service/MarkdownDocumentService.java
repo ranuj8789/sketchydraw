@@ -1,24 +1,244 @@
 package com.sketchydraw.markdown.service;
 
+import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
+import org.commonmark.parser.Parser;
+import org.commonmark.renderer.html.HtmlRenderer;
 import org.springframework.stereotype.Service;
+import org.jsoup.Jsoup;
+import org.jsoup.helper.W3CDom;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.multipart.MultipartFile;
-import org.w3c.dom.*;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.*;
 
 @Service
+@SuppressWarnings({"HttpUrlsUsage", "SpellCheckingInspection"})
 public class MarkdownDocumentService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(MarkdownDocumentService.class);
+
+    private static final Parser MARKDOWN_PARSER = Parser.builder().build();
+    private static final HtmlRenderer HTML_RENDERER = HtmlRenderer.builder()
+            .escapeHtml(true)
+            .build();
 
     public byte[] createPdf(String title, String markdown) throws IOException {
         String safeTitle = blankToDefault(title, "Markdown Document");
-        List<String> lines = wrapPlainText(safeTitle + "\n\n" + markdownToPlainText(markdown), 92);
-        return buildSimplePdf(lines);
+        String safeMarkdown = Optional.ofNullable(markdown).orElse("");
+
+        org.commonmark.node.Node document = MARKDOWN_PARSER.parse(safeMarkdown);
+        String bodyHtml = HTML_RENDERER.render(document);
+        String html = buildPdfHtml(safeTitle, bodyHtml);
+
+        try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            // OpenHTMLToPDF is strict about XHTML. Jsoup normalizes the generated
+            // HTML first, and W3CDom gives the renderer a valid DOM directly.
+            org.jsoup.nodes.Document jsoupDocument = Jsoup.parse(html);
+            jsoupDocument.outputSettings()
+                    .syntax(org.jsoup.nodes.Document.OutputSettings.Syntax.xml)
+                    .charset(StandardCharsets.UTF_8)
+                    .prettyPrint(false);
+
+            Document w3cDocument = new W3CDom().fromJsoup(jsoupDocument);
+
+            PdfRendererBuilder builder = new PdfRendererBuilder();
+            builder.useFastMode();
+            registerUnicodeFont(builder);
+            builder.withW3cDocument(w3cDocument, "");
+            builder.toStream(output);
+            builder.run();
+
+            byte[] pdf = output.toByteArray();
+            if (pdf.length == 0) {
+                throw new IOException("PDF renderer returned an empty document");
+            }
+            return pdf;
+        } catch (Exception exception) {
+            LOGGER.error("Styled PDF generation failed for title: {}", safeTitle, exception);
+            throw new IOException(
+                    "Unable to create styled PDF: "
+                            + exception.getClass().getSimpleName()
+                            + ": "
+                            + Optional.ofNullable(exception.getMessage()).orElse("no details"),
+                    exception
+            );
+        }
+    }
+
+    private String buildPdfHtml(String title, String bodyHtml) {
+        String template = """
+                <!doctype html>
+                <html lang="en">
+                <head>
+                  <meta charset="UTF-8" />
+                  <style>
+                    @page {
+                      size: A4;
+                      margin: 18mm 17mm 20mm;
+                      @bottom-left {
+                        content: "SketchyDraw - Markdown Grid";
+                        color: #64748b;
+                        font-size: 8.5pt;
+                      }
+                      @bottom-right {
+                        content: "Page " counter(page) " of " counter(pages);
+                        color: #64748b;
+                        font-size: 8.5pt;
+                      }
+                    }
+
+                    * { box-sizing: border-box; }
+
+                    html, body {
+                      margin: 0;
+                      padding: 0;
+                      color: #172033;
+                      font-family: "SketchyUnicode", "DejaVu Sans", Arial, sans-serif;
+                      font-size: 10.6pt;
+                      line-height: 1.55;
+                    }
+
+                    .document-header {
+                      margin: 0 0 18px;
+                      padding: 0 0 12px;
+                      border-bottom: 2px solid #e7edf5;
+                    }
+
+                    .document-kicker {
+                      color: #8b6b2a;
+                      font-size: 8.5pt;
+                      font-weight: 700;
+                      letter-spacing: .08em;
+                      text-transform: uppercase;
+                    }
+
+                    .document-title {
+                      margin: 5px 0 0;
+                      color: #0f172a;
+                      font-size: 24pt;
+                      line-height: 1.15;
+                      font-weight: 800;
+                      letter-spacing: -.025em;
+                    }
+
+                    h1, h2, h3, h4, h5, h6 {
+                      color: #0f172a;
+                      page-break-after: avoid;
+                    }
+
+                    h1 {
+                      margin: 23px 0 10px;
+                      padding-bottom: 7px;
+                      border-bottom: 1px solid #dce4ef;
+                      font-size: 20pt;
+                      line-height: 1.2;
+                    }
+
+                    h2 { margin: 20px 0 8px; font-size: 16pt; line-height: 1.25; }
+                    h3 { margin: 16px 0 7px; font-size: 13pt; }
+                    h4, h5, h6 { margin: 13px 0 6px; font-size: 11pt; }
+                    p { margin: 0 0 9px; }
+                    strong { color: #0f172a; }
+                    ul, ol { margin: 6px 0 12px 21px; padding: 0; }
+                    li { margin: 3px 0; padding-left: 2px; }
+
+                    blockquote {
+                      margin: 13px 0;
+                      padding: 9px 13px;
+                      border-left: 4px solid #d5b665;
+                      background: #fffaf0;
+                      color: #475569;
+                      page-break-inside: avoid;
+                    }
+
+                    code {
+                      padding: 1px 4px;
+                      border: 1px solid #dce4ee;
+                      border-radius: 4px;
+                      background: #f3f6fa;
+                      color: #9f1239;
+                      font-family: "DejaVu Sans Mono", monospace;
+                      font-size: 9.2pt;
+                    }
+
+                    pre {
+                      margin: 12px 0;
+                      padding: 12px 14px;
+                      border-radius: 8px;
+                      background: #111827;
+                      color: #e5edf7;
+                      white-space: pre-wrap;
+                      word-wrap: break-word;
+                      font-family: "DejaVu Sans Mono", monospace;
+                      font-size: 8.8pt;
+                      line-height: 1.45;
+                      page-break-inside: avoid;
+                    }
+
+                    pre code { padding: 0; border: 0; background: transparent; color: inherit; }
+
+                    table {
+                      width: 100%;
+                      margin: 12px 0 16px;
+                      border-collapse: collapse;
+                      table-layout: fixed;
+                    }
+
+                    th, td {
+                      padding: 7px 8px;
+                      border: 1px solid #d9e2ee;
+                      vertical-align: top;
+                      word-wrap: break-word;
+                    }
+
+                    th { background: #eef4ff; color: #1e3a8a; font-weight: 700; }
+                    tr:nth-child(even) td { background: #f8fafc; }
+                    hr { height: 1px; margin: 18px 0; border: 0; background: #dce4ed; }
+                    a { color: #1d4ed8; text-decoration: none; }
+                    img { max-width: 100%; height: auto; }
+                    .content > :first-child { margin-top: 0; }
+                  </style>
+                </head>
+                <body>
+                  <header class="document-header">
+                    <div class="document-kicker">SketchyDraw Markdown Grid</div>
+                    <div class="document-title">__DOCUMENT_TITLE__</div>
+                  </header>
+                  <main class="content">__DOCUMENT_BODY__</main>
+                </body>
+                </html>
+                """;
+
+        return template
+                .replace("__DOCUMENT_TITLE__", htmlEscape(title))
+                .replace("__DOCUMENT_BODY__", bodyHtml);
+    }
+
+    private void registerUnicodeFont(PdfRendererBuilder builder) {
+        List<Path> candidates = List.of(
+                Path.of("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+                Path.of("/usr/share/fonts/dejavu/DejaVuSans.ttf"),
+                Path.of("/Library/Fonts/Arial Unicode.ttf"),
+                Path.of(System.getProperty("java.home"), "lib", "fonts", "DejaVuSans.ttf")
+        );
+
+        candidates.stream()
+                .filter(Files::isRegularFile)
+                .findFirst()
+                .ifPresent(path -> builder.useFont(path.toFile(), "SketchyUnicode"));
     }
 
     public byte[] createXlsx(String title, String markdown) throws IOException {
@@ -59,7 +279,7 @@ public class MarkdownDocumentService {
             put(zip, "xl/styles.xml", """
                     <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
                     <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-                      <fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts>
+                      <fonts count="1"><font><sz val="11"/><name val="Arial"/></font></fonts>
                       <fills count="1"><fill><patternFill patternType="none"/></fill></fills>
                       <borders count="1"><border/></borders>
                       <cellStyleXfs count="1"><xf/></cellStyleXfs>
@@ -186,32 +406,32 @@ public class MarkdownDocumentService {
 
     private List<String> readSharedStrings(byte[] xml) throws Exception {
         if (xml == null) return List.of();
-        Document doc = parseXml(xml);
-        NodeList items = doc.getElementsByTagNameNS("*", "si");
+        Document document = parseXml(xml);
+        NodeList items = document.getElementsByTagNameNS("*", "si");
         List<String> values = new ArrayList<>();
         for (int i = 0; i < items.getLength(); i++) values.add(nodeText(items.item(i)));
         return values;
     }
 
     private List<List<String>> readWorksheet(byte[] xml, List<String> shared) throws Exception {
-        if (xml == null) return List.of();
-        Document doc = parseXml(xml);
-        NodeList rowNodes = doc.getElementsByTagNameNS("*", "row");
         List<List<String>> rows = new ArrayList<>();
-        for (int i = 0; i < rowNodes.getLength(); i++) {
-            NodeList cells = ((Element) rowNodes.item(i)).getElementsByTagNameNS("*", "c");
+        if (xml == null) return rows;
+        Document document = parseXml(xml);
+        NodeList rowNodes = document.getElementsByTagNameNS("*", "row");
+        for (int r = 0; r < rowNodes.getLength(); r++) {
+            NodeList cells = ((Element) rowNodes.item(r)).getElementsByTagNameNS("*", "c");
             TreeMap<Integer, String> indexed = new TreeMap<>();
-            for (int j = 0; j < cells.getLength(); j++) {
-                Element cell = (Element) cells.item(j);
+            for (int c = 0; c < cells.getLength(); c++) {
+                Element cell = (Element) cells.item(c);
                 int col = columnIndex(cell.getAttribute("r"));
                 String type = cell.getAttribute("t");
-                String value;
-                if ("inlineStr".equals(type)) {
-                    value = nodeText(cell);
-                } else {
-                    NodeList vs = cell.getElementsByTagNameNS("*", "v");
-                    value = vs.getLength() == 0 ? "" : vs.item(0).getTextContent();
-                    if ("s".equals(type) && !value.isBlank()) {
+                String value = "";
+                NodeList inline = cell.getElementsByTagNameNS("*", "is");
+                if (inline.getLength() > 0) value = nodeText(inline.item(0));
+                else {
+                    NodeList values = cell.getElementsByTagNameNS("*", "v");
+                    if (values.getLength() > 0) value = values.item(0).getTextContent();
+                    if ("s".equals(type)) {
                         int idx = Integer.parseInt(value);
                         value = idx >= 0 && idx < shared.size() ? shared.get(idx) : value;
                     }
@@ -281,79 +501,6 @@ public class MarkdownDocumentService {
         out.append("\n");
     }
 
-    private byte[] buildSimplePdf(List<String> lines) throws IOException {
-        List<List<String>> pages = new ArrayList<>();
-        for (int i = 0; i < lines.size(); i += 46) pages.add(lines.subList(i, Math.min(lines.size(), i + 46)));
-        if (pages.isEmpty()) pages.add(List.of(""));
-
-        int pageCount = pages.size();
-        int fontObj = 3 + pageCount * 2;
-        List<byte[]> objects = new ArrayList<>();
-        objects.add("<< /Type /Catalog /Pages 2 0 R >>".getBytes(StandardCharsets.US_ASCII));
-        StringBuilder kids = new StringBuilder("[");
-        for (int p = 0; p < pageCount; p++) kids.append(3 + p * 2).append(" 0 R ");
-        kids.append("]");
-        objects.add(("<< /Type /Pages /Kids " + kids + " /Count " + pageCount + " >>").getBytes(StandardCharsets.US_ASCII));
-
-        for (int p = 0; p < pageCount; p++) {
-            int pageObj = 3 + p * 2;
-            int contentObj = pageObj + 1;
-            objects.add(("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 " + fontObj + " 0 R >> >> /Contents " + contentObj + " 0 R >>").getBytes(StandardCharsets.US_ASCII));
-            StringBuilder stream = new StringBuilder("BT\n/F1 11 Tf\n50 748 Td\n14 TL\n");
-            for (String line : pages.get(p)) stream.append("(").append(pdfEscape(line)).append(") Tj\nT*\n");
-            stream.append("ET");
-            byte[] body = stream.toString().getBytes(StandardCharsets.ISO_8859_1);
-            ByteArrayOutputStream content = new ByteArrayOutputStream();
-            content.write(("<< /Length " + body.length + " >>\nstream\n").getBytes(StandardCharsets.US_ASCII));
-            content.write(body);
-            content.write("\nendstream".getBytes(StandardCharsets.US_ASCII));
-            objects.add(content.toByteArray());
-        }
-        objects.add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".getBytes(StandardCharsets.US_ASCII));
-
-        ByteArrayOutputStream pdf = new ByteArrayOutputStream();
-        pdf.write("%PDF-1.4\n".getBytes(StandardCharsets.US_ASCII));
-        List<Integer> offsets = new ArrayList<>();
-        offsets.add(0);
-        for (int i = 0; i < objects.size(); i++) {
-            offsets.add(pdf.size());
-            pdf.write(((i + 1) + " 0 obj\n").getBytes(StandardCharsets.US_ASCII));
-            pdf.write(objects.get(i));
-            pdf.write("\nendobj\n".getBytes(StandardCharsets.US_ASCII));
-        }
-        int xref = pdf.size();
-        pdf.write(("xref\n0 " + (objects.size() + 1) + "\n").getBytes(StandardCharsets.US_ASCII));
-        pdf.write("0000000000 65535 f \n".getBytes(StandardCharsets.US_ASCII));
-        for (int i = 1; i < offsets.size(); i++) pdf.write(String.format(Locale.ROOT, "%010d 00000 n \n", offsets.get(i)).getBytes(StandardCharsets.US_ASCII));
-        pdf.write(("trailer\n<< /Size " + (objects.size() + 1) + " /Root 1 0 R >>\nstartxref\n" + xref + "\n%%EOF").getBytes(StandardCharsets.US_ASCII));
-        return pdf.toByteArray();
-    }
-
-    private List<String> wrapPlainText(String text, int width) {
-        List<String> result = new ArrayList<>();
-        for (String paragraph : text.replace("\r\n", "\n").split("\n", -1)) {
-            if (paragraph.isBlank()) { result.add(""); continue; }
-            String remaining = paragraph;
-            while (remaining.length() > width) {
-                int cut = remaining.lastIndexOf(' ', width);
-                if (cut < 1) cut = width;
-                result.add(remaining.substring(0, cut));
-                remaining = remaining.substring(cut).stripLeading();
-            }
-            result.add(remaining);
-        }
-        return result;
-    }
-
-    private String markdownToPlainText(String md) {
-        return Optional.ofNullable(md).orElse("")
-                .replaceAll("(?m)^#{1,6}\\s+", "")
-                .replaceAll("(?m)^\\s*[-*+]\\s+", "• ")
-                .replaceAll("(?m)^\\s*\\d+\\.\\s+", "")
-                .replaceAll("[`*_~]", "")
-                .replaceAll("\\[([^]]+)]\\(([^)]+)\\)", "$1 ($2)");
-    }
-
     private String stripMarkdown(String line) {
         return line.replaceFirst("^#{1,6}\\s+", "")
                 .replaceFirst("^[-*+]\\s+", "")
@@ -405,17 +552,38 @@ public class MarkdownDocumentService {
     }
 
     private int columnIndex(String ref) {
-        Matcher m = Pattern.compile("([A-Z]+)").matcher(ref.toUpperCase(Locale.ROOT));
-        if (!m.find()) return 0;
+        Matcher matcher = Pattern.compile("([A-Z]+)").matcher(ref.toUpperCase(Locale.ROOT));
+        if (!matcher.find()) return 0;
         int result = 0;
-        for (char ch : m.group(1).toCharArray()) result = result * 26 + (ch - 'A' + 1);
+        for (char ch : matcher.group(1).toCharArray()) result = result * 26 + (ch - 'A' + 1);
         return result - 1;
     }
 
-    private String xmlEscape(String value) { return Optional.ofNullable(value).orElse("").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;"); }
-    private String pdfEscape(String value) { return value.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)").replaceAll("[^\\x20-\\x7E]", "?"); }
-    private String blankToDefault(String value, String fallback) { return value == null || value.isBlank() ? fallback : value; }
-    private String stripExtension(String name) { int dot = name.lastIndexOf('.'); return dot > 0 ? name.substring(0, dot) : name; }
+    private String htmlEscape(String value) {
+        return Optional.ofNullable(value).orElse("")
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
+    }
+
+    private String xmlEscape(String value) {
+        return Optional.ofNullable(value).orElse("")
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;");
+    }
+
+    private String blankToDefault(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private String stripExtension(String name) {
+        int dot = name.lastIndexOf('.');
+        return dot > 0 ? name.substring(0, dot) : name;
+    }
 
     public record ImportedMarkdown(String title, String markdown, String sourceType) {}
 }

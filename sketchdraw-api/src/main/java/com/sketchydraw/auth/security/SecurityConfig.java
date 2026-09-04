@@ -105,6 +105,12 @@ public class SecurityConfig {
                                 "/api/video-exports/**"
                         ).permitAll()
 
+
+                        // Markdown PDF/Excel export and office-to-Markdown conversion.
+                        .requestMatchers(
+                                "/api/markdown-documents/**"
+                        ).permitAll()
+
                         // Payment APIs require login.
                         .requestMatchers(
                                 "/api/payment/**"
