@@ -1,12 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { exportUndoRedoAnimationVideo } from "../../canvas/exportAnimationVideo";
 import {
-    DEFAULT_ANIMATION_EXPORT_RESOLUTION,
-    DEFAULT_ANIMATION_EXPORT_ZOOM_PERCENT,
-    normalizeAnimationExportResolution,
-    normalizeAnimationExportZoomPercent,
-} from "../../canvas/animationExportSettings";
-import {
     DEFAULT_TIMELINE_PLAYBACK_SPEED,
     normalizeTimelinePlaybackSpeed,
 } from "../../canvas/animationTimeline";
@@ -32,22 +26,14 @@ export function useVideoExport({ history, elements, timelineFrames, canvasSize, 
             ? Number(options.gapSeconds)
             : DEFAULT_GAP_SECONDS;
         let playbackSpeed = options.playbackSpeed;
-        let resolution = options.resolution;
-        let zoomPercent = options.zoomPercent;
-        try {
-            if (playbackSpeed == null) {
+        if (playbackSpeed === undefined) {
+            try {
                 playbackSpeed = window.localStorage.getItem("sketchydraw.timelinePlaybackSpeed");
+            } catch {
+                playbackSpeed = DEFAULT_TIMELINE_PLAYBACK_SPEED;
             }
-            if (resolution == null) {
-                resolution = window.localStorage.getItem("sketchydraw.animationExportResolution");
-            }
-            if (zoomPercent == null) {
-                zoomPercent = window.localStorage.getItem("sketchydraw.animationExportZoomPercent");
-            }
-        } catch {}
-        playbackSpeed = normalizeTimelinePlaybackSpeed(playbackSpeed ?? DEFAULT_TIMELINE_PLAYBACK_SPEED);
-        resolution = normalizeAnimationExportResolution(resolution ?? DEFAULT_ANIMATION_EXPORT_RESOLUTION);
-        zoomPercent = normalizeAnimationExportZoomPercent(zoomPercent ?? DEFAULT_ANIMATION_EXPORT_ZOOM_PERCENT);
+        }
+        playbackSpeed = normalizeTimelinePlaybackSpeed(playbackSpeed);
         const exportTimelineFrames = Array.isArray(options.timelineFrames)
         && options.timelineFrames.length > 0
             ? options.timelineFrames
@@ -84,8 +70,6 @@ export function useVideoExport({ history, elements, timelineFrames, canvasSize, 
                 preAnimationDelaySeconds: options.preAnimationDelaySeconds,
                 playbackSpeed,
                 exportScale: options.exportScale,
-                resolution,
-                zoomPercent,
                 trimTrailingPause: options.trimTrailingPause,
                 mode: options.mode || "server",
                 fileName: options.fileName || `sketchydraw-frames-${frameFrom}-${frameTo}.${options.mode === "browser" ? "webm" : "mp4"}`,

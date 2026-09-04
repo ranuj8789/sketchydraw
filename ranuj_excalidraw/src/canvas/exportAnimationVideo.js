@@ -1,8 +1,22 @@
 import { drawElement, preloadDrawingImages } from "../utils/drawing";
-import { getElementBounds } from "../utils/elementBounds";
 import { apiUrl } from "../config/api";
 import { authHeaders } from "../utils/auth";
-import { getFramePlaybackDurationMs, isElementVisibleAtTime, resolveFrameAnimationTimings } from "./animationTimeline";
+import {
+    DEFAULT_TIMELINE_PLAYBACK_SPEED,
+    getFramePlaybackDurationMs,
+    getTimelinePlaybackDurationMs,
+    getTimelineSourceTimeMs,
+    isElementVisibleAtTime,
+    normalizeTimelinePlaybackSpeed,
+    resolveFrameAnimationTimings,
+} from "./animationTimeline";
+import {
+    DEFAULT_ANIMATION_EXPORT_RESOLUTION,
+    DEFAULT_ANIMATION_EXPORT_ZOOM_PERCENT,
+    getAnimationExportTransform,
+    normalizeAnimationExportZoomPercent,
+    resolveAnimationExportSize,
+} from "./animationExportSettings";
 
 const CONFIGURED_VIDEO_EXPORT_API_BASE = (
     process.env.REACT_APP_VIDEO_EXPORT_API_BASE ||
@@ -84,55 +98,6 @@ function normalizeTimelineFrames({ timelineFrames = [], historyStates = [], curr
     }];
 }
 
-function getFramesContentBounds(frames = []) {
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-
-    frames.forEach((frame) => {
-        const hiddenSet = new Set(frame.hiddenElementIds || []);
-        (frame.elements || []).forEach((element) => {
-            if (hiddenSet.has(element.id)) return;
-            const bounds = getElementBounds(element);
-            if (!bounds) return;
-            minX = Math.min(minX, bounds.x);
-            minY = Math.min(minY, bounds.y);
-            maxX = Math.max(maxX, bounds.x + bounds.w);
-            maxY = Math.max(maxY, bounds.y + bounds.h);
-        });
-    });
-
-    if (!Number.isFinite(minX) || !Number.isFinite(minY)) return null;
-
-    return {
-        x: minX,
-        y: minY,
-        w: Math.max(1, maxX - minX),
-        h: Math.max(1, maxY - minY),
-    };
-}
-
-function normalizeExportScale(value) {
-    return Math.max(0.5, Math.min(2, Number(value) || 1));
-}
-
-function getVideoTransform(bounds, canvasSize, exportScale = 1) {
-    if (!bounds) return { scale: 1, offsetX: 0, offsetY: 0 };
-
-    const padding = 56;
-    const availableWidth = Math.max(1, canvasSize.width - padding * 2);
-    const availableHeight = Math.max(1, canvasSize.height - padding * 2);
-    const fitScale = Math.min(1, availableWidth / bounds.w, availableHeight / bounds.h);
-    const scale = fitScale * normalizeExportScale(exportScale);
-
-    return {
-        scale,
-        offsetX: (canvasSize.width - bounds.w * scale) / 2 - bounds.x * scale,
-        offsetY: (canvasSize.height - bounds.h * scale) / 2 - bounds.y * scale,
-    };
-}
-
 function getAnimatedElementIds(elements = []) {
     return new Set(
         elements
@@ -148,7 +113,8 @@ function getFrameAnimationEndMs(frame) {
 function getExportAnimationTimeMs(
     frame,
     elapsedMs,
-    preAnimationDelayMs = 0
+    preAnimationDelayMs = 0,
+    playbackSpeed = DEFAULT_TIMELINE_PLAYBACK_SPEED
 ) {
     const elapsed = Math.max(0, Number(elapsedMs) || 0);
     const preDelay = Math.max(0, Number(preAnimationDelayMs) || 0);
@@ -160,16 +126,22 @@ function getExportAnimationTimeMs(
     // shifted the first animation to time zero, silently removing delayMs from
     // imported drawings and making exported GIF/video timing look faster than
     // the editor preview.
-    return Math.max(0, elapsed - preDelay);
+    return getTimelineSourceTimeMs(elapsed - preDelay, playbackSpeed);
 }
 
 function getFrameDurationMs(
     frame,
     holdAfterMs,
-    preAnimationDelayMs = 0
+    preAnimationDelayMs = 0,
+    playbackSpeed = DEFAULT_TIMELINE_PLAYBACK_SPEED
 ) {
     const animationEnd = getFrameAnimationEndMs(frame);
-    return Math.max(1, preAnimationDelayMs + animationEnd + holdAfterMs);
+    return Math.max(
+        1,
+        preAnimationDelayMs +
+        getTimelinePlaybackDurationMs(animationEnd, playbackSpeed) +
+        holdAfterMs
+    );
 }
 
 function drawFrame(canvas, frame, canvasSize, transform, canvasProps = {}, animationTimeMs = 0) {
@@ -337,6 +309,7 @@ async function recordFrameSegment({
                                       transform,
                                       canvasProps,
                                       preAnimationDelayMs = 0,
+                                      playbackSpeed = DEFAULT_TIMELINE_PLAYBACK_SPEED,
                                       onTick,
                                   }) {
     const mimeType = pickWebmMimeType();
@@ -374,7 +347,8 @@ async function recordFrameSegment({
                 getExportAnimationTimeMs(
                     frame,
                     elapsed,
-                    preAnimationDelayMs
+                    preAnimationDelayMs,
+                    playbackSpeed
                 )
             );
         },
@@ -526,6 +500,7 @@ async function recordTimelineSegment({
                                          transform,
                                          canvasProps,
                                          preAnimationDelayMs = 0,
+                                         playbackSpeed = DEFAULT_TIMELINE_PLAYBACK_SPEED,
                                          onTick,
                                      }) {
     const mimeType = pickWebmMimeType();
@@ -562,7 +537,12 @@ async function recordTimelineSegment({
                     canvasSize,
                     transform,
                     canvasProps,
-                    getExportAnimationTimeMs(frames[index], elapsed, preAnimationDelayMs)
+                    getExportAnimationTimeMs(
+                        frames[index],
+                        elapsed,
+                        preAnimationDelayMs,
+                        playbackSpeed
+                    )
                 );
             },
             onTick: (elapsed) => onTick?.({
@@ -597,7 +577,10 @@ async function exportServerVideo({
                                      frameDelayMs = 0,
                                      gapSeconds,
                                      preAnimationDelaySeconds = 0,
+                                     playbackSpeed = DEFAULT_TIMELINE_PLAYBACK_SPEED,
                                      exportScale = 1.1,
+                                     resolution = DEFAULT_ANIMATION_EXPORT_RESOLUTION,
+                                     zoomPercent,
                                      onProgress,
                                      onStatus,
                                  }) {
@@ -618,13 +601,12 @@ async function exportServerVideo({
     const preAnimationDelayMs = Number.isFinite(Number(preAnimationDelaySeconds))
         ? Math.max(0, Number(preAnimationDelaySeconds) * 1000)
         : 0;
+    const safePlaybackSpeed = normalizeTimelinePlaybackSpeed(playbackSpeed);
 
-    const safeCanvasSize = {
-        width: Math.max(320, Math.round(canvasSize?.width || 1200)),
-        height: Math.max(240, Math.round(canvasSize?.height || 700)),
-    };
-    safeCanvasSize.width -= safeCanvasSize.width % 2;
-    safeCanvasSize.height -= safeCanvasSize.height % 2;
+    const safeCanvasSize = resolveAnimationExportSize(resolution, canvasSize);
+    const safeZoomPercent = normalizeAnimationExportZoomPercent(
+        zoomPercent ?? Math.round((Number(exportScale) || DEFAULT_ANIMATION_EXPORT_ZOOM_PERCENT / 100) * 100)
+    );
 
     const fps = 30;
     const canvas = createRecordingCanvas(safeCanvasSize);
@@ -632,16 +614,18 @@ async function exportServerVideo({
     try {
         await preloadImages(frames);
         await waitForExportAssets();
-        const transform = getVideoTransform(
-            getFramesContentBounds(frames),
-            safeCanvasSize,
-            exportScale
-        );
+        const transform = getAnimationExportTransform({
+            frames,
+            sourceSize: canvasSize,
+            outputSize: safeCanvasSize,
+            zoomPercent: safeZoomPercent,
+        });
         const durations = frames.map((frame) =>
             getFrameDurationMs(
                 frame,
                 holdAfterMs,
-                preAnimationDelayMs
+                preAnimationDelayMs,
+                safePlaybackSpeed
             )
         );
 
@@ -665,6 +649,7 @@ async function exportServerVideo({
             transform,
             canvasProps,
             preAnimationDelayMs,
+            playbackSpeed: safePlaybackSpeed,
             onTick: ({ completedDuration, elapsed, totalDuration }) => {
                 const progress = ((completedDuration + elapsed) / Math.max(1, totalDuration)) * 90;
                 onProgress?.(Math.max(0, Math.min(90, Math.round(progress))));
@@ -696,6 +681,9 @@ async function exportBrowserVideo({
                                       canvasSize = { width: 1200, height: 700 }, canvasProps = {},
                                       fileName = "sketchy-animation.webm", frameDelayMs = 0, gapSeconds,
                                       preAnimationDelaySeconds = 0, exportScale = 1.1,
+                                      playbackSpeed = DEFAULT_TIMELINE_PLAYBACK_SPEED,
+                                      resolution = DEFAULT_ANIMATION_EXPORT_RESOLUTION,
+                                      zoomPercent,
                                       onProgress, onStatus,
                                   }) {
     if (typeof MediaRecorder === "undefined") throw new Error("Browser video export needs Chrome or Edge.");
@@ -711,24 +699,27 @@ async function exportBrowserVideo({
         ? Math.max(0, Number(gapSeconds) * 1000) : frameDelayMs;
     const preAnimationDelayMs = Number.isFinite(Number(preAnimationDelaySeconds))
         ? Math.max(0, Number(preAnimationDelaySeconds) * 1000) : 0;
-    const safeCanvasSize = {
-        width: Math.max(320, Math.round(canvasSize?.width || 1200)),
-        height: Math.max(240, Math.round(canvasSize?.height || 700)),
-    };
+    const safePlaybackSpeed = normalizeTimelinePlaybackSpeed(playbackSpeed);
+    const safeCanvasSize = resolveAnimationExportSize(resolution, canvasSize);
+    const safeZoomPercent = normalizeAnimationExportZoomPercent(
+        zoomPercent ?? Math.round((Number(exportScale) || DEFAULT_ANIMATION_EXPORT_ZOOM_PERCENT / 100) * 100)
+    );
     const fps = 30;
     const canvas = createRecordingCanvas(safeCanvasSize);
     await preloadImages(frames);
     await waitForExportAssets();
-    const transform = getVideoTransform(
-        getFramesContentBounds(frames),
-        safeCanvasSize,
-        exportScale
-    );
+    const transform = getAnimationExportTransform({
+        frames,
+        sourceSize: canvasSize,
+        outputSize: safeCanvasSize,
+        zoomPercent: safeZoomPercent,
+    });
     const durations = frames.map((frame) =>
         getFrameDurationMs(
             frame,
             holdAfterMs,
-            preAnimationDelayMs
+            preAnimationDelayMs,
+            safePlaybackSpeed
         )
     );
     const totalDuration = durations.reduce((sum, duration) => sum + duration, 0);
@@ -765,7 +756,12 @@ async function exportBrowserVideo({
                     safeCanvasSize,
                     transform,
                     canvasProps,
-                    getExportAnimationTimeMs(frames[index], elapsed, preAnimationDelayMs)
+                    getExportAnimationTimeMs(
+                        frames[index],
+                        elapsed,
+                        preAnimationDelayMs,
+                        safePlaybackSpeed
+                    )
                 );
             },
             onTick: (elapsed) => {

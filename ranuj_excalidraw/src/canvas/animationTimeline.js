@@ -3,6 +3,24 @@ function clampMs(value, fallback = 0) {
   return Number.isFinite(parsed) ? Math.max(0, parsed) : fallback;
 }
 
+export const DEFAULT_TIMELINE_PLAYBACK_SPEED = 0.5;
+export const TIMELINE_PLAYBACK_SPEED_OPTIONS = [0.25, 0.5, 0.75, 1];
+
+export function normalizeTimelinePlaybackSpeed(value) {
+  const parsed = Number(value);
+  return TIMELINE_PLAYBACK_SPEED_OPTIONS.includes(parsed)
+      ? parsed
+      : DEFAULT_TIMELINE_PLAYBACK_SPEED;
+}
+
+export function getTimelineSourceTimeMs(elapsedMs, playbackSpeed) {
+  return Math.max(0, Number(elapsedMs) || 0) * normalizeTimelinePlaybackSpeed(playbackSpeed);
+}
+
+export function getTimelinePlaybackDurationMs(sourceDurationMs, playbackSpeed) {
+  return Math.max(1, Number(sourceDurationMs) || 0) / normalizeTimelinePlaybackSpeed(playbackSpeed);
+}
+
 export function resolveFrameAnimationTimings(elements = []) {
   const byId = new Map((elements || []).filter(Boolean).map((element) => [element.id, element]));
   const cache = new Map();

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { renderCanvas } from "../../canvas/canvasRender";
 import { createAnimationConfig, getAnimationPresetsForElement } from "../../canvas/animationRegistry";
+import { TIMELINE_PLAYBACK_SPEED_OPTIONS } from "../../canvas/animationTimeline";
 import "./FramesPanel.css";
 
 const SHOW_AUDIO_FEATURE =
@@ -206,6 +207,8 @@ function FrameAnimationDialog({
                                   onUpdateFrameAudio,
                                   onRemoveFrameAudio,
                                   onPreview,
+                                  playbackSpeed = 0.5,
+                                  onPlaybackSpeedChange,
                               }) {
     const objects = (frame?.elements || []).filter((element) => element?.id);
     const [selectedElementId, setSelectedElementId] = useState("");
@@ -305,6 +308,14 @@ function FrameAnimationDialog({
                                             )}
                                         </strong>
                                     </div>
+                                    <label>
+                                        Timeline speed
+                                        <select value={playbackSpeed} onChange={(event) => onPlaybackSpeedChange?.(Number(event.target.value))}>
+                                            {TIMELINE_PLAYBACK_SPEED_OPTIONS.map((speed) => (
+                                                <option key={speed} value={speed}>{speed}×</option>
+                                            ))}
+                                        </select>
+                                    </label>
                                     <button
                                         type="button"
                                         className="frame-animation-preview-btn"
@@ -594,6 +605,8 @@ export default function FramesPanel({
                                         onMergeFrameWithNext,
                                         onPlayCurrent,
                                         onPlayAll,
+                                        playbackSpeed = 0.5,
+                                        onPlaybackSpeedChange,
                                     }) {
     const [animationDialogFrameIndex, setAnimationDialogFrameIndex] =
         useState(null);
@@ -643,6 +656,14 @@ export default function FramesPanel({
                 <div className="frames-manager-toolbar">
                     <button type="button" className="frames-gold-btn" onClick={onPlayAll}>▶ Play all</button>
                     <button type="button" onClick={onPlayCurrent}>▶ Play selected</button>
+                    <label>
+                        Timeline speed
+                        <select value={playbackSpeed} onChange={(event) => onPlaybackSpeedChange?.(Number(event.target.value))}>
+                            {TIMELINE_PLAYBACK_SPEED_OPTIONS.map((speed) => (
+                                <option key={speed} value={speed}>{speed}×</option>
+                            ))}
+                        </select>
+                    </label>
                     <button type="button" onClick={onAddFrameAfter}>＋ Add frame</button>
                     <button
                         type="button"
@@ -742,6 +763,8 @@ export default function FramesPanel({
                 onUpdateFrameElementAnimation={onUpdateFrameElementAnimation}
                 onUpdateFrameAudio={onUpdateFrameAudio}
                 onRemoveFrameAudio={onRemoveFrameAudio}
+                playbackSpeed={playbackSpeed}
+                onPlaybackSpeedChange={onPlaybackSpeedChange}
                 onPreview={() => {
                     const index = animationDialogFrameIndex !== null
                         ? animationDialogFrameIndex

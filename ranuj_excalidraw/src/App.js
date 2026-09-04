@@ -29,7 +29,18 @@ import {
 } from "./components/DrawingGroupStore/drawingGroupStore";
 import { DEFAULT_TEXT_STYLE } from "./canvas/textStyle";
 import { createAnimationConfig } from "./canvas/animationRegistry";
-import { getFramePlaybackDurationMs } from "./canvas/animationTimeline";
+import {
+  DEFAULT_TIMELINE_PLAYBACK_SPEED,
+  getFramePlaybackDurationMs,
+  getTimelineSourceTimeMs,
+  normalizeTimelinePlaybackSpeed,
+} from "./canvas/animationTimeline";
+import {
+  DEFAULT_ANIMATION_EXPORT_RESOLUTION,
+  DEFAULT_ANIMATION_EXPORT_ZOOM_PERCENT,
+  normalizeAnimationExportResolution,
+  normalizeAnimationExportZoomPercent,
+} from "./canvas/animationExportSettings";
 import { buildTextElement } from "./canvas/canvasFactories";
 import { buildCodeIllustrationFrames, parseCodeIllustratorNumbers } from "./codeIllustrator";
 import { exportTimelineGif } from "./utils/exportGif";
@@ -335,9 +346,62 @@ function SketchyDrawPage() {
   const [animationPlayerPlaying, setAnimationPlayerPlaying] = useState(false);
   const [animationPlayerTimeMs, setAnimationPlayerTimeMs] = useState(0);
   const [animationPlayerWaitingForNext, setAnimationPlayerWaitingForNext] = useState(false);
-  const [animationPlayerSpeed, setAnimationPlayerSpeed] = useState(1);
+  const [animationPlayerSpeed, setAnimationPlayerSpeed] = useState(() => {
+    try {
+      return normalizeTimelinePlaybackSpeed(
+          window.localStorage.getItem("sketchydraw.timelinePlaybackSpeed") ||
+          DEFAULT_TIMELINE_PLAYBACK_SPEED
+      );
+    } catch {
+      return DEFAULT_TIMELINE_PLAYBACK_SPEED;
+    }
+  });
+  const [animationExportResolution, setAnimationExportResolution] = useState(() => {
+    try {
+      return normalizeAnimationExportResolution(
+          window.localStorage.getItem("sketchydraw.animationExportResolution") ||
+          DEFAULT_ANIMATION_EXPORT_RESOLUTION
+      );
+    } catch {
+      return DEFAULT_ANIMATION_EXPORT_RESOLUTION;
+    }
+  });
+  const [animationExportZoomPercent, setAnimationExportZoomPercent] = useState(() => {
+    try {
+      return normalizeAnimationExportZoomPercent(
+          window.localStorage.getItem("sketchydraw.animationExportZoomPercent") ||
+          DEFAULT_ANIMATION_EXPORT_ZOOM_PERCENT
+      );
+    } catch {
+      return DEFAULT_ANIMATION_EXPORT_ZOOM_PERCENT;
+    }
+  });
   const animationPlayerAdvanceTimeoutRef = useRef(null);
   const frameActionUndoStackRef = useRef([]);
+
+  const updateTimelinePlaybackSpeed = useCallback((value) => {
+    const nextSpeed = normalizeTimelinePlaybackSpeed(value);
+    setAnimationPlayerSpeed(nextSpeed);
+    try {
+      window.localStorage.setItem("sketchydraw.timelinePlaybackSpeed", String(nextSpeed));
+    } catch {}
+  }, []);
+
+  const updateAnimationExportResolution = useCallback((value) => {
+    const nextResolution = normalizeAnimationExportResolution(value);
+    setAnimationExportResolution(nextResolution);
+    try {
+      window.localStorage.setItem("sketchydraw.animationExportResolution", nextResolution);
+    } catch {}
+  }, []);
+
+  const updateAnimationExportZoomPercent = useCallback((value) => {
+    const nextZoom = normalizeAnimationExportZoomPercent(value);
+    setAnimationExportZoomPercent(nextZoom);
+    try {
+      window.localStorage.setItem("sketchydraw.animationExportZoomPercent", String(nextZoom));
+    } catch {}
+  }, []);
 
   const rememberFrameAction = useCallback((label, frames, activeIndex) => {
     const snapshot = {
@@ -467,7 +531,7 @@ function SketchyDrawPage() {
     const durationMs = getFramePlaybackDurationMs(currentTimelineFrame);
 
     const tick = (now) => {
-      const elapsedMs = now - startedAt;
+      const elapsedMs = getTimelineSourceTimeMs(now - startedAt, animationPlayerSpeed);
       if (elapsedMs >= durationMs) {
         setFrameAnimationTimeMs(durationMs);
         setFrameAnimationPlaying(false);
@@ -486,7 +550,7 @@ function SketchyDrawPage() {
         window.cancelAnimationFrame(rafId);
       }
     };
-  }, [frameAnimationPlaying, currentTimelineFrame]);
+  }, [frameAnimationPlaying, currentTimelineFrame, animationPlayerSpeed]);
 
   const advanceAnimationPlayerFrame = useCallback(() => {
     setAnimationPlayerFrameIndex((prevIndex) => {
@@ -514,7 +578,7 @@ function SketchyDrawPage() {
     let rafId = null;
     const startedAt = performance.now();
     const durationMs = getFrameAnimationDurationMs(animationPlayerFrame);
-    const speed = Math.max(0.25, Number(animationPlayerSpeed) || 1);
+    const speed = normalizeTimelinePlaybackSpeed(animationPlayerSpeed);
 
     const tick = (now) => {
       const elapsed = (now - startedAt) * speed;
@@ -1227,7 +1291,7 @@ function SketchyDrawPage() {
     description: "",
   });
 
-  const exportGif = useCallback(async () => {
+  const exportGif = useCallback(async (options = {}) => {
     if (gifExporting) return;
 
     setGifExporting(true);
@@ -1240,7 +1304,14 @@ function SketchyDrawPage() {
         viewport,
         canvasProps,
         fileName: `${currentDrawingMeta.title || DEFAULT_TITLE}.gif`,
-        fps: 8,
+        fps: 12,
+        playbackSpeed: animationPlayerSpeed,
+        resolution: normalizeAnimationExportResolution(
+            options.resolution || animationExportResolution
+        ),
+        zoomPercent: normalizeAnimationExportZoomPercent(
+            options.zoomPercent || animationExportZoomPercent
+        ),
         onProgress: (progress) => setGifExportProgress(progress || 0),
       });
     } catch (error) {
@@ -1261,6 +1332,9 @@ function SketchyDrawPage() {
     viewport,
     canvasProps,
     currentDrawingMeta.title,
+    animationPlayerSpeed,
+    animationExportResolution,
+    animationExportZoomPercent,
     showSketchyAlert,
   ]);
 
@@ -1884,6 +1958,8 @@ function SketchyDrawPage() {
                 onRemoveFrameAudio={removeFrameAudio}
                 animationPlaying={frameAnimationPlaying}
                 animationTimeMs={frameAnimationTimeMs}
+                playbackSpeed={animationPlayerSpeed}
+                onPlaybackSpeedChange={updateTimelinePlaybackSpeed}
                 advanceMode={frameAdvanceMode}
                 onAdvanceModeChange={setFrameAdvanceMode}
                 onOpenPlayer={openAnimationPlayer}
@@ -1955,6 +2031,12 @@ function SketchyDrawPage() {
                   exportGIF={exportGif}
                   gifExporting={gifExporting}
                   gifExportProgress={gifExportProgress}
+                  playbackSpeed={animationPlayerSpeed}
+                  onPlaybackSpeedChange={updateTimelinePlaybackSpeed}
+                  exportResolution={animationExportResolution}
+                  onExportResolutionChange={updateAnimationExportResolution}
+                  exportZoomPercent={animationExportZoomPercent}
+                  onExportZoomPercentChange={updateAnimationExportZoomPercent}
                   socialCreatorPreset={socialCreatorPreset}
                   setSocialCreatorPreset={setSocialCreatorPreset}
                   onToggleFocusMode={enterFocusMode}
@@ -2065,6 +2147,12 @@ function SketchyDrawPage() {
                   canUndoFrameAction={frameActionUndoStackRef.current.length > 0}
                   onPlayCurrent={() => openAnimationPlayer("current")}
                   onPlayAll={() => openAnimationPlayer("all")}
+                  playbackSpeed={animationPlayerSpeed}
+                  onPlaybackSpeedChange={updateTimelinePlaybackSpeed}
+                  exportResolution={animationExportResolution}
+                  onExportResolutionChange={updateAnimationExportResolution}
+                  exportZoomPercent={animationExportZoomPercent}
+                  onExportZoomPercentChange={updateAnimationExportZoomPercent}
                   onToggleElementHidden={toggleFrameElementHidden}
                   onMoveFrameElementOrder={moveFrameElementOrder}
                   onApplyFrameObjectOrderTiming={applyFrameObjectOrderTiming}
@@ -2090,7 +2178,11 @@ function SketchyDrawPage() {
                   timeMs={animationPlayerTimeMs}
                   waitingForNext={animationPlayerWaitingForNext}
                   playbackSpeed={animationPlayerSpeed}
-                  onPlaybackSpeedChange={setAnimationPlayerSpeed}
+                  onPlaybackSpeedChange={updateTimelinePlaybackSpeed}
+                  exportResolution={animationExportResolution}
+                  onExportResolutionChange={updateAnimationExportResolution}
+                  exportZoomPercent={animationExportZoomPercent}
+                  onExportZoomPercentChange={updateAnimationExportZoomPercent}
                   onClose={closeAnimationPlayer}
                   onRestart={restartAnimationPlayerFrame}
                   onRestartAll={restartAllAnimationPlayerFrames}

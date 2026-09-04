@@ -7,6 +7,7 @@ import {
 import "./PropertiesPanel.css";
 import { isSystemDesignType } from "../../canvas/canvasConstants";
 import { getAnimationPresetsForElement } from "../../canvas/animationRegistry";
+import { TIMELINE_PLAYBACK_SPEED_OPTIONS } from "../../canvas/animationTimeline";
 
 const LINE_WIDTHS = [1, 2, 3, 4, 6, 8];
 
@@ -290,6 +291,8 @@ export default function PropertiesPanel({
                                             currentFrameIndex = 0,
                                             onUpdateFrameAudio,
                                             onRemoveFrameAudio,
+                                            playbackSpeed = 0.5,
+                                            onPlaybackSpeedChange,
                                             forcedMode = null,
                                             hideModeTabs = false,
                                             compactHeader = false,
@@ -1030,6 +1033,24 @@ export default function PropertiesPanel({
 
             {inspectorTab === "animation" && selectedElement && (
                 <div className="animation-inspector intuitive-animation-inspector">
+                    <section className="animation-card simple-animation-settings">
+                        <div className="animation-card-title">
+                            <strong>Common timeline speed</strong>
+                            <span>This same speed is used by preview, GIF and video export.</span>
+                        </div>
+                        <label className="animation-simple-field">
+                            <span>Playback</span>
+                            <select
+                                value={playbackSpeed}
+                                onChange={(event) => onPlaybackSpeedChange?.(Number(event.target.value))}
+                            >
+                                {TIMELINE_PLAYBACK_SPEED_OPTIONS.map((speed) => (
+                                    <option key={speed} value={speed}>{speed}×{speed === 0.5 ? " · Slow (default)" : ""}</option>
+                                ))}
+                            </select>
+                        </label>
+                    </section>
+
                     <section className="animation-summary-card">
                         <div className="animation-summary-object">
                             <ObjectDiagram element={selectedElement} />

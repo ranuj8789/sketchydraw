@@ -256,3 +256,42 @@
     min-width: 240px;
     height: 34px;
 }
+
+/* Keep export choices readable without covering the storyboard title. */
+.frame-player-topbar {
+    min-height: 86px;
+    padding-left: 360px;
+}
+
+.frame-player-actions {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+}
+
+.frame-player-actions label select {
+    min-width: 112px;
+}
+
+.frame-player-actions label:nth-of-type(3) select {
+    min-width: 178px;
+}
+
+.frame-player-stage {
+    padding: 28px;
+}
+
+.frame-player-stage canvas {
+    object-fit: contain;
+}
+
+@media (max-width: 1280px) {
+    .frame-player-storyboard-heading {
+        top: 12px;
+        left: 16px;
+    }
+
+    .frame-player-topbar {
+        padding-left: 20px;
+        padding-top: 82px;
+    }
+}

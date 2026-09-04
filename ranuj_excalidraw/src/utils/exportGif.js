@@ -1,6 +1,20 @@
 import { renderCanvas } from "../canvas/canvasRender";
 import { drawExportBranding } from "./exportBoard";
-import { getFramePlaybackDurationMs, resolveFrameAnimationTimings } from "../canvas/animationTimeline";
+import {
+    DEFAULT_TIMELINE_PLAYBACK_SPEED,
+    getFramePlaybackDurationMs,
+    getTimelinePlaybackDurationMs,
+    getTimelineSourceTimeMs,
+    normalizeTimelinePlaybackSpeed,
+    resolveFrameAnimationTimings,
+} from "../canvas/animationTimeline";
+import {
+    DEFAULT_ANIMATION_EXPORT_RESOLUTION,
+    DEFAULT_ANIMATION_EXPORT_ZOOM_PERCENT,
+    getAnimationExportTransform,
+    normalizeAnimationExportZoomPercent,
+    resolveAnimationExportSize,
+} from "../canvas/animationExportSettings";
 
 const GIF_JS_URLS = [
     "https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js",
@@ -10,9 +24,7 @@ const GIF_WORKER_URLS = [
     "https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js",
     "https://unpkg.com/gif.js@0.2.0/dist/gif.worker.js",
 ];
-const DEFAULT_FPS = 8;
-const MAX_EXPORT_WIDTH = 900;
-const MAX_EXPORT_HEIGHT = 700;
+const DEFAULT_FPS = 12;
 
 function loadScript(src) {
     return new Promise((resolve, reject) => {
@@ -107,27 +119,21 @@ function getAnimatedElementIds(elements = []) {
     );
 }
 
-function getExportSizing(canvasSize = {}, viewport = {}, exportScale = 1.1) {
-    const sourceWidth = Math.max(1, Number(canvasSize.width) || 1200);
-    const sourceHeight = Math.max(1, Number(canvasSize.height) || 700);
-    const scale = Math.min(
-        1,
-        MAX_EXPORT_WIDTH / sourceWidth,
-        MAX_EXPORT_HEIGHT / sourceHeight
-    );
-
-    const outputWidth = Math.max(1, Math.round(sourceWidth * scale));
-    const outputHeight = Math.max(1, Math.round(sourceHeight * scale));
-    const zoomScale = Math.max(0.5, Math.min(2, Number(exportScale) || 1));
-    const baseOffsetX = (Number(viewport.offsetX) || 0) * scale;
-    const baseOffsetY = (Number(viewport.offsetY) || 0) * scale;
+function getExportSizing(frames, canvasSize = {}, resolution, zoomPercent) {
+    const outputSize = resolveAnimationExportSize(resolution, canvasSize);
+    const transform = getAnimationExportTransform({
+        frames,
+        sourceSize: canvasSize,
+        outputSize,
+        zoomPercent,
+    });
 
     return {
-        canvasSize: { width: outputWidth, height: outputHeight },
+        canvasSize: outputSize,
         viewport: {
-            zoom: (Number(viewport.zoom) || 1) * scale * zoomScale,
-            offsetX: outputWidth / 2 + (baseOffsetX - outputWidth / 2) * zoomScale,
-            offsetY: outputHeight / 2 + (baseOffsetY - outputHeight / 2) * zoomScale,
+            zoom: transform.scale,
+            offsetX: transform.offsetX,
+            offsetY: transform.offsetY,
         },
     };
 }
@@ -161,6 +167,7 @@ function renderGifFrame({
             hiddenElementIds: new Set(frame?.hiddenElementIds || []),
             resolvedAnimationTimings,
             loopAnimation: false,
+            pixelRatio: 1,
         },
     });
 
@@ -192,18 +199,24 @@ function downloadBlob(blob, fileName) {
 export async function exportTimelineGif({
                                             frames = [],
                                             canvasSize,
-                                            viewport,
                                             canvasProps,
                                             fileName = "sketchydraw.gif",
                                             fps = DEFAULT_FPS,
                                             exportScale = 1.1,
+                                            resolution = DEFAULT_ANIMATION_EXPORT_RESOLUTION,
+                                            zoomPercent,
+                                            playbackSpeed = DEFAULT_TIMELINE_PLAYBACK_SPEED,
                                             onProgress,
                                         } = {}) {
     const safeFrames = frames.length ? frames : [{ elements: [] }];
-    const safeFps = Math.max(4, Math.min(10, Number(fps) || DEFAULT_FPS));
+    const safeFps = Math.max(8, Math.min(15, Number(fps) || DEFAULT_FPS));
     const frameDelayMs = Math.round(1000 / safeFps);
+    const safePlaybackSpeed = normalizeTimelinePlaybackSpeed(playbackSpeed);
+    const safeZoomPercent = normalizeAnimationExportZoomPercent(
+        zoomPercent ?? Math.round((Number(exportScale) || DEFAULT_ANIMATION_EXPORT_ZOOM_PERCENT / 100) * 100)
+    );
     const { GIF, workerScript } = await ensureGifEncoder();
-    const sizing = getExportSizing(canvasSize, viewport, exportScale);
+    const sizing = getExportSizing(safeFrames, canvasSize, resolution, safeZoomPercent);
     const canvas = document.createElement("canvas");
 
     // First paint sets the actual pixel size used by renderCanvas.
@@ -218,7 +231,7 @@ export async function exportTimelineGif({
 
     const gif = new GIF({
         workers: 2,
-        quality: 10,
+        quality: 5,
         repeat: 0,
         width: canvas.width,
         height: canvas.height,
@@ -226,7 +239,8 @@ export async function exportTimelineGif({
     });
 
     safeFrames.forEach((frame) => {
-        const durationMs = getFrameAnimationDurationMs(frame);
+        const sourceDurationMs = getFrameAnimationDurationMs(frame);
+        const durationMs = getTimelinePlaybackDurationMs(sourceDurationMs, safePlaybackSpeed);
         const hasAnimatedObjects = (frame?.elements || []).some(
             (element) => element?.animation?.type && element.animation.type !== "none"
         );
@@ -238,7 +252,7 @@ export async function exportTimelineGif({
                 canvasSize: sizing.canvasSize,
                 viewport: sizing.viewport,
                 canvasProps,
-                animationTimeMs: durationMs,
+                animationTimeMs: sourceDurationMs,
             });
             gif.addFrame(canvas, { copy: true, delay: durationMs });
             return;
@@ -250,7 +264,9 @@ export async function exportTimelineGif({
         // configured delay/duration values.
         for (let timeMs = 0; timeMs < durationMs; timeMs += frameDelayMs) {
             const remainingMs = durationMs - timeMs;
-            const renderTimeMs = remainingMs <= frameDelayMs ? durationMs : timeMs;
+            const renderTimeMs = remainingMs <= frameDelayMs
+                ? sourceDurationMs
+                : getTimelineSourceTimeMs(timeMs, safePlaybackSpeed);
             renderGifFrame({
                 canvas,
                 frame,

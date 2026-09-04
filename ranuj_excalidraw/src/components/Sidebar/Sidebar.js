@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import PropertiesPanel from "../PropertiesPanel/PropertiesPanel";
 import { getAnimationLabel } from "../../canvas/animationRegistry";
+import { TIMELINE_PLAYBACK_SPEED_OPTIONS } from "../../canvas/animationTimeline";
 import "./Sidebar.css";
 import { hasProAccess, requestProUpgrade } from "../../utils/proFeatureGate";
 
@@ -95,6 +96,8 @@ function GifToolsTab({
                          currentFrameIndex = 0,
                          animationPlaying = false,
                          animationTimeMs = 0,
+                         playbackSpeed = 0.5,
+                         onPlaybackSpeedChange,
                          advanceMode = "enter",
                          onAdvanceModeChange,
                          onAddFrameAfter,
@@ -210,6 +213,15 @@ function GifToolsTab({
                     <strong>Flow</strong>
                     <span>Order timing uses object order from the right Frames panel.</span>
                 </div>
+
+                <label className="left-field">
+                    Timeline speed
+                    <select value={playbackSpeed} onChange={(event) => onPlaybackSpeedChange?.(Number(event.target.value))}>
+                        {TIMELINE_PLAYBACK_SPEED_OPTIONS.map((speed) => (
+                            <option key={speed} value={speed}>{speed}×{speed === 0.5 ? " · Slow (default)" : ""}</option>
+                        ))}
+                    </select>
+                </label>
 
                 <label className="left-field">
                     After screen ends
@@ -885,6 +897,8 @@ export default function Sidebar({
                                     onRemoveFrameAudio,
                                     animationPlaying = false,
                                     animationTimeMs = 0,
+                                    playbackSpeed = 0.5,
+                                    onPlaybackSpeedChange,
                                     advanceMode = "enter",
                                     onAdvanceModeChange,
                                     onOpenPlayer,
@@ -1281,6 +1295,8 @@ export default function Sidebar({
                                 currentFrameIndex={currentFrameIndex}
                                 onUpdateFrameAudio={onUpdateFrameAudio}
                                 onRemoveFrameAudio={onRemoveFrameAudio}
+                                playbackSpeed={playbackSpeed}
+                                onPlaybackSpeedChange={onPlaybackSpeedChange}
                                 forcedMode="properties"
                                 hideModeTabs
                             />
@@ -1292,6 +1308,8 @@ export default function Sidebar({
                                 currentFrameIndex={currentFrameIndex}
                                 animationPlaying={animationPlaying}
                                 animationTimeMs={animationTimeMs}
+                                playbackSpeed={playbackSpeed}
+                                onPlaybackSpeedChange={onPlaybackSpeedChange}
                                 advanceMode={advanceMode}
                                 onAdvanceModeChange={onAdvanceModeChange}
                                 onAddFrameAfter={onAddFrameAfter}

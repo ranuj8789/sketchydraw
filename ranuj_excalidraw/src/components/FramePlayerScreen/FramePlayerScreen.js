@@ -1,21 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
 import { renderCanvas } from "../../canvas/canvasRender";
+import { TIMELINE_PLAYBACK_SPEED_OPTIONS } from "../../canvas/animationTimeline";
+import {
+    ANIMATION_EXPORT_RESOLUTION_OPTIONS,
+    ANIMATION_EXPORT_ZOOM_OPTIONS,
+    getAnimationExportTransform,
+    resolveAnimationExportSize,
+} from "../../canvas/animationExportSettings";
 import "./FramePlayerScreen.css";
-
-function getDesktopSourceSize(canvasSize) {
-    return {
-        width: Math.max(1, Number(canvasSize?.width) || 1200),
-        height: Math.max(1, Number(canvasSize?.height) || 700),
-    };
-}
-
-function getScaledDesktopViewport(canvasViewport = {}, scale = 1, padX = 0, padY = 0) {
-    return {
-        zoom: Math.max(0.01, Number(canvasViewport.zoom) || 1) * scale,
-        offsetX: (Number(canvasViewport.offsetX) || 0) * scale + padX,
-        offsetY: (Number(canvasViewport.offsetY) || 0) * scale + padY,
-    };
-}
 
 export default function FramePlayerScreen({
                                               open,
@@ -25,14 +17,17 @@ export default function FramePlayerScreen({
                                               mode = "current",
                                               advanceMode = "enter",
                                               canvasSize,
-                                              canvasViewport,
                                               canvasProps,
                                               renderOptions = {},
                                               playing,
                                               timeMs = 0,
                                               waitingForNext,
-                                              playbackSpeed = 1,
+                                              playbackSpeed = 0.5,
                                               onPlaybackSpeedChange,
+                                              exportResolution = "1920x1080",
+                                              onExportResolutionChange,
+                                              exportZoomPercent = 150,
+                                              onExportZoomPercentChange,
                                               onClose,
                                               onRestart,
                                               onRestartAll,
@@ -95,12 +90,19 @@ export default function FramePlayerScreen({
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        const sourceSize = getDesktopSourceSize(canvasSize);
+        const exportSize = resolveAnimationExportSize(exportResolution, canvasSize);
         const maxWidth = Math.max(320, screenSize.width - 96);
         const maxHeight = Math.max(260, screenSize.height - 180);
-        const scale = Math.min(maxWidth / sourceSize.width, maxHeight / sourceSize.height);
-        const viewWidth = Math.max(1, Math.round(sourceSize.width * scale));
-        const viewHeight = Math.max(1, Math.round(sourceSize.height * scale));
+        const scale = Math.min(maxWidth / exportSize.width, maxHeight / exportSize.height);
+        const viewWidth = Math.max(1, Math.round(exportSize.width * scale));
+        const viewHeight = Math.max(1, Math.round(exportSize.height * scale));
+        const previewTransform = getAnimationExportTransform({
+            frames: [frame],
+            sourceSize: canvasSize,
+            outputSize: { width: viewWidth, height: viewHeight },
+            zoomPercent: exportZoomPercent,
+            padding: 28,
+        });
 
         canvas.width = viewWidth;
         canvas.height = viewHeight;
@@ -117,7 +119,11 @@ export default function FramePlayerScreen({
             selectedIds: [],
             connectionHint: null,
             alignmentGuides: [],
-            viewport: getScaledDesktopViewport(canvasViewport, scale, 0, 0),
+            viewport: {
+                zoom: previewTransform.scale,
+                offsetX: previewTransform.offsetX,
+                offsetY: previewTransform.offsetY,
+            },
             showGrid: false,
             canvasProps,
             renderOptions: {
@@ -130,16 +136,18 @@ export default function FramePlayerScreen({
         frame,
         frameIndex,
         canvasSize,
-        canvasViewport,
         canvasProps,
         renderOptions,
         screenSize,
         timeMs,
+        exportResolution,
+        exportZoomPercent,
     ]);
 
     useEffect(() => {
         const audio = audioRef.current;
         if (!open || !audio || !audioDataUrl) return;
+        audio.playbackRate = playbackSpeed;
 
         if (timeMs <= 80) {
             audio.currentTime = 0;
@@ -147,7 +155,7 @@ export default function FramePlayerScreen({
                 // Browsers may require the user to press Play audio once.
             });
         }
-    }, [open, frameIndex, audioDataUrl, timeMs]);
+    }, [open, frameIndex, audioDataUrl, timeMs, playbackSpeed]);
 
     if (!open) return null;
 
@@ -196,12 +204,33 @@ export default function FramePlayerScreen({
                             value={playbackSpeed}
                             onChange={(event) => onPlaybackSpeedChange?.(Number(event.target.value) || 1)}
                         >
-                            <option value={0.5}>0.5x slow</option>
-                            <option value={0.75}>0.75x</option>
-                            <option value={1}>1x normal</option>
-                            <option value={1.25}>1.25x</option>
-                            <option value={1.5}>1.5x</option>
-                            <option value={2}>2x fast</option>
+                            {TIMELINE_PLAYBACK_SPEED_OPTIONS.map((speed) => (
+                                <option key={speed} value={speed}>{speed}×{speed === 0.5 ? " · Slow (default)" : ""}</option>
+                            ))}
+                        </select>
+                    </label>
+
+                    <label>
+                        Resolution
+                        <select
+                            value={exportResolution}
+                            onChange={(event) => onExportResolutionChange?.(event.target.value)}
+                        >
+                            {ANIMATION_EXPORT_RESOLUTION_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
+                        </select>
+                    </label>
+
+                    <label>
+                        Export zoom
+                        <select
+                            value={exportZoomPercent}
+                            onChange={(event) => onExportZoomPercentChange?.(Number(event.target.value))}
+                        >
+                            {ANIMATION_EXPORT_ZOOM_OPTIONS.map((zoom) => (
+                                <option key={zoom} value={zoom}>{zoom}%</option>
+                            ))}
                         </select>
                     </label>
 
@@ -228,7 +257,10 @@ export default function FramePlayerScreen({
                     <button
                         type="button"
                         className="frame-player-gif-btn"
-                        onClick={onExportGIF}
+                        onClick={() => onExportGIF?.({
+                            resolution: exportResolution,
+                            zoomPercent: exportZoomPercent,
+                        })}
                         disabled={gifExporting}
                         title="Export all frames as an animated GIF"
                     >

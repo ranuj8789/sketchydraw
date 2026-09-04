@@ -818,7 +818,10 @@ export default function CanvasBoard({
             downloadUndoRedoVideo({
                 gapSeconds: event.detail?.gapSeconds,
                 preAnimationDelaySeconds: event.detail?.preAnimationDelaySeconds,
+                playbackSpeed: event.detail?.playbackSpeed,
                 exportScale: event.detail?.exportScale,
+                resolution: event.detail?.resolution,
+                zoomPercent: event.detail?.zoomPercent,
                 trimTrailingPause: event.detail?.trimTrailingPause,
                 timelineFrames: event.detail?.timelineFrames,
                 mode: event.detail?.mode || "server",

@@ -233,7 +233,10 @@ export function renderCanvas({
     if (!canvas || !canvasSize || !viewport) return;
 
     const finalCanvasProps = normalizeCanvasProps(canvasProps);
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.max(
+        1,
+        Number(renderOptions.pixelRatio) || window.devicePixelRatio || 1
+    );
 
     setupCanvasSize(canvas, canvasSize, dpr);
 
