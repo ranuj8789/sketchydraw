@@ -309,6 +309,9 @@
 
 /* Selected-object quick actions: shown after a normal left-click selection. */
 .object-animation-widget {
+    top: 18px;
+    right: 18px;
+    left: auto;
     display: flex;
     align-items: center;
     gap: 7px;

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
+    DEFAULT_TEXT_STYLE,
     FONT_FAMILY_OPTIONS,
     FONT_SIZE_OPTIONS,
     getLineHeightForFontSize,
@@ -8,6 +9,7 @@ import "./PropertiesPanel.css";
 import { isSystemDesignType } from "../../canvas/canvasConstants";
 import { getAnimationPresetsForElement } from "../../canvas/animationRegistry";
 import { TIMELINE_PLAYBACK_SPEED_OPTIONS } from "../../canvas/animationTimeline";
+import { loadCanvasFont } from "../../canvas/fontLoader";
 
 const LINE_WIDTHS = [1, 2, 3, 4, 6, 8];
 
@@ -175,34 +177,11 @@ function toFontFamily(fontName) {
     const clean = cleanFontName(fontName);
 
     if (!clean) {
-        return '"Caveat", cursive';
+        return DEFAULT_TEXT_STYLE.fontFamily;
     }
 
     return `"${clean}", cursive`;
 }
-
-function loadGoogleFont(fontName) {
-    if (typeof document === "undefined") return;
-
-    const clean = cleanFontName(fontName);
-
-    if (!clean) return;
-
-    const id = `google-font-${clean.replace(/\s+/g, "-").toLowerCase()}`;
-
-    if (document.getElementById(id)) return;
-
-    const link = document.createElement("link");
-    link.id = id;
-    link.rel = "stylesheet";
-    link.href = `https://fonts.googleapis.com/css2?family=${clean.replace(
-        /\s+/g,
-        "+"
-    )}&display=swap`;
-
-    document.head.appendChild(link);
-}
-
 
 function SidebarFrameAudioRecorder({ frame, frameIndex, onAudioSaved, onAudioRemoved }) {
     const recorderRef = React.useRef(null);
@@ -300,7 +279,7 @@ export default function PropertiesPanel({
     const isText = selectedElement?.type === "text";
     const isImage = selectedElement?.type === "image";
 
-    const [customFontFamily, setCustomFontFamily] = useState("Caveat");
+    const [customFontFamily, setCustomFontFamily] = useState("Kalam");
     const [customFontSize, setCustomFontSize] = useState(
         String(FONT_SIZE_OPTIONS.M.fontSize)
     );
@@ -327,15 +306,15 @@ export default function PropertiesPanel({
         if (!isText) return;
 
         const fontName = cleanFontName(
-            selectedElement?.fontFamily || '"Caveat", cursive'
+            selectedElement?.fontFamily || DEFAULT_TEXT_STYLE.fontFamily
         );
 
-        setCustomFontFamily(fontName || "Caveat");
+        setCustomFontFamily(fontName || "Kalam");
         setCustomFontSize(
             String(selectedElement?.fontSize || FONT_SIZE_OPTIONS.M.fontSize)
         );
 
-        loadGoogleFont(fontName || "Caveat");
+        loadCanvasFont(selectedElement?.fontFamily || DEFAULT_TEXT_STYLE.fontFamily);
     }, [isText, selectedElement?.id]);
 
     const isLineLike =
@@ -903,7 +882,7 @@ export default function PropertiesPanel({
 
                                                 const fontName = cleanFontName(value);
                                                 setCustomFontFamily(fontName);
-                                                loadGoogleFont(fontName);
+                                                loadCanvasFont(value);
 
                                                 updateSelectedElementStyle?.({
                                                     fontFamily: value,
@@ -929,13 +908,13 @@ export default function PropertiesPanel({
 
                                                 if (!value.trim()) return;
 
-                                                loadGoogleFont(value);
+                                                loadCanvasFont(toFontFamily(value));
 
                                                 updateSelectedElementStyle?.({
                                                     fontFamily: toFontFamily(value),
                                                 });
                                             }}
-                                            placeholder="Custom Google font, e.g. Caveat"
+                                            placeholder="Custom Google font, e.g. Kalam"
                                         />
                                     </div>
 

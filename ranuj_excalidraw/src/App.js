@@ -13,7 +13,7 @@ import SketchyAlert from "./components/SketchyAlert";
 import MarkdownViewer from "./components/MarkDownViewer/MarkdownViewer";
 import SpreadsheetWorkspace from "./components/SpreadsheetWorkspace/SpreadsheetWorkspace";
 import { verifyEmail, resetPassword } from "./api/authApi";
-import { measureTextBox } from "./canvas/textMetrics";
+import { measureTextBox, measureWrappedTextBox } from "./canvas/textMetrics";
 import {
   TermsPage,
   PrivacyPolicyPage,
@@ -1657,19 +1657,20 @@ function SketchyDrawPage() {
 
         const style = normalizeTextStyle(updated);
 
-        const box = measureTextBox(updated.text || "", style);
+        const stableWidth = Math.max(60, Number(el.w) || measureTextBox(updated.text || "", style).w);
+        const box = measureWrappedTextBox(updated.text || "", style, stableWidth);
 
         return {
           ...updated,
 
           // Important:
           // do not move text position when style changes
-          x: el.x,
-          y: el.y,
+          x: Math.round(el.x),
+          y: Math.round(el.y),
 
           stroke: style.stroke,
-          w: box.w,
-          h: box.h,
+          w: Math.round(stableWidth),
+          h: Math.round(box.h),
           fontSize: style.fontSize,
           lineHeight: style.lineHeight,
           fontFamily: style.fontFamily,

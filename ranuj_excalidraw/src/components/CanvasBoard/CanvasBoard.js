@@ -34,9 +34,11 @@ import {
 import {
     getStableStraightLineEnd,
     moveElement,
+    normalizeElementsGeometry,
     updateDrawnElement,
 } from "../../canvas/canvasElementOps";
 import {
+    findElementHitsAtPoint,
     findTopElementAtPoint,
     findTopElementHitAtPoint,
     getCurveHandleAtPoint,
@@ -101,6 +103,8 @@ import {
     saveLocalDrawing,
 } from "../DrawingGroupStore/localDrawingStore";
 import {saveDrawingSnapshotAsync} from "../../utils/indexedDbStorage";
+import {loadDrawingJson} from "../../canvas/drawingStorage";
+import {loadCanvasFonts} from "../../canvas/fontLoader";
 import {
     createAnimationConfig,
     getAnimationLabel,
@@ -184,7 +188,25 @@ const ERASER_CURSOR = `url("data:image/svg+xml;charset=utf-8,${encodeURIComponen
 )}") 8 22, pointer`;
 
 const ALIGNMENT_SNAP_THRESHOLD = 18;
+const POINTER_DRAG_THRESHOLD_PX = 3;
 const GRID_SIZE = 24;
+
+function isBelowPointerDragThreshold(dragState, point, zoom = 1) {
+    if (
+        !dragState ||
+        !point ||
+        !Number.isFinite(dragState.startX) ||
+        !Number.isFinite(dragState.startY)
+    ) {
+        return false;
+    }
+
+    return Math.hypot(
+        point.x - dragState.startX,
+        point.y - dragState.startY
+    ) * Math.max(0.1, Number(zoom) || 1) < POINTER_DRAG_THRESHOLD_PX;
+}
+
 function snapValueToGrid(value, gridSize = GRID_SIZE) {
     return Math.round(value / gridSize) * gridSize;
 }
@@ -990,11 +1012,17 @@ export default function CanvasBoard({
         };
 
         window.addEventListener("sketchydraw:image-loaded", rerenderImages);
+        window.addEventListener("sketchydraw:font-loaded", rerenderImages);
 
         return () => {
             window.removeEventListener("sketchydraw:image-loaded", rerenderImages);
+            window.removeEventListener("sketchydraw:font-loaded", rerenderImages);
         };
     }, []);
+
+    useEffect(() => {
+        loadCanvasFonts(elements);
+    }, [elements]);
 
     useEffect(() => {
         return () => {
@@ -1022,7 +1050,8 @@ export default function CanvasBoard({
                     : latestDrawing.drawingJson;
 
             const actualDrawing = parsed.data || parsed;
-            const nextElements = actualDrawing.elements || [];
+            const loadedDrawing = loadDrawingJson(parsed);
+            const nextElements = loadedDrawing.elements;
 
             if (!nextElements.length) return;
 
@@ -1071,8 +1100,8 @@ export default function CanvasBoard({
 
             commitHistory(nextElements);
 
-            const savedFrames = actualDrawing.frames || actualDrawing.timelineFrames;
-            const savedFrameIndex = actualDrawing.activeFrameIndex ?? actualDrawing.currentFrameIndex ?? 0;
+            const savedFrames = loadedDrawing.frames;
+            const savedFrameIndex = loadedDrawing.activeFrameIndex;
             if (Array.isArray(savedFrames) && savedFrames.length) {
                 onRestoreTimeline?.(savedFrames, savedFrameIndex);
             } else {
@@ -1347,7 +1376,7 @@ export default function CanvasBoard({
             const centerX = (minX + maxX) / 2;
             const centerY = (minY + maxY) / 2;
 
-            const next = elements.map((el) => {
+            const next = normalizeElementsGeometry(elements.map((el) => {
                 if (!selectedSet.has(el.id)) {
                     return el;
                 }
@@ -1382,7 +1411,7 @@ export default function CanvasBoard({
                 }
 
                 return moveBy(el, dx, dy);
-            });
+            }));
 
             setElements(next);
             commitHistory(next);
@@ -1531,26 +1560,11 @@ export default function CanvasBoard({
     };
 
     const selectedAnimationElements = getSelectedElements();
-    const selectedAnimationBounds = getGroupBounds(selectedAnimationElements);
     const selectedAnimationPresets = getAnimationPresetsForSelection(selectedAnimationElements);
     const selectedAnimationType =
         selectedAnimationElements.length === 1
             ? selectedAnimationElements[0]?.animation?.type || "none"
             : "multiple";
-
-    const selectedAnimationAnchor = selectedAnimationBounds
-        ? {
-            left:
-                selectedAnimationBounds.x * viewport.zoom +
-                viewport.offsetX +
-                selectedAnimationBounds.w * viewport.zoom +
-                12,
-            top:
-                selectedAnimationBounds.y * viewport.zoom +
-                viewport.offsetY -
-                14,
-        }
-        : null;
 
     const applyAnimationToSelected = (animationType) => {
         if (!selectedIds.length) return;
@@ -1877,6 +1891,26 @@ export default function CanvasBoard({
         );
 
         let textPoint = point;
+        let maxWidth = null;
+        let maxHeight = null;
+
+        if (parentId) {
+            const parent = elementsRef.current.find((element) => element.id === parentId);
+            const parentBounds = getElementBounds(parent);
+            if (parentBounds) {
+                const padding = 12;
+                maxWidth = Math.max(8, parentBounds.w - padding * 2);
+                maxHeight = Math.max(8, parentBounds.h - padding * 2);
+                const initialTextWidth = Math.min(60, maxWidth);
+                textPoint = {
+                    x: Math.min(
+                        Math.max(point.x, parentBounds.x + padding),
+                        parentBounds.x + parentBounds.w - padding - initialTextWidth
+                    ),
+                    y: Math.max(point.y, parentBounds.y + padding),
+                };
+            }
+        }
 
         // Text should never snap in normal grid/blank mode.
         // Only notebook mode aligns text to the ruled writing line.
@@ -1895,6 +1929,8 @@ export default function CanvasBoard({
             value: "",
             stroke: style.stroke,
             parentId,
+            maxWidth,
+            maxHeight,
 
             fontSize: style.fontSize,
             lineHeight: style.lineHeight,
@@ -1942,7 +1978,7 @@ export default function CanvasBoard({
         getPastePoint: getPastePointFromMouseCursor,
     });
 
-    const startMarqueeSelection = (point) => {
+    const startMarqueeSelection = (point, clickTargetId = null) => {
         setSelectedIds([]);
 
         setSelectionBox({
@@ -1956,6 +1992,7 @@ export default function CanvasBoard({
             mode: "marquee",
             startX: point.x,
             startY: point.y,
+            clickTargetId,
         });
     };
 
@@ -2055,9 +2092,24 @@ export default function CanvasBoard({
         return isAlreadySelected ? "move" : "pointer";
     };
 
-    const handleSelectModeMouseDown = (point) => {
+    const handleSelectModeMouseDown = (point, event) => {
         const currentSelectedIds = selectedIdsRef.current || [];
         const currentElements = elementsRef.current || [];
+
+        if (event?.altKey) {
+            const hits = findElementHitsAtPoint(currentElements, point);
+            if (!hits.length) {
+                startMarqueeSelection(point);
+                return;
+            }
+            const currentIndex = hits.findIndex((hit) => currentSelectedIds.includes(hit.element.id));
+            const nextHit = hits[(currentIndex + 1 + hits.length) % hits.length];
+            const nextSelectedIds = [nextHit.element.id];
+            selectedIdsRef.current = nextSelectedIds;
+            setSelectedIds(nextSelectedIds);
+            setDragState(null);
+            return;
+        }
 
         // Already selected single element ke handles/curve handles first priority.
         if (currentSelectedIds.length === 1) {
@@ -2083,6 +2135,8 @@ export default function CanvasBoard({
                         mode: "curve-handle",
                         id: selectedElementObj.id,
                         handle: curveHandle,
+                        startX: point.x,
+                        startY: point.y,
                     });
                     return;
                 }
@@ -2118,9 +2172,30 @@ export default function CanvasBoard({
         const isAlreadySelected = currentSelectedIds.includes(target.id);
         const zoom = viewportRef.current?.zoom || 1;
 
+        if (event?.shiftKey) {
+            const nextSelectedIds = isAlreadySelected
+                ? currentSelectedIds.filter((id) => id !== target.id)
+                : [...currentSelectedIds, target.id];
+            selectedIdsRef.current = nextSelectedIds;
+            setSelectedIds(nextSelectedIds);
+            setDragState(null);
+            return;
+        }
+
+        // The fill of a container behaves like canvas space for the Select
+        // tool. Dragging here draws a marquee around inner objects; a simple
+        // click still selects the parent rectangle on mouse-up.
+        if (
+            hit?.kind === "fill" &&
+            isContainerRectangle(target, currentElements)
+        ) {
+            startMarqueeSelection(point, target.id);
+            return;
+        }
+
         // A rectangle can resize directly only from its real visible border.
         // Clicking anywhere else inside it never starts resize.
-        if (isRectangleElement(target)) {
+        if (isRectangleElement(target) && isAlreadySelected) {
             const borderHandle = getRectangleBorderResizeHandleAtPoint(
                 target,
                 point.x,
@@ -2158,7 +2233,18 @@ export default function CanvasBoard({
 
         // Once selected, dragging the object's actual body moves it. A smaller
         // object inside a rectangle wins hit-testing, so it moves independently.
-        startMove(target, point, currentSelectedIds);
+        const moveIds = isContainerRectangle(target, currentElements)
+            ? Array.from(new Set([
+                ...currentSelectedIds,
+                target.id,
+                ...findContainedElementIds(
+                    currentElements,
+                    target,
+                    getElementBounds(target)
+                ),
+            ]))
+            : currentSelectedIds;
+        startMove(target, point, moveIds);
     };
 
     const handleDrawModeMouseDown = (point) => {
@@ -2334,13 +2420,15 @@ export default function CanvasBoard({
                             mode: "curve-handle",
                             id: el.id,
                             handle,
+                            startX: point.x,
+                            startY: point.y,
                         });
                         return;
                     }
                 }
             }
 
-            handleSelectModeMouseDown(point);
+            handleSelectModeMouseDown(point, event);
             return;
         }
 
@@ -2425,6 +2513,10 @@ export default function CanvasBoard({
 
         if (dragState.mode === "curve-handle") {
             canvas.style.cursor = "pointer";
+
+            if (isBelowPointerDragThreshold(dragState, point, viewport.zoom)) {
+                return;
+            }
 
             const baseElements = dragBaseElementsRef.current || elementsRef.current;
             const currentElement = baseElements.find((el) => el.id === dragState.id);
@@ -2676,6 +2768,10 @@ export default function CanvasBoard({
         if (dragState.mode === "move") {
             canvas.style.cursor = "move";
 
+            if (isBelowPointerDragThreshold(dragState, point, viewport.zoom)) {
+                return;
+            }
+
             let dx = point.x - dragState.startX;
             let dy = point.y - dragState.startY;
 
@@ -2769,6 +2865,10 @@ export default function CanvasBoard({
         if (dragState.mode === "resize") {
             const cursor = getCursorForHandle(dragState.handle);
             canvas.style.cursor = cursor;
+
+            if (isBelowPointerDragThreshold(dragState, point, viewport.zoom)) {
+                return;
+            }
 
             const baseElements = dragBaseElementsRef.current || elementsRef.current;
             const currentElement = baseElements.find((el) => el.id === dragState.id);
@@ -2893,6 +2993,38 @@ export default function CanvasBoard({
             return;
         }
 
+        const canvas = canvasRef.current;
+        const geometryDrag =
+            dragState?.mode === "move" ||
+            dragState?.mode === "resize" ||
+            dragState?.mode === "curve-handle";
+
+        if (geometryDrag && event && canvas) {
+            const rawPoint = getPointerPosition(event, canvas);
+            const point = screenToWorld(rawPoint, viewportRef.current);
+
+            if (isBelowPointerDragThreshold(dragState, point, viewportRef.current?.zoom)) {
+                if (pointerMoveFrameRef.current !== null) {
+                    window.cancelAnimationFrame(pointerMoveFrameRef.current);
+                    pointerMoveFrameRef.current = null;
+                }
+
+                latestPointerMoveEventRef.current = null;
+                const baseElements = dragBaseElementsRef.current;
+                if (baseElements) {
+                    elementsRef.current = baseElements;
+                    setElements(baseElements);
+                }
+
+                setDragState(null);
+                setConnectionHint(null);
+                setAlignmentGuides([]);
+                clearDragPreviewRefs();
+                canvas.style.cursor = getIdleCanvasCursor(tool, isSpacePressed);
+                return;
+            }
+        }
+
         if (dragState && event) {
             runMouseMove(event);
         } else if (dragState && latestPointerMoveEventRef.current) {
@@ -2909,8 +3041,6 @@ export default function CanvasBoard({
 
         if (!dragState) return;
 
-        const canvas = canvasRef.current;
-
         if (dragState.mode === "pan") {
             setDragState(null);
             clearDragPreviewRefs();
@@ -2923,6 +3053,21 @@ export default function CanvasBoard({
         }
 
         if (dragState.mode === "marquee") {
+            if (dragState.clickTargetId && event && canvas) {
+                const rawPoint = getPointerPosition(event, canvas);
+                const point = screenToWorld(rawPoint, viewportRef.current);
+                const distance = Math.hypot(
+                    point.x - dragState.startX,
+                    point.y - dragState.startY
+                );
+
+                if (distance < 3 / Math.max(0.1, viewportRef.current?.zoom || 1)) {
+                    const nextSelectedIds = [dragState.clickTargetId];
+                    selectedIdsRef.current = nextSelectedIds;
+                    setSelectedIds(nextSelectedIds);
+                }
+            }
+
             setSelectionBox(null);
             setDragState(null);
             setConnectionHint(null);
@@ -2944,6 +3089,7 @@ export default function CanvasBoard({
 
         finalElements = finalizeArrowBinding(finalElements, finishedElement);
         finalElements = resolveArrowBindings(finalElements);
+        finalElements = normalizeElementsGeometry(finalElements);
 
         const finishedMode = dragState.mode;
 
@@ -2987,6 +3133,10 @@ export default function CanvasBoard({
         const target = findTopElementAtPoint(elements, point);
 
         if (target && target.type === "text") {
+            const parent = target.parentId
+                ? elements.find((element) => element.id === target.parentId)
+                : null;
+            const parentBounds = getElementBounds(parent);
             setSelectedIds([target.id]);
             setDragState(null);
 
@@ -3000,6 +3150,8 @@ export default function CanvasBoard({
                 value: target.text,
                 stroke: target.stroke,
                 parentId: target.parentId || null,
+                maxWidth: parentBounds ? Math.max(8, parentBounds.w - 24) : null,
+                maxHeight: parentBounds ? Math.max(8, parentBounds.h - 24) : null,
 
                 fontSize: target.fontSize || DEFAULT_TEXT_STYLE.fontSize,
                 lineHeight: isNotebookPattern(canvasPropsRef.current)
@@ -3117,6 +3269,7 @@ export default function CanvasBoard({
 
             localDraftIdRef.current = drawing.id || parsed.id || null;
             const actualDrawing = parsed.data || parsed;
+            const loadedDrawing = loadDrawingJson(parsed);
 
             const openedId = drawing.id || parsed.id || null;
             const isOpenedLocalId =
@@ -3134,7 +3287,7 @@ export default function CanvasBoard({
                 description: drawing.description || parsed.description || "",
             });
 
-            const nextElements = actualDrawing.elements || [];
+            const nextElements = loadedDrawing.elements;
 
             setElements(nextElements);
             setSelectedIds([]);
@@ -3156,8 +3309,8 @@ export default function CanvasBoard({
 
             commitHistory(nextElements);
 
-            const savedFrames = actualDrawing.frames || actualDrawing.timelineFrames;
-            const savedFrameIndex = actualDrawing.activeFrameIndex ?? actualDrawing.currentFrameIndex ?? 0;
+            const savedFrames = loadedDrawing.frames;
+            const savedFrameIndex = loadedDrawing.activeFrameIndex;
             if (Array.isArray(savedFrames) && savedFrames.length) {
                 onRestoreTimeline?.(savedFrames, savedFrameIndex);
             } else {
@@ -3267,14 +3420,9 @@ export default function CanvasBoard({
                 {tool === "select" &&
                     !editor &&
                     !dragState &&
-                    selectedAnimationAnchor &&
                     selectedAnimationElements.length > 0 && (
                         <div
                             className="object-animation-widget"
-                            style={{
-                                left: selectedAnimationAnchor.left,
-                                top: selectedAnimationAnchor.top,
-                            }}
                             onMouseDown={(event) => {
                                 event.preventDefault();
                                 event.stopPropagation();

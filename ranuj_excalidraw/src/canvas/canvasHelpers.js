@@ -1,5 +1,5 @@
 import { isSystemDesignType } from "./canvasConstants";
-export function findTopElementHitAtPoint(elements, point) {
+export function findElementHitsAtPoint(elements, point) {
     const hits = [];
 
     for (let i = elements.length - 1; i >= 0; i--) {
@@ -16,14 +16,23 @@ export function findTopElementHitAtPoint(elements, point) {
         }
     }
 
-    if (hits.length === 0) return null;
+    if (hits.length === 0) return [];
 
-    // Smallest hit object wins, so an object inside a rectangle
-    // is selected before the outer rectangle.
+    // A visible border is intentional and must remain selectable even when
+    // several smaller objects are inside the rectangle. Fill clicks still
+    // prefer the smallest inner object.
     hits.sort((a, b) => {
+        if (a.kind !== b.kind) return a.kind === "border" ? -1 : 1;
         if (a.area !== b.area) return a.area - b.area;
         return b.index - a.index;
     });
+
+    return hits;
+}
+
+export function findTopElementHitAtPoint(elements, point) {
+    const hits = findElementHitsAtPoint(elements, point);
+    if (hits.length === 0) return null;
 
     return {
         element: hits[0].element,

@@ -1,19 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { measureTextBox } from "../canvas/textMetrics";
+import { measureTextBox, measureWrappedTextBox } from "../canvas/textMetrics";
 import {
     buildTextEditorFont,
     normalizeTextStyle,
 } from "../canvas/textRenderStyle";
 import { worldToScreen } from "../canvas/canvasViewport";
+import { FONT_FAMILY_OPTIONS } from "../canvas/textStyle";
+import { loadCanvasFont } from "../canvas/fontLoader";
 
 const INLINE_FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 56, 64, 72, 84, 96];
-const INLINE_FONT_FAMILIES = [
-    { label: "Hand", value: '"Caveat", cursive' },
-    { label: "Sans", value: 'Arial, sans-serif' },
-    { label: "Serif", value: 'Georgia, serif' },
-    { label: "Mono", value: '"Courier New", monospace' },
-    { label: "Comic", value: '"Comic Sans MS", cursive' },
-];
+const INLINE_FONT_FAMILIES = FONT_FAMILY_OPTIONS;
 
 function rangeCoversSelection(range, start, end, key, expectedValue) {
     return (
@@ -76,6 +72,10 @@ export default function TextEditor({
     const style = normalizeTextStyle(editor || {});
 
     useEffect(() => {
+        loadCanvasFont(style.fontFamily);
+    }, [style.fontFamily]);
+
+    useEffect(() => {
         if (!editor || !inputRef.current) return;
 
         const input = inputRef.current;
@@ -130,9 +130,15 @@ export default function TextEditor({
     );
 
     const liveBox = measureTextBox(editor?.value || " ", style);
+    const editorWidth = Math.max(40, Number(editor?.w) || liveBox.w);
+    const editorHeight = Math.max(style.lineHeight, Number(editor?.h) || liveBox.h);
     const editorBox = {
-        w: Math.max(editor?.w || liveBox.w, liveBox.w, 40),
-        h: Math.max(editor?.h || liveBox.h, liveBox.h, style.lineHeight),
+        w: Number(editor?.maxWidth) > 0
+            ? Math.min(editorWidth, Number(editor.maxWidth))
+            : editorWidth,
+        h: Number(editor?.maxHeight) > 0
+            ? Math.min(editorHeight, Number(editor.maxHeight))
+            : editorHeight,
     };
 
     const finishEditing = () => {
@@ -292,7 +298,7 @@ export default function TextEditor({
                         style={{ height: 28, maxWidth: 92, border: "1px solid #d7dce5", borderRadius: 5, background: "#fff", fontSize: 12 }}
                     >
                         {INLINE_FONT_FAMILIES.map((font) => (
-                            <option key={font.label} value={font.value}>{font.label}</option>
+                            <option key={font.id} value={font.value}>{font.label}</option>
                         ))}
                     </select>
 
@@ -404,8 +410,16 @@ export default function TextEditor({
                     const value = e.target.value;
                     e.target.scrollTop = 0;
                     e.target.scrollLeft = 0;
-                    const nextBox = measureTextBox(value || " ", style);
-                    setEditor((prev) => ({ ...prev, value, w: nextBox.w, h: nextBox.h }));
+                    setEditor((prev) => {
+                        const naturalWidth = measureTextBox(value || " ", style).w;
+                        const maxWidth = Number(prev?.maxWidth) > 0
+                            ? Number(prev.maxWidth)
+                            : Number.POSITIVE_INFINITY;
+                        const minWidth = Number.isFinite(maxWidth) ? Math.min(60, maxWidth) : 60;
+                        const nextWidth = Math.max(minWidth, Math.min(naturalWidth, maxWidth));
+                        const nextBox = measureWrappedTextBox(value || " ", style, nextWidth);
+                        return { ...prev, value, w: nextWidth, h: nextBox.h };
+                    });
                     requestAnimationFrame(updateSelection);
                 }}
                 onBlur={(e) => {

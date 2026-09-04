@@ -4,6 +4,7 @@ import { renderCanvas } from "../canvas/canvasRender";
 import { getNotebookPageCount, getNotebookPageSize, getNotebookPageTop } from "../canvas/notebook/notebookPages";
 import { getElementBounds } from "./elementBounds";
 import { getSocialMediaPreset } from "./socialMediaPresets";
+import { DEFAULT_TEXT_STYLE } from "../canvas/textStyle";
 
 const WATERMARK_TEXT = "madebysketchydraw.com";
 
@@ -796,7 +797,7 @@ function buildSVGText(
         } else if (el.type === "text") {
             const fontSize = el.fontSize || 20;
             const lineHeight = el.lineHeight || 24;
-            const fontFamily = el.fontFamily || "Arial, sans-serif";
+            const fontFamily = el.fontFamily || DEFAULT_TEXT_STYLE.fontFamily;
             const fontWeight = el.bold ? "700" : "400";
             const fontStyle = el.italic ? "italic" : "normal";
             const textDecoration = el.underline ? "underline" : "none";
@@ -999,4 +1000,3 @@ function makeCanvasForType(canvas, type, options = {}) {
 
     return outputCanvas;
 }
-

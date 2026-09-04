@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
     Pencil,
     Square,
@@ -14,8 +14,7 @@ import {
     Code2,
     UserRound,
     PanelLeftOpen,
-    Pin,
-    X,
+    PanelLeftClose,
 } from "lucide-react";
 import PropertiesPanel from "../PropertiesPanel/PropertiesPanel";
 import { getAnimationLabel } from "../../canvas/animationRegistry";
@@ -916,47 +915,32 @@ export default function Sidebar({
                                     focusMode = false,
                                 }) {
     const [activeTab, setActiveTab] = useState("draw");
-    const [sidebarPinMode, setSidebarPinMode] = useState(() => {
+    const [sidebarOpen, setSidebarOpen] = useState(() => {
         try {
-            const saved = window.localStorage.getItem("sketchydraw.sidebarPinMode");
-            return saved === "compact" || saved === "expanded" ? saved : "";
+            return window.localStorage.getItem("sketchydraw.sidebarCollapsed") !== "true";
         } catch {
-            return "";
+            return true;
         }
     });
-    // Start every fresh editor session with the complete toolbar visible.
-    // The user can collapse it once they begin working.
-    const [sidebarOpen, setSidebarOpen] = useState(true);
-    const [sidebarAutoHide, setSidebarAutoHide] = useState(() => {
-        try {
-            return window.localStorage.getItem("sketchydraw.sidebarAutoHide") === "true";
-        } catch {
-            return false;
-        }
-    });
-    const [sidebarPosition, setSidebarPosition] = useState(() => {
-        try {
-            const saved = JSON.parse(window.localStorage.getItem("sketchydraw.sidebarPosition") || "null");
-            if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) return saved;
-        } catch {}
-        return { x: 14, y: 84 };
-    });
-    const sidebarHostRef = useRef(null);
-    const sidebarDragRef = useRef(null);
-    const sidebarHideTimerRef = useRef(null);
-    const sidebarShowTimerRef = useRef(null);
     const proUser = hasProAccess();
+
+    const setSidebarCollapsed = useCallback((collapsed) => {
+        setSidebarOpen(!collapsed);
+        try {
+            window.localStorage.setItem("sketchydraw.sidebarCollapsed", String(collapsed));
+        } catch {}
+    }, []);
 
     useEffect(() => {
         const handleToolbarSidebarRequest = (event) => {
             const section = event?.detail?.section;
             if (!["draw", "properties", "gif"].includes(section)) return;
             setActiveTab(section);
-            setSidebarOpen(true);
+            setSidebarCollapsed(false);
         };
         window.addEventListener("sketchydraw:open-sidebar-section", handleToolbarSidebarRequest);
         return () => window.removeEventListener("sketchydraw:open-sidebar-section", handleToolbarSidebarRequest);
-    }, []);
+    }, [setSidebarCollapsed]);
 
     useEffect(() => {
         if (!selectedElement || selectedElement.id === "__multi__") return;
@@ -964,147 +948,8 @@ export default function Sidebar({
         // Selecting an object should immediately reveal its properties.
         // Animation remains a separate workflow/dialog and is not mixed into
         // the main toolbar navigation.
-        setSidebarOpen(true);
         setActiveTab("properties");
     }, [selectedElement?.id]);
-
-    const clearSidebarShowTimer = () => {
-        if (sidebarShowTimerRef.current) {
-            window.clearTimeout(sidebarShowTimerRef.current);
-            sidebarShowTimerRef.current = null;
-        }
-    };
-
-    const clearSidebarHideTimer = () => {
-        if (sidebarHideTimerRef.current) {
-            window.clearTimeout(sidebarHideTimerRef.current);
-            sidebarHideTimerRef.current = null;
-        }
-    };
-
-    const scheduleSidebarOpen = () => {
-        clearSidebarHideTimer();
-        clearSidebarShowTimer();
-        // Auto-hidden toolbar must return instantly when the user reaches it.
-        setSidebarOpen(true);
-    };
-
-    const scheduleSidebarClose = () => {
-        clearSidebarShowTimer();
-        clearSidebarHideTimer();
-        // The toolbar stays open by default. It may slide away only after the
-        // user explicitly enables Auto hide, and never while pinned.
-        if (!sidebarAutoHide || sidebarPinMode === "expanded") return;
-        sidebarHideTimerRef.current = window.setTimeout(() => {
-            setSidebarOpen(false);
-        }, 5000);
-    };
-
-    useEffect(() => () => {
-        clearSidebarHideTimer();
-        clearSidebarShowTimer();
-    }, []);
-    useEffect(() => {
-        clearSidebarHideTimer();
-
-        // Keep the toolbar visible unless Auto hide was explicitly enabled.
-        if (sidebarPinMode === "expanded" || !sidebarAutoHide) {
-            setSidebarOpen(true);
-        }
-    }, [focusMode, sidebarPinMode, sidebarAutoHide]);
-
-    const setPinMode = (mode) => {
-        const next = sidebarPinMode === mode ? "" : mode;
-        setSidebarPinMode(next);
-        try {
-            window.localStorage.setItem("sketchydraw.sidebarPinMode", next);
-        } catch {}
-        clearSidebarHideTimer();
-        setSidebarOpen(true);
-    };
-
-    const toggleSidebarAutoHide = () => {
-        const next = !sidebarAutoHide;
-        setSidebarAutoHide(next);
-        try {
-            window.localStorage.setItem("sketchydraw.sidebarAutoHide", String(next));
-        } catch {}
-        clearSidebarHideTimer();
-        // Enabling Auto hide does not close immediately. The five-second
-        // countdown begins only after the pointer leaves the toolbar.
-        setSidebarOpen(true);
-    };
-
-    const clampSidebarPosition = (x, y) => {
-        const expandedWidth = 54 + 62 + 276;
-        const panelHeight = Math.min(700, Math.max(320, window.innerHeight - (focusMode ? 36 : 108)));
-        const minX = 8;
-        const minY = focusMode ? 12 : 84;
-        const maxX = Math.max(minX, window.innerWidth - expandedWidth - 8);
-        const storyboardReserve = focusMode ? 12 : 78;
-        const maxY = Math.max(minY, window.innerHeight - panelHeight - storyboardReserve);
-        return {
-            x: Math.min(maxX, Math.max(minX, x)),
-            y: Math.min(maxY, Math.max(minY, y)),
-        };
-    };
-
-    const startSidebarDrag = (event) => {
-        if (event.button !== 0) return;
-        if (event.target.closest("button")) return;
-        const host = sidebarHostRef.current;
-        if (!host) return;
-
-        clearSidebarHideTimer();
-        clearSidebarShowTimer();
-        const rect = host.getBoundingClientRect();
-        sidebarDragRef.current = {
-            pointerId: event.pointerId,
-            offsetX: event.clientX - rect.left,
-            offsetY: event.clientY - rect.top,
-            lastPosition: sidebarPosition,
-        };
-        event.currentTarget.setPointerCapture?.(event.pointerId);
-        document.body.classList.add("dragging-floating-sidebar");
-        event.preventDefault();
-    };
-
-    const moveSidebarDrag = (event) => {
-        const drag = sidebarDragRef.current;
-        if (!drag || drag.pointerId !== event.pointerId) return;
-        const next = clampSidebarPosition(
-            event.clientX - drag.offsetX,
-            event.clientY - drag.offsetY
-        );
-        drag.lastPosition = next;
-        setSidebarPosition(next);
-        event.preventDefault();
-    };
-
-    const endSidebarDrag = (event) => {
-        const drag = sidebarDragRef.current;
-        if (!drag || drag.pointerId !== event.pointerId) return;
-        const finalPosition = drag.lastPosition || sidebarPosition;
-        sidebarDragRef.current = null;
-        document.body.classList.remove("dragging-floating-sidebar");
-        try {
-            window.localStorage.setItem("sketchydraw.sidebarPosition", JSON.stringify(finalPosition));
-        } catch {}
-    };
-
-    const resetSidebarPosition = () => {
-        const initial = { x: 14, y: focusMode ? 18 : 84 };
-        setSidebarPosition(initial);
-        try {
-            window.localStorage.setItem("sketchydraw.sidebarPosition", JSON.stringify(initial));
-        } catch {}
-    };
-
-    useEffect(() => {
-        const onResize = () => setSidebarPosition((current) => clampSidebarPosition(current.x, current.y));
-        window.addEventListener("resize", onResize);
-        return () => window.removeEventListener("resize", onResize);
-    }, [focusMode]);
 
     const chooseTab = (tab, feature) => {
         if (!proUser && feature) {
@@ -1125,44 +970,17 @@ export default function Sidebar({
     return (
         <>
             <div
-                ref={sidebarHostRef}
-                style={{
-                    "--floating-sidebar-x": `${sidebarPosition.x}px`,
-                    "--floating-sidebar-y": `${sidebarPosition.y}px`,
-                }}
-                className={`floating-sidebar-host ${focusMode ? "fullscreen-sidebar" : "normal-sidebar"} ${(sidebarOpen || sidebarPinMode === "expanded") ? "open" : "closed"} ${sidebarAutoHide ? "auto-hide-on" : "auto-hide-off"} pin-${sidebarPinMode || "none"}`}
-                onMouseEnter={scheduleSidebarOpen}
-                onMouseLeave={scheduleSidebarClose}
-                onFocusCapture={() => {
-                    clearSidebarHideTimer();
-                    clearSidebarShowTimer();
-                    setSidebarOpen(true);
-                }}
-                onBlurCapture={scheduleSidebarClose}
+                className={`floating-sidebar-host ${focusMode ? "fullscreen-sidebar" : "normal-sidebar"} ${sidebarOpen ? "open" : "closed"}`}
             >
                 <div className="floating-sidebar-launcher" aria-label="Quick drawing toolbar">
                     <button
                         type="button"
                         className="floating-sidebar-main-button"
-                        onClick={() => setSidebarOpen((value) => !value)}
+                        onClick={() => setSidebarCollapsed(false)}
                         aria-label="Open drawing tools"
                         title="Open drawing tools"
                     >
                         <PanelLeftOpen size={20} />
-                    </button>
-
-                    <button
-                        type="button"
-                        className={`floating-sidebar-rail-pin ${sidebarPinMode === "expanded" ? "active" : ""}`}
-                        onClick={(event) => {
-                            event.stopPropagation();
-                            setPinMode("expanded");
-                        }}
-                        aria-label={sidebarPinMode === "expanded" ? "Unpin expanded toolbar" : "Pin expanded toolbar"}
-                        title={sidebarPinMode === "expanded" ? "Unpin toolbar" : "Pin toolbar open"}
-                        aria-pressed={sidebarPinMode === "expanded"}
-                    >
-                        <Pin size={16} />
                     </button>
 
                     <div className="floating-sidebar-quick-tools" aria-label="Drawing tools">
@@ -1187,15 +1005,9 @@ export default function Sidebar({
                     </div>
                 </div>
 
-                <aside className="sidebar floating-sidebar-panel" aria-hidden={!sidebarOpen && sidebarPinMode !== "expanded"}>
+                <aside className="sidebar floating-sidebar-panel" aria-hidden={!sidebarOpen}>
                     <div
-                        className="sidebar-logo-box sidebar-drag-handle"
-                        onPointerDown={startSidebarDrag}
-                        onPointerMove={moveSidebarDrag}
-                        onPointerUp={endSidebarDrag}
-                        onPointerCancel={endSidebarDrag}
-                        onDoubleClick={resetSidebarPosition}
-                        title="Drag toolbar · double-click to reset position"
+                        className="sidebar-logo-box"
                     >
                         <div className="sidebar-logo-text">
                             <strong>SketchyDraw</strong>
@@ -1204,24 +1016,13 @@ export default function Sidebar({
                         <div className="sidebar-display-controls" aria-label="Toolbar display controls">
                             <button
                                 type="button"
-                                className={`sidebar-auto-hide-button ${sidebarAutoHide ? "active" : ""}`}
-                                onClick={toggleSidebarAutoHide}
-                                title={sidebarAutoHide ? "Auto hide is on: slides away 5 seconds after leaving" : "Enable Auto hide"}
-                                aria-label={sidebarAutoHide ? "Disable Auto hide" : "Enable Auto hide"}
-                                aria-pressed={sidebarAutoHide}
+                                className="sidebar-pin-button sidebar-panel-pin"
+                                onClick={() => setSidebarCollapsed(true)}
+                                title="Collapse toolbar"
+                                aria-label="Collapse toolbar"
                             >
-                                Auto hide
-                            </button>
-                            <button
-                                type="button"
-                                className={`sidebar-pin-button sidebar-panel-pin ${sidebarPinMode === "expanded" ? "active" : ""}`}
-                                onClick={() => setPinMode("expanded")}
-                                title={sidebarPinMode === "expanded" ? "Unpin toolbar" : "Pin toolbar open"}
-                                aria-label={sidebarPinMode === "expanded" ? "Unpin toolbar" : "Pin toolbar open"}
-                                aria-pressed={sidebarPinMode === "expanded"}
-                            >
-                                <Pin size={15} />
-                                <span>{sidebarPinMode === "expanded" ? "Pinned" : "Pin"}</span>
+                                <PanelLeftClose size={15} />
+                                <span>Collapse</span>
                             </button>
                         </div>
                     </div>

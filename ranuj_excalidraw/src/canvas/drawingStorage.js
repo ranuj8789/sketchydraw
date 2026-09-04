@@ -1,5 +1,8 @@
 import { isSystemDesignType } from "./canvasConstants";
-export const DRAWING_SCHEMA_VERSION = 1;
+import { DEFAULT_TEXT_STYLE } from "./textStyle";
+import { measureTextBox } from "./textMetrics";
+
+export const DRAWING_SCHEMA_VERSION = 2;
 
 export const DEFAULT_CANVAS_PROPS = {
     backgroundColor: "#ffffff",
@@ -100,13 +103,13 @@ export function normalizeElementForSave(element) {
             w: element.w,
             h: element.h,
             text: element.text || "",
-            fontSize: element.fontSize || 20,
-            lineHeight: element.lineHeight || 24,
-            fontFamily: element.fontFamily || '"Caveat", cursive',
+            fontSize: element.fontSize || DEFAULT_TEXT_STYLE.fontSize,
+            lineHeight: element.lineHeight || DEFAULT_TEXT_STYLE.lineHeight,
+            fontFamily: element.fontFamily || DEFAULT_TEXT_STYLE.fontFamily,
             bold: !!element.bold,
             italic: !!element.italic,
             underline: !!element.underline,
-            textAlign: element.textAlign || "left",
+            textAlign: element.textAlign || DEFAULT_TEXT_STYLE.textAlign,
             parentId: element.parentId || null,
             richText: Array.isArray(element.richText)
                 ? element.richText.map((range) => ({ ...range }))
@@ -149,6 +152,80 @@ export function normalizeElementForSave(element) {
     };
 }
 
+function roundFinite(value, fallback = 0) {
+    const parsed = Number(value);
+    return Math.round(Number.isFinite(parsed) ? parsed : fallback);
+}
+
+export function normalizeElementForLoad(element) {
+    if (!element || typeof element !== "object") return element;
+
+    const normalized = { ...element };
+
+    if (element.type === "line" || element.type === "arrow") {
+        normalized.x1 = roundFinite(element.x1);
+        normalized.y1 = roundFinite(element.y1);
+        normalized.x2 = roundFinite(element.x2);
+        normalized.y2 = roundFinite(element.y2);
+        normalized.cx1 = roundFinite(element.cx1, (normalized.x1 + normalized.x2) / 2);
+        normalized.cy1 = roundFinite(element.cy1, (normalized.y1 + normalized.y2) / 2);
+        normalized.cx2 = roundFinite(element.cx2, (normalized.x1 + normalized.x2) / 2);
+        normalized.cy2 = roundFinite(element.cy2, (normalized.y1 + normalized.y2) / 2);
+        return normalized;
+    }
+
+    if (element.type !== "pencil") {
+        if (Object.prototype.hasOwnProperty.call(element, "x")) normalized.x = roundFinite(element.x);
+        if (Object.prototype.hasOwnProperty.call(element, "y")) normalized.y = roundFinite(element.y);
+        if (Object.prototype.hasOwnProperty.call(element, "w")) normalized.w = roundFinite(element.w, 1);
+        if (Object.prototype.hasOwnProperty.call(element, "h")) normalized.h = roundFinite(element.h, 1);
+    }
+
+    if (element.type === "text") {
+        const fontSize = Math.max(1, roundFinite(element.fontSize, DEFAULT_TEXT_STYLE.fontSize));
+        const lineHeight = Math.max(1, roundFinite(element.lineHeight, DEFAULT_TEXT_STYLE.lineHeight));
+        const textStyle = {
+            ...DEFAULT_TEXT_STYLE,
+            ...element,
+            fontSize,
+            lineHeight,
+            fontFamily: element.fontFamily || DEFAULT_TEXT_STYLE.fontFamily,
+            textAlign: element.textAlign || DEFAULT_TEXT_STYLE.textAlign,
+        };
+        const measured = measureTextBox(element.text || " ", textStyle);
+
+        normalized.fontSize = fontSize;
+        normalized.lineHeight = lineHeight;
+        normalized.fontFamily = textStyle.fontFamily;
+        normalized.textAlign = textStyle.textAlign;
+        normalized.bold = element.bold ?? DEFAULT_TEXT_STYLE.bold;
+        normalized.italic = element.italic ?? DEFAULT_TEXT_STYLE.italic;
+        normalized.underline = element.underline ?? DEFAULT_TEXT_STYLE.underline;
+        normalized.w = Math.max(1, roundFinite(element.w, measured.w));
+        normalized.h = Math.max(1, roundFinite(element.h, measured.h));
+        normalized.parentId = element.parentId || null;
+        normalized.richText = Array.isArray(element.richText)
+            ? element.richText.map((range) => ({ ...range }))
+            : [];
+    }
+
+    return normalized;
+}
+
+function normalizeFrameForLoad(frame, index) {
+    return {
+        ...(frame || {}),
+        id: frame?.id || `frame_${index + 1}`,
+        name: frame?.name || `Frame ${index + 1}`,
+        durationMs: Math.max(1000, Number(frame?.durationMs) || 10000),
+        hiddenElementIds: Array.isArray(frame?.hiddenElementIds)
+            ? [...frame.hiddenElementIds]
+            : [],
+        elements: (Array.isArray(frame?.elements) ? frame.elements : [])
+            .map(normalizeElementForLoad),
+    };
+}
+
 export function validateDrawingJson(json) {
     if (!json || typeof json !== "object") {
         throw new Error("Invalid drawing JSON");
@@ -172,10 +249,18 @@ export function loadDrawingJson(json) {
 
     const actualDrawing = json.data || json;
 
+    const rawFrames = Array.isArray(actualDrawing.frames)
+        ? actualDrawing.frames
+        : Array.isArray(actualDrawing.timelineFrames)
+            ? actualDrawing.timelineFrames
+            : [];
+    const frames = rawFrames.map(normalizeFrameForLoad);
+    const rawElements = Array.isArray(actualDrawing.elements)
+        ? actualDrawing.elements
+        : (rawFrames[0]?.elements || []);
+
     return {
-        elements: Array.isArray(actualDrawing.elements)
-            ? actualDrawing.elements
-            : (actualDrawing.frames?.[0]?.elements || actualDrawing.timelineFrames?.[0]?.elements || []),
+        elements: rawElements.map(normalizeElementForLoad),
         viewport: actualDrawing.viewport || { zoom: 1, offsetX: 0, offsetY: 0 },
         canvasSize: {
             width: actualDrawing.canvas?.width || 1200,
@@ -190,11 +275,7 @@ export function loadDrawingJson(json) {
             json.title ||
             json.name ||
             "Untitled Drawing",
-        frames: Array.isArray(actualDrawing.frames)
-            ? actualDrawing.frames
-            : Array.isArray(actualDrawing.timelineFrames)
-                ? actualDrawing.timelineFrames
-                : [],
+        frames,
         activeFrameIndex:
             actualDrawing.activeFrameIndex ??
             actualDrawing.currentFrameIndex ??

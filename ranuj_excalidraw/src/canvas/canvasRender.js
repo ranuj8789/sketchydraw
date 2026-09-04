@@ -283,6 +283,7 @@ export function renderCanvas({
     const visibleWorldRect = getVisibleWorldRect(canvasSize, viewport);
     const resolvedAnimationTimings = renderOptions?.resolvedAnimationTimings || resolveFrameAnimationTimings(elements || []);
     const finalRenderOptions = { ...renderOptions, resolvedAnimationTimings };
+    const elementsById = new Map((elements || []).map((element) => [element.id, element]));
 
     (elements || []).forEach((element) => {
         if (hiddenSet?.has?.(element.id)) {
@@ -301,7 +302,13 @@ export function renderCanvas({
             (guide) => guide.targetId === element.id
         );
 
-        drawElement(ctx, element, isSelected, finalRenderOptions);
+        const parentBounds = element.type === "text" && element.parentId
+            ? getElementBounds(elementsById.get(element.parentId))
+            : null;
+        drawElement(ctx, element, isSelected, {
+            ...finalRenderOptions,
+            parentBounds,
+        });
 
         if (isHighlighted || isSnapTarget) {
             const bounds = getElementBounds(element);

@@ -1,6 +1,47 @@
 import { buildTextElement } from "./canvasFactories";
-import { measureTextBox } from "./textMetrics";
+import { measureTextBox, measureWrappedTextBox } from "./textMetrics";
 import { normalizeTextStyle } from "./textRenderStyle";
+import { getElementBounds } from "../utils/elementBounds";
+
+const TEXT_CONTAINER_PADDING = 12;
+
+function getParentTextBounds(elements, parentId) {
+    if (!parentId) return null;
+    const parent = (elements || []).find((element) => element.id === parentId);
+    const bounds = getElementBounds(parent);
+    if (!bounds) return null;
+
+    return {
+        x: bounds.x + TEXT_CONTAINER_PADDING,
+        y: bounds.y + TEXT_CONTAINER_PADDING,
+        w: Math.max(8, bounds.w - TEXT_CONTAINER_PADDING * 2),
+        h: Math.max(8, bounds.h - TEXT_CONTAINER_PADDING * 2),
+    };
+}
+
+function fitTextGeometry({ text, style, x, y, parentBounds }) {
+    const natural = measureTextBox(text || " ", style);
+    const maxWidth = parentBounds?.w || Number.POSITIVE_INFINITY;
+    const minWidth = parentBounds ? Math.min(60, maxWidth) : 60;
+    const width = Math.max(minWidth, Math.min(natural.w, maxWidth));
+    const wrapped = measureWrappedTextBox(text || " ", style, width);
+    const nextX = parentBounds
+        ? Math.min(Math.max(x, parentBounds.x), parentBounds.x + parentBounds.w - width)
+        : x;
+    const nextY = parentBounds
+        ? Math.min(
+            Math.max(y, parentBounds.y),
+            parentBounds.y + Math.max(0, parentBounds.h - wrapped.h)
+        )
+        : y;
+
+    return {
+        x: Math.round(nextX),
+        y: Math.round(nextY),
+        w: Math.round(width),
+        h: Math.round(wrapped.h),
+    };
+}
 
 export function createTextElementHelper({
                                             elements,
@@ -36,7 +77,7 @@ export function createTextElementHelper({
         textAlign,
     });
 
-    const newText = buildTextElement({
+    let newText = buildTextElement({
         x,
         y,
         text: finalText,
@@ -52,6 +93,20 @@ export function createTextElementHelper({
         richText: Array.isArray(richText) ? richText : [],
         pageIndex,
     });
+
+    const parentBounds = getParentTextBounds(elements, parentId);
+    if (parentBounds) {
+        newText = {
+            ...newText,
+            ...fitTextGeometry({
+                text: finalText,
+                style,
+                x: parentBounds.x,
+                y: parentBounds.y,
+                parentBounds,
+            }),
+        };
+    }
 
     const next = [...elements, newText];
 
@@ -83,6 +138,7 @@ export function updateTextElementHelper({
     // Trimming changes visible width/content and can make text feel shifted.
     const finalText = value ?? "";
 
+    let didChange = false;
     const next = elements.map((el) => {
         if (el.id !== id) return el;
 
@@ -98,21 +154,45 @@ export function updateTextElementHelper({
             textAlign: textAlign ?? el.textAlign,
         });
 
-        const box = measureTextBox(finalText || " ", style);
+        const styleChanged =
+            style.stroke !== el.stroke ||
+            style.fontSize !== el.fontSize ||
+            style.lineHeight !== el.lineHeight ||
+            style.fontFamily !== el.fontFamily ||
+            style.bold !== !!el.bold ||
+            style.italic !== !!el.italic ||
+            style.underline !== !!el.underline ||
+            style.textAlign !== (el.textAlign || "left");
+        const textChanged = finalText !== (el.text ?? "");
+        const richTextChanged = JSON.stringify(richText || []) !== JSON.stringify(el.richText || []);
+
+        if (!textChanged && !styleChanged && !richTextChanged) {
+            return el;
+        }
+        didChange = true;
+
+        const parentBounds = getParentTextBounds(elements, el.parentId);
+        const geometry = textChanged || styleChanged
+            ? fitTextGeometry({
+                text: finalText,
+                style,
+                x: el.x,
+                y: el.y,
+                parentBounds,
+            })
+            : { x: el.x, y: el.y, w: el.w, h: el.h };
 
         return {
             ...el,
             text: finalText,
             stroke: style.stroke,
 
-            // IMPORTANT:
-            // Text edit must NEVER change x/y.
-            // Only width/height can change.
-            x: el.x,
-            y: el.y,
-
-            w: box.w,
-            h: box.h,
+            // Keep the existing position unless the edited text must be clamped
+            // back into its parent rectangle.
+            x: geometry.x,
+            y: geometry.y,
+            w: geometry.w,
+            h: geometry.h,
             fontSize: style.fontSize,
             lineHeight: style.lineHeight,
             fontFamily: style.fontFamily,
@@ -123,6 +203,11 @@ export function updateTextElementHelper({
             richText: Array.isArray(richText) ? richText : (el.richText || []),
         };
     });
+
+    if (!didChange) {
+        setSelectedIds([id]);
+        return;
+    }
 
     setElements(next);
     setSelectedIds([id]);

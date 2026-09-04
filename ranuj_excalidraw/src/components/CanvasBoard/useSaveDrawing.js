@@ -1,5 +1,9 @@
 import { useState } from "react";
-import { createDrawingJson } from "../../canvas/drawingStorage";
+import {
+    createDrawingJson,
+    normalizeElementForLoad,
+    normalizeElementForSave,
+} from "../../canvas/drawingStorage";
 import { getUser, isLoggedIn, isProUser } from "../../utils/auth";
 import { requireProAccess } from "../../utils/proAccess";
 import { saveDrawing } from "../../api/drawingApi";
@@ -32,6 +36,12 @@ function normalizeCanvasProps(canvasProps) {
 
 function isLocalId(id) {
     return !!id && String(id).startsWith("local_");
+}
+
+function normalizeDrawingElements(elements = []) {
+    return (Array.isArray(elements) ? elements : [])
+        .map(normalizeElementForLoad)
+        .map(normalizeElementForSave);
 }
 
 function getServerSafeId(id) {
@@ -114,9 +124,11 @@ export function useSaveDrawing({
             hiddenElementIds: Array.isArray(frame?.hiddenElementIds)
                 ? [...frame.hiddenElementIds]
                 : [],
-            elements: index === Math.max(0, Math.min(Number(currentFrameIndex) || 0, timelineFrames.length - 1))
-                ? (Array.isArray(elements) ? elements : [])
-                : (Array.isArray(frame?.elements) ? frame.elements : []),
+            elements: normalizeDrawingElements(
+                index === Math.max(0, Math.min(Number(currentFrameIndex) || 0, timelineFrames.length - 1))
+                    ? elements
+                    : frame?.elements
+            ),
         }));
 
         const savedActiveFrameIndex = Math.max(

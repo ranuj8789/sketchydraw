@@ -1226,6 +1226,19 @@ export function drawElement(ctx, element, selected = false, renderOptions = {}) 
 
         ctx.globalAlpha = previousAlpha;
     } else if (element.type === "text") {
+        const parentBounds = renderOptions?.parentBounds;
+        if (parentBounds) {
+            const padding = 8;
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(
+                parentBounds.x + padding,
+                parentBounds.y + padding,
+                Math.max(1, parentBounds.w - padding * 2),
+                Math.max(1, parentBounds.h - padding * 2)
+            );
+            ctx.clip();
+        }
         const style = normalizeTextStyle(element);
 
         ctx.setLineDash([]);
@@ -1277,6 +1290,7 @@ export function drawElement(ctx, element, selected = false, renderOptions = {}) 
                 }
             });
         }
+        if (parentBounds) ctx.restore();
     }
 
     drawPulseRing(ctx, element, animationState, stroke);

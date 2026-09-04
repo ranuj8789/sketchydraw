@@ -3003,6 +3003,58 @@
     min-width: 0 !important;
 }
 
+/* Authoritative fixed/collapsible sidebar behaviour. Keep this final. */
+.floating-sidebar-host.normal-sidebar,
+.floating-sidebar-host.fullscreen-sidebar,
+.focus-mode .floating-sidebar-host {
+    left: 14px !important;
+    top: var(--sketchydraw-topbar-safe, 96px) !important;
+    bottom: var(--sketchydraw-storyboard-safe, 74px) !important;
+    height: auto !important;
+    transform: none !important;
+}
+
+.floating-sidebar-host.open .floating-sidebar-panel,
+.floating-sidebar-host.closed .floating-sidebar-panel,
+.floating-sidebar-host.open .floating-sidebar-launcher,
+.floating-sidebar-host.closed .floating-sidebar-launcher {
+    transition:
+            opacity 1s cubic-bezier(.22, 1, .36, 1),
+            transform 1s cubic-bezier(.22, 1, .36, 1),
+            visibility 0s linear 1s !important;
+}
+
+.floating-sidebar-host.open .floating-sidebar-panel {
+    display: flex !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+    transform: translate3d(0, 0, 0) scale(1) !important;
+    transition-delay: 0s !important;
+}
+
+.floating-sidebar-host.closed .floating-sidebar-panel {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    transform: translate3d(-14px, 0, 0) scale(.985) !important;
+}
+
+.floating-sidebar-host.open .floating-sidebar-launcher {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    transform: translate3d(-8px, 0, 0) scale(.98) !important;
+}
+
+.floating-sidebar-host.closed .floating-sidebar-launcher {
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+    transform: translate3d(0, 0, 0) scale(1) !important;
+    transition-delay: 0s !important;
+}
+
 /* =========================================================
    FINAL USER-REQUESTED SIDEBAR SPACING OVERRIDE
    Keep the existing sidebar dimensions/behaviour intact.

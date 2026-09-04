@@ -80,6 +80,44 @@ export function moveElement(element, dx, dy) {
     };
 }
 
+function roundCoordinate(value, fallback = 0) {
+    const parsed = Number(value);
+    return Math.round(Number.isFinite(parsed) ? parsed : fallback);
+}
+
+export function normalizeElementGeometry(element) {
+    if (!element || element.type === "pencil") return element;
+
+    if (element.type === "line" || element.type === "arrow") {
+        const x1 = roundCoordinate(element.x1);
+        const y1 = roundCoordinate(element.y1);
+        const x2 = roundCoordinate(element.x2);
+        const y2 = roundCoordinate(element.y2);
+        return {
+            ...element,
+            x1,
+            y1,
+            x2,
+            y2,
+            cx1: roundCoordinate(element.cx1, (x1 + x2) / 2),
+            cy1: roundCoordinate(element.cy1, (y1 + y2) / 2),
+            cx2: roundCoordinate(element.cx2, (x1 + x2) / 2),
+            cy2: roundCoordinate(element.cy2, (y1 + y2) / 2),
+        };
+    }
+
+    const next = { ...element };
+    if (Object.prototype.hasOwnProperty.call(element, "x")) next.x = roundCoordinate(element.x);
+    if (Object.prototype.hasOwnProperty.call(element, "y")) next.y = roundCoordinate(element.y);
+    if (Object.prototype.hasOwnProperty.call(element, "w")) next.w = roundCoordinate(element.w);
+    if (Object.prototype.hasOwnProperty.call(element, "h")) next.h = roundCoordinate(element.h);
+    return next;
+}
+
+export function normalizeElementsGeometry(elements = []) {
+    return (elements || []).map(normalizeElementGeometry);
+}
+
 export function updateDrawnElement(element, dragState, point) {
     if (!element) return element;
 
