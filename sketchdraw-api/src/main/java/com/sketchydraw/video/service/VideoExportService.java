@@ -49,18 +49,18 @@ public class VideoExportService {
         Path dir = jobDir(id);
         Files.createDirectories(dir.resolve("segments"));
         Files.writeString(dir.resolve("meta.txt"),
-                request.getWidth() + "," + request.getHeight() + "," + request.getFps() + "," + request.getFrameCount() + "," + Instant.now(),
+                request.getWidth() + "," + request.getHeight() + "," + request.getFps() + "," + request.getFrameCount() + "," + request.getFfmpegSpeed() + "," + Instant.now(),
                 StandardCharsets.UTF_8,
                 StandardOpenOption.CREATE_NEW);
 
-        ExportState state = new ExportState(request.getFrameCount());
+        ExportState state = new ExportState(request.getFrameCount(), request.getFfmpegSpeed());
         state.phase = "UPLOADING";
         state.progress = 0;
         state.message = "Waiting for frame segments";
         states.put(id, state);
 
-        log.info("[video-export:{}] Started: {}x{}, fps={}, expectedSegments={}",
-                id, request.getWidth(), request.getHeight(), request.getFps(), request.getFrameCount());
+        log.info("[video-export:{}] Started: {}x{}, fps={}, expectedSegments={}, ffmpegSpeed={}",
+                id, request.getWidth(), request.getHeight(), request.getFps(), request.getFrameCount(), request.getFfmpegSpeed());
         return id;
     }
 
@@ -129,9 +129,11 @@ public class VideoExportService {
                 state.progress = 85;
                 state.updatedAt = Instant.now();
                 Path finalFile = dir.resolve("final.mp4");
+                String speedFilter = videoSpeedFilter(state.ffmpegSpeed);
                 run(exportId, "convert-continuous", List.of(
                         ffmpegBinary, "-y", "-i", inputs.get(0).toString(),
-                        "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+                        "-an", "-vf", speedFilter,
+                        "-c:v", "libx264", "-preset", "medium", "-crf", "18",
                         "-profile:v", "high", "-pix_fmt", "yuv420p",
                         "-movflags", "+faststart", finalFile.toString()
                 ), dir);
@@ -160,7 +162,8 @@ public class VideoExportService {
 
                 run(exportId, "convert-" + number, List.of(
                         ffmpegBinary, "-y", "-i", inputs.get(i).toString(),
-                        "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+                        "-an", "-vf", videoSpeedFilter(state.ffmpegSpeed),
+                        "-c:v", "libx264", "-preset", "medium", "-crf", "18",
                         "-profile:v", "high", "-pix_fmt", "yuv420p",
                         "-movflags", "+faststart", output.toString()
                 ), dir);
@@ -222,12 +225,20 @@ public class VideoExportService {
         log.info("[video-export:{}] Deleted temporary export files", exportId);
     }
 
+    private String videoSpeedFilter(double speed) {
+        double safeSpeed = Double.isFinite(speed) ? Math.max(0.1, Math.min(4.0, speed)) : 1.0;
+        // STARTPTS removes MediaRecorder's possible non-zero initial timestamp,
+        // which otherwise appears as a blank/frozen delay at the start of MP4.
+        return String.format(java.util.Locale.ROOT, "setpts=(PTS-STARTPTS)/%.6f", safeSpeed);
+    }
+
     private void validateStart(StartVideoExportRequest request) {
         if (request == null) throw new IllegalArgumentException("Missing export settings.");
         if (request.getWidth() < 320 || request.getWidth() > 7680) throw new IllegalArgumentException("Invalid width.");
         if (request.getHeight() < 240 || request.getHeight() > 4320) throw new IllegalArgumentException("Invalid height.");
         if (request.getFps() < 1 || request.getFps() > 60) throw new IllegalArgumentException("Invalid FPS.");
         if (request.getFrameCount() < 1 || request.getFrameCount() > 1000) throw new IllegalArgumentException("Invalid frame count.");
+        if (!Double.isFinite(request.getFfmpegSpeed()) || request.getFfmpegSpeed() < 0.1 || request.getFfmpegSpeed() > 4.0) throw new IllegalArgumentException("FFmpeg speed must be between 0.1 and 4.0.");
     }
 
     private ExportState requireState(String exportId) {
@@ -290,6 +301,7 @@ public class VideoExportService {
 
     private static final class ExportState {
         private final int totalSegments;
+        private final double ffmpegSpeed;
         private volatile int uploadedSegments;
         private volatile String phase = "CREATED";
         private volatile int progress;
@@ -297,8 +309,9 @@ public class VideoExportService {
         private volatile String error;
         private volatile Instant updatedAt = Instant.now();
 
-        private ExportState(int totalSegments) {
+        private ExportState(int totalSegments, double ffmpegSpeed) {
             this.totalSegments = totalSegments;
+            this.ffmpegSpeed = ffmpegSpeed;
         }
     }
 }

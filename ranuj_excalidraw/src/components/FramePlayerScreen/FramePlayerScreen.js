@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
 import { renderCanvas } from "../../canvas/canvasRender";
-import { TIMELINE_PLAYBACK_SPEED_OPTIONS } from "../../canvas/animationTimeline";
 import {
     ANIMATION_EXPORT_RESOLUTION_OPTIONS,
     ANIMATION_EXPORT_TEXT_SCALE_OPTIONS,
@@ -28,6 +27,8 @@ export default function FramePlayerScreen({
                                               waitingForNext,
                                               playbackSpeed = 0.5,
                                               onPlaybackSpeedChange,
+                                              videoBackendSpeed = 1,
+                                              onVideoBackendSpeedChange,
                                               exportResolution = "1920x1080",
                                               onExportResolutionChange,
                                               exportZoomPercent = 150,
@@ -57,10 +58,34 @@ export default function FramePlayerScreen({
     const [isBrowserFullscreen, setIsBrowserFullscreen] = useState(false);
     const [isPanning, setIsPanning] = useState(false);
     const [videoExportState, setVideoExportState] = useState({ exporting: false, progress: 0, status: "" });
+    const [playbackSpeedDraft, setPlaybackSpeedDraft] = useState(String(playbackSpeed));
+    const [backendSpeedDraft, setBackendSpeedDraft] = useState(String(videoBackendSpeed));
     const [screenSize, setScreenSize] = useState({
         width: typeof window !== "undefined" ? window.innerWidth : 1200,
         height: typeof window !== "undefined" ? window.innerHeight : 800,
     });
+
+    useEffect(() => {
+        setPlaybackSpeedDraft(String(playbackSpeed));
+    }, [playbackSpeed]);
+
+    useEffect(() => {
+        setBackendSpeedDraft(String(videoBackendSpeed));
+    }, [videoBackendSpeed]);
+
+    const commitPlaybackSpeed = (rawValue) => {
+        const parsed = Number(rawValue);
+        const next = Number.isFinite(parsed) && parsed > 0 ? Math.max(0.1, Math.min(4, parsed)) : playbackSpeed;
+        setPlaybackSpeedDraft(String(next));
+        onPlaybackSpeedChange?.(next);
+    };
+
+    const commitBackendSpeed = (rawValue) => {
+        const parsed = Number(rawValue);
+        const next = Number.isFinite(parsed) && parsed > 0 ? Math.max(0.1, Math.min(4, parsed)) : videoBackendSpeed;
+        setBackendSpeedDraft(String(next));
+        onVideoBackendSpeedChange?.(next);
+    };
 
     useEffect(() => {
         const handleVideoExportState = (event) => {
@@ -283,16 +308,63 @@ export default function FramePlayerScreen({
                         </select>
                     </label>
 
-                    <label>
-                        Speed
-                        <select
-                            value={playbackSpeed}
-                            onChange={(event) => onPlaybackSpeedChange?.(Number(event.target.value) || 1)}
-                        >
-                            {TIMELINE_PLAYBACK_SPEED_OPTIONS.map((speed) => (
-                                <option key={speed} value={speed}>{speed}×{speed === 0.5 ? " · Slow (default)" : ""}</option>
-                            ))}
-                        </select>
+                    <label className="frame-player-speed-control">
+                        Animation speed
+                        <div className="frame-player-speed-input-wrap">
+                            <input
+                                type="number"
+                                min="0.1"
+                                max="4"
+                                step="0.05"
+                                inputMode="decimal"
+                                value={playbackSpeedDraft}
+                                onFocus={(event) => event.target.select()}
+                                onChange={(event) => {
+                                    const raw = event.target.value;
+                                    setPlaybackSpeedDraft(raw);
+                                    if (raw !== "") {
+                                        const parsed = Number(raw);
+                                        if (Number.isFinite(parsed) && parsed >= 0.1 && parsed <= 4) onPlaybackSpeedChange?.(parsed);
+                                    }
+                                }}
+                                onBlur={(event) => commitPlaybackSpeed(event.target.value)}
+                                onKeyDown={(event) => {
+                                    if (event.key === "Enter") event.currentTarget.blur();
+                                }}
+                                title="UI animation speed · custom 0.1× to 4×"
+                            />
+                            <span>×</span>
+                        </div>
+                    </label>
+
+                    <label className="frame-player-speed-control frame-player-ffmpeg-control">
+                        Backend speed (FFmpeg)
+                        <div className="frame-player-speed-input-wrap">
+                            <input
+                                type="number"
+                                min="0.1"
+                                max="4"
+                                step="0.05"
+                                inputMode="decimal"
+                                value={backendSpeedDraft}
+                                onFocus={(event) => event.target.select()}
+                                onChange={(event) => {
+                                    const raw = event.target.value;
+                                    setBackendSpeedDraft(raw);
+                                    if (raw !== "") {
+                                        const parsed = Number(raw);
+                                        if (Number.isFinite(parsed) && parsed >= 0.1 && parsed <= 4) onVideoBackendSpeedChange?.(parsed);
+                                    }
+                                }}
+                                onBlur={(event) => commitBackendSpeed(event.target.value)}
+                                onKeyDown={(event) => {
+                                    if (event.key === "Enter") event.currentTarget.blur();
+                                }}
+                                disabled={videoExportState.exporting}
+                                title="FFmpeg post-processing speed · custom 0.1× to 4×"
+                            />
+                            <span>×</span>
+                        </div>
                     </label>
 
                     <label>
@@ -378,14 +450,41 @@ export default function FramePlayerScreen({
 
                     <button
                         type="button"
-                        className="frame-player-video-btn"
-                        onClick={() => onExportVideo?.({
+                        className="frame-player-current-gif-btn"
+                        onClick={() => onExportGIF?.({
+                            currentFrameOnly: true,
                             resolution: exportResolution,
                             zoomPercent: exportZoomPercent,
                             fitContent: exportFitContent,
                             pan: exportCameraPan,
                             textScalePercent: exportTextScalePercent,
                         })}
+                        disabled={gifExporting}
+                        title="Export only the frame currently visible as GIF"
+                    >
+                        Current frame GIF
+                    </button>
+
+                    <button
+                        type="button"
+                        className="frame-player-video-btn"
+                        onClick={() => {
+                            // Use the value visible in the FFmpeg input at the exact moment Export is clicked.
+                            // This avoids exporting with a stale/default prop when the user just edited the field.
+                            const parsedBackendSpeed = Number(backendSpeedDraft);
+                            const effectiveBackendSpeed = Number.isFinite(parsedBackendSpeed)
+                                ? Math.max(0.1, Math.min(4, parsedBackendSpeed))
+                                : videoBackendSpeed;
+                            onVideoBackendSpeedChange?.(effectiveBackendSpeed);
+                            onExportVideo?.({
+                                ffmpegSpeed: effectiveBackendSpeed,
+                                resolution: exportResolution,
+                                zoomPercent: exportZoomPercent,
+                                fitContent: exportFitContent,
+                                pan: exportCameraPan,
+                                textScalePercent: exportTextScalePercent,
+                            });
+                        }}
                         disabled={videoExportState.exporting}
                         title="Export all frames with the same camera framing"
                     >

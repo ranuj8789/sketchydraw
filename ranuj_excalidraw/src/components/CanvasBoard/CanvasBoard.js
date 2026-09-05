@@ -841,6 +841,7 @@ export default function CanvasBoard({
                 gapSeconds: event.detail?.gapSeconds,
                 preAnimationDelaySeconds: event.detail?.preAnimationDelaySeconds,
                 playbackSpeed: event.detail?.playbackSpeed,
+                ffmpegSpeed: event.detail?.ffmpegSpeed,
                 exportScale: event.detail?.exportScale,
                 resolution: event.detail?.resolution,
                 zoomPercent: event.detail?.zoomPercent,

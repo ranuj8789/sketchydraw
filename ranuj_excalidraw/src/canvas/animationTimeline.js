@@ -4,12 +4,12 @@ function clampMs(value, fallback = 0) {
 }
 
 export const DEFAULT_TIMELINE_PLAYBACK_SPEED = 0.5;
-export const TIMELINE_PLAYBACK_SPEED_OPTIONS = [0.25, 0.5, 0.75, 1];
+export const TIMELINE_PLAYBACK_SPEED_OPTIONS = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2];
 
 export function normalizeTimelinePlaybackSpeed(value) {
   const parsed = Number(value);
-  return TIMELINE_PLAYBACK_SPEED_OPTIONS.includes(parsed)
-      ? parsed
+  return Number.isFinite(parsed) && parsed > 0
+      ? Math.max(0.1, Math.min(4, parsed))
       : DEFAULT_TIMELINE_PLAYBACK_SPEED;
 }
 

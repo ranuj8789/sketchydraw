@@ -388,7 +388,7 @@ async function readError(response, fallback) {
     return `${fallback} (HTTP ${response.status || "unknown"})`;
 }
 
-async function startExportSession({ width, height, fps, frameCount }) {
+async function startExportSession({ width, height, fps, frameCount, ffmpegSpeed = 1 }) {
     const url = videoApiUrl("/api/video-exports/start");
     let response;
 
@@ -396,7 +396,7 @@ async function startExportSession({ width, height, fps, frameCount }) {
         response = await fetch(url, {
             method: "POST",
             headers: { ...authHeaders(), "Content-Type": "application/json" },
-            body: JSON.stringify({ width, height, fps, frameCount }),
+            body: JSON.stringify({ width, height, fps, frameCount, ffmpegSpeed }),
         });
     } catch (error) {
         throw new Error(
@@ -579,6 +579,7 @@ async function exportServerVideo({
                                      gapSeconds,
                                      preAnimationDelaySeconds = 0,
                                      playbackSpeed = DEFAULT_TIMELINE_PLAYBACK_SPEED,
+                                     ffmpegSpeed = 1,
                                      exportScale = 1.1,
                                      resolution = DEFAULT_ANIMATION_EXPORT_RESOLUTION,
                                      zoomPercent,
@@ -608,7 +609,14 @@ async function exportServerVideo({
     const preAnimationDelayMs = Number.isFinite(Number(preAnimationDelaySeconds))
         ? Math.max(0, Number(preAnimationDelaySeconds) * 1000)
         : 0;
-    const safePlaybackSpeed = normalizeTimelinePlaybackSpeed(playbackSpeed);
+    // Server MP4 capture must honor the UI/timeline playback speed first.
+    // FFmpeg speed is a second, independent post-processing multiplier.
+    // Effective final speed = UI playback speed × FFmpeg speed.
+    const recordingPlaybackSpeed = normalizeTimelinePlaybackSpeed(playbackSpeed);
+    const parsedFfmpegSpeed = Number(ffmpegSpeed);
+    const safeFfmpegSpeed = Number.isFinite(parsedFfmpegSpeed)
+        ? Math.max(0.1, Math.min(4, parsedFfmpegSpeed))
+        : 1;
 
     const safeCanvasSize = resolveAnimationExportSize(resolution, canvasSize);
     const safeZoomPercent = normalizeAnimationExportZoomPercent(
@@ -634,11 +642,11 @@ async function exportServerVideo({
                 frame,
                 holdAfterMs,
                 preAnimationDelayMs,
-                safePlaybackSpeed
+                recordingPlaybackSpeed
             )
         );
 
-        onStatus?.({ phase: "STARTING", message: "Starting server MP4 export", progress: 0 });
+        onStatus?.({ phase: "STARTING", message: `Starting server MP4 export · backend speed ${safeFfmpegSpeed}×`, progress: 0 });
         // One continuous browser recording is uploaded as one server segment.
         // This removes MediaRecorder restarts and FFmpeg concat pauses between frames.
         const session = await startExportSession({
@@ -646,6 +654,7 @@ async function exportServerVideo({
             height: safeCanvasSize.height,
             fps,
             frameCount: 1,
+            ffmpegSpeed: safeFfmpegSpeed,
         });
 
         onStatus?.({ phase: "RECORDING", message: `Recording ${frames.length} frames continuously`, progress: 1 });
@@ -658,7 +667,7 @@ async function exportServerVideo({
             transform,
             canvasProps,
             preAnimationDelayMs,
-            playbackSpeed: safePlaybackSpeed,
+            playbackSpeed: recordingPlaybackSpeed,
             onTick: ({ completedDuration, elapsed, totalDuration }) => {
                 const progress = ((completedDuration + elapsed) / Math.max(1, totalDuration)) * 90;
                 onProgress?.(Math.max(0, Math.min(90, Math.round(progress))));

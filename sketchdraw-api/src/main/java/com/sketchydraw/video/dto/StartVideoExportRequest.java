@@ -5,6 +5,7 @@ public class StartVideoExportRequest {
     private int height;
     private int fps;
     private int frameCount;
+    private double ffmpegSpeed = 1.0;
 
     public int getWidth() { return width; }
     public void setWidth(int width) { this.width = width; }
@@ -14,4 +15,6 @@ public class StartVideoExportRequest {
     public void setFps(int fps) { this.fps = fps; }
     public int getFrameCount() { return frameCount; }
     public void setFrameCount(int frameCount) { this.frameCount = frameCount; }
+    public double getFfmpegSpeed() { return ffmpegSpeed; }
+    public void setFfmpegSpeed(double ffmpegSpeed) { this.ffmpegSpeed = ffmpegSpeed; }
 }

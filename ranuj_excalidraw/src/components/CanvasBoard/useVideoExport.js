@@ -34,6 +34,7 @@ export function useVideoExport({ history, elements, timelineFrames, canvasSize, 
             ? Number(options.gapSeconds)
             : DEFAULT_GAP_SECONDS;
         let playbackSpeed = options.playbackSpeed;
+        let ffmpegSpeed = options.ffmpegSpeed;
         let resolution = options.resolution;
         let zoomPercent = options.zoomPercent;
         let fitContent = options.fitContent;
@@ -42,6 +43,9 @@ export function useVideoExport({ history, elements, timelineFrames, canvasSize, 
         try {
             if (playbackSpeed == null) {
                 playbackSpeed = window.localStorage.getItem("sketchydraw.timelinePlaybackSpeed");
+            }
+            if (ffmpegSpeed == null) {
+                ffmpegSpeed = window.localStorage.getItem("sketchydraw.ffmpegVideoSpeed");
             }
             if (resolution == null) {
                 resolution = window.localStorage.getItem("sketchydraw.animationExportResolution");
@@ -60,6 +64,8 @@ export function useVideoExport({ history, elements, timelineFrames, canvasSize, 
             }
         } catch {}
         playbackSpeed = normalizeTimelinePlaybackSpeed(playbackSpeed ?? DEFAULT_TIMELINE_PLAYBACK_SPEED);
+        ffmpegSpeed = Number(ffmpegSpeed);
+        ffmpegSpeed = Number.isFinite(ffmpegSpeed) ? Math.max(0.1, Math.min(4, ffmpegSpeed)) : 1;
         resolution = normalizeAnimationExportResolution(resolution ?? DEFAULT_ANIMATION_EXPORT_RESOLUTION);
         zoomPercent = normalizeAnimationExportZoomPercent(zoomPercent ?? DEFAULT_ANIMATION_EXPORT_ZOOM_PERCENT);
         textScalePercent = normalizeAnimationExportTextScalePercent(
@@ -100,6 +106,7 @@ export function useVideoExport({ history, elements, timelineFrames, canvasSize, 
                 gapSeconds,
                 preAnimationDelaySeconds: options.preAnimationDelaySeconds,
                 playbackSpeed,
+                ffmpegSpeed,
                 exportScale: options.exportScale,
                 resolution,
                 zoomPercent,

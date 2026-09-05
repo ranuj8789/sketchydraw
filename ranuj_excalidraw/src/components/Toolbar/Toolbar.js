@@ -24,7 +24,6 @@ import {
     DEFAULT_NOTEBOOK_PAGE_COUNT,
     MAX_NOTEBOOK_PAGE_COUNT,
 } from "../../canvas/notebook/notebookPageConstants";
-import { TIMELINE_PLAYBACK_SPEED_OPTIONS } from "../../canvas/animationTimeline";
 import {
     ANIMATION_EXPORT_RESOLUTION_OPTIONS,
     ANIMATION_EXPORT_TEXT_SCALE_OPTIONS,
@@ -86,6 +85,8 @@ export default function Toolbar({
                                     gifExportProgress = 0,
                                     playbackSpeed = 0.5,
                                     onPlaybackSpeedChange,
+                                    videoBackendSpeed = 1,
+                                    onVideoBackendSpeedChange,
                                     exportResolution = "1920x1080",
                                     onExportResolutionChange,
                                     exportZoomPercent = 150,
@@ -539,6 +540,7 @@ export default function Toolbar({
                 : 0)
         );
         const exportScale = Math.max(1, Math.min(2, Number(exportZoomPercent) / 100));
+        const backendSpeed = Math.max(0.1, Math.min(4, Number(videoBackendSpeed) || 1));
         const selectedFrames = timelineFrames.slice(frameFrom - 1, frameTo);
         const paddedFrom = String(frameFrom).padStart(2, "0");
         const paddedTo = String(frameTo).padStart(2, "0");
@@ -549,6 +551,7 @@ export default function Toolbar({
                     gapSeconds,
                     preAnimationDelaySeconds,
                     playbackSpeed,
+                    ffmpegSpeed: backendSpeed,
                     exportScale,
                     resolution: exportResolution,
                     zoomPercent: exportZoomPercent,
@@ -834,6 +837,7 @@ export default function Toolbar({
                                             <button type="button" onClick={() => { runExport(() => exportInstagram?.("status")); setFileOpen(false); }}>WhatsApp Status…</button>
                                             <div className="native-menu-divider" />
                                             <button type="button" onClick={() => { runProOnly("GIF export", () => runExport(() => exportGIF?.({ resolution: exportResolution, zoomPercent: exportZoomPercent, fitContent: exportFitContent, pan: exportCameraPan, textScalePercent: exportTextScalePercent }))); setFileOpen(false); }}>GIF… <span className="native-pro-badge">PRO</span></button>
+                                            <button type="button" onClick={() => { runProOnly("Current frame GIF export", () => runExport(() => exportGIF?.({ currentFrameOnly: true, resolution: exportResolution, zoomPercent: exportZoomPercent, fitContent: exportFitContent, pan: exportCameraPan, textScalePercent: exportTextScalePercent }))); setFileOpen(false); }}>Current frame GIF… <span className="native-pro-badge">PRO</span></button>
 
                                             {showVideo && (
                                                 <>
@@ -848,16 +852,40 @@ export default function Toolbar({
 
                                                             <div className="native-video-export-panel">
                                                                 <label>
-                                                                    <span>Timeline speed</span>
-                                                                    <select
+                                                                    <span>UI / preview speed</span>
+                                                                    <input
+                                                                        type="number"
+                                                                        min="0.1"
+                                                                        max="4"
+                                                                        step="0.05"
                                                                         value={playbackSpeed}
-                                                                        onChange={(event) => onPlaybackSpeedChange?.(Number(event.target.value))}
+                                                                        onFocus={(event) => event.target.select()}
+                                                                        onChange={(event) => {
+                                                                            if (event.target.value === "") return;
+                                                                            const value = Number(event.target.value);
+                                                                            if (Number.isFinite(value) && value > 0) onPlaybackSpeedChange?.(value);
+                                                                        }}
                                                                         disabled={videoExportState.exporting}
-                                                                    >
-                                                                        {TIMELINE_PLAYBACK_SPEED_OPTIONS.map((speed) => (
-                                                                            <option key={speed} value={speed}>{speed}×{speed === 0.5 ? " · Slow (default)" : ""}</option>
-                                                                        ))}
-                                                                    </select>
+                                                                        title="Custom UI animation speed, from 0.1× to 4×"
+                                                                    />
+                                                                </label>
+
+                                                                <label>
+                                                                    <span>Backend speed (FFmpeg)</span>
+                                                                    <input
+                                                                        type="number"
+                                                                        min="0.1"
+                                                                        max="4"
+                                                                        step="0.05"
+                                                                        value={videoBackendSpeed}
+                                                                        onFocus={(event) => event.target.select()}
+                                                                        onChange={(event) => {
+                                                                            const value = Number(event.target.value);
+                                                                            if (Number.isFinite(value)) onVideoBackendSpeedChange?.(value)
+                                                                        }}
+                                                                        disabled={videoExportState.exporting || videoExportMode !== "server"}
+                                                                    />
+                                                                    <small>Final MP4 only · custom 0.1×–4× · 1× normal</small>
                                                                 </label>
 
                                                                 <label>
@@ -1288,15 +1316,21 @@ export default function Toolbar({
                                     <div className="export-dropdown-section-title">Animation</div>
                                     <label>
                                         Timeline speed
-                                        <select
+                                        <input
+                                            type="number"
+                                            min="0.1"
+                                            max="4"
+                                            step="0.05"
                                             value={playbackSpeed}
-                                            onChange={(event) => onPlaybackSpeedChange?.(Number(event.target.value))}
+                                            onFocus={(event) => event.target.select()}
+                                            onChange={(event) => {
+                                                if (event.target.value === "") return;
+                                                const value = Number(event.target.value);
+                                                if (Number.isFinite(value) && value > 0) onPlaybackSpeedChange?.(value);
+                                            }}
                                             disabled={gifExporting || videoExportState.exporting}
-                                        >
-                                            {TIMELINE_PLAYBACK_SPEED_OPTIONS.map((speed) => (
-                                                <option key={speed} value={speed}>{speed}×{speed === 0.5 ? " · Slow (default)" : ""}</option>
-                                            ))}
-                                        </select>
+                                            title="Custom UI animation speed, from 0.1× to 4×"
+                                        />
                                     </label>
                                     <label>
                                         Export resolution
@@ -1344,13 +1378,34 @@ export default function Toolbar({
                                     <button type="button" onClick={() => runProOnly("GIF export", () => runExport(() => exportGIF?.({ resolution: exportResolution, zoomPercent: exportZoomPercent, fitContent: exportFitContent, pan: exportCameraPan, textScalePercent: exportTextScalePercent })))} disabled={gifExporting}>
                                         🎞️ {gifExporting
                                         ? `Exporting GIF ${Math.round((gifExportProgress || 0) * 100)}%`
-                                        : "Export as GIF · PRO"}
+                                        : "Export all frames as GIF · PRO"}
+                                    </button>
+                                    <button type="button" onClick={() => runProOnly("Current frame GIF export", () => runExport(() => exportGIF?.({ currentFrameOnly: true, resolution: exportResolution, zoomPercent: exportZoomPercent, fitContent: exportFitContent, pan: exportCameraPan, textScalePercent: exportTextScalePercent })))} disabled={gifExporting}>
+                                        🖼️ Export current frame GIF · PRO
                                     </button>
 
                                     {proUser ? (
                                         <details className="export-advanced-section">
                                             <summary>🎬 Export video <span className="pro-inline-badge">PRO</span></summary>
                                             <div className="export-video-box">
+                                                <label>
+                                                    Backend speed (FFmpeg)
+                                                    <input
+                                                        type="number"
+                                                        min="0.1"
+                                                        max="4"
+                                                        step="0.05"
+                                                        value={videoBackendSpeed}
+                                                        onFocus={(event) => event.target.select()}
+                                                        onChange={(event) => {
+                                                            const value = Number(event.target.value);
+                                                            if (Number.isFinite(value)) onVideoBackendSpeedChange?.(value)
+                                                        }}
+                                                        disabled={videoExportState.exporting || videoExportMode !== "server"}
+                                                    />
+                                                    <small>Final MP4: custom 0.1×–4× · 1× normal</small>
+                                                </label>
+
                                                 <label>
                                                     Delay before animation (seconds)
                                                     <input

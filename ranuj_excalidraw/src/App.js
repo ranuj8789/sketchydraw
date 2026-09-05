@@ -360,6 +360,14 @@ function SketchyDrawPage() {
       return DEFAULT_TIMELINE_PLAYBACK_SPEED;
     }
   });
+  const [videoBackendSpeed, setVideoBackendSpeed] = useState(() => {
+    try {
+      const parsed = Number(window.localStorage.getItem("sketchydraw.ffmpegVideoSpeed"));
+      return Number.isFinite(parsed) ? Math.max(0.1, Math.min(4, parsed)) : 1;
+    } catch {
+      return 1;
+    }
+  });
   const [animationExportResolution, setAnimationExportResolution] = useState(() => {
     try {
       return normalizeAnimationExportResolution(
@@ -415,6 +423,13 @@ function SketchyDrawPage() {
     try {
       window.localStorage.setItem("sketchydraw.timelinePlaybackSpeed", String(nextSpeed));
     } catch {}
+  }, []);
+
+  const updateVideoBackendSpeed = useCallback((value) => {
+    const parsed = Number(value);
+    const nextSpeed = Number.isFinite(parsed) ? Math.max(0.1, Math.min(4, parsed)) : 1;
+    setVideoBackendSpeed(nextSpeed);
+    try { window.localStorage.setItem("sketchydraw.ffmpegVideoSpeed", String(nextSpeed)); } catch {}
   }, []);
 
   const updateAnimationExportResolution = useCallback((value) => {
@@ -1352,8 +1367,12 @@ function SketchyDrawPage() {
     setGifExportProgress(0);
 
     try {
+      const gifFrames = options.currentFrameOnly
+          ? [timelineFrames[Math.max(0, Math.min(currentFrameIndex, timelineFrames.length - 1))]].filter(Boolean)
+          : timelineFrames;
+
       await exportTimelineGif({
-        frames: timelineFrames,
+        frames: gifFrames,
         canvasSize,
         viewport,
         canvasProps,
@@ -1387,6 +1406,7 @@ function SketchyDrawPage() {
   }, [
     gifExporting,
     timelineFrames,
+    currentFrameIndex,
     canvasSize,
     viewport,
     canvasProps,
@@ -1410,6 +1430,7 @@ function SketchyDrawPage() {
         gapSeconds: 0,
         preAnimationDelaySeconds: 0,
         playbackSpeed: animationPlayerSpeed,
+        ffmpegSpeed: options.ffmpegSpeed ?? videoBackendSpeed,
         resolution: options.resolution || animationExportResolution,
         zoomPercent: options.zoomPercent || animationExportZoomPercent,
         fitContent: options.fitContent ?? animationExportFitContent,
@@ -1428,6 +1449,7 @@ function SketchyDrawPage() {
     }));
   }, [
     animationPlayerSpeed,
+    videoBackendSpeed,
     animationExportResolution,
     animationExportZoomPercent,
     animationExportFitContent,
@@ -2134,6 +2156,8 @@ function SketchyDrawPage() {
                   gifExportProgress={gifExportProgress}
                   playbackSpeed={animationPlayerSpeed}
                   onPlaybackSpeedChange={updateTimelinePlaybackSpeed}
+                  videoBackendSpeed={videoBackendSpeed}
+                  onVideoBackendSpeedChange={updateVideoBackendSpeed}
                   exportResolution={animationExportResolution}
                   onExportResolutionChange={updateAnimationExportResolution}
                   exportZoomPercent={animationExportZoomPercent}
@@ -2256,6 +2280,8 @@ function SketchyDrawPage() {
                   onPlayAll={() => openAnimationPlayer("all")}
                   playbackSpeed={animationPlayerSpeed}
                   onPlaybackSpeedChange={updateTimelinePlaybackSpeed}
+                  videoBackendSpeed={videoBackendSpeed}
+                  onVideoBackendSpeedChange={updateVideoBackendSpeed}
                   exportResolution={animationExportResolution}
                   onExportResolutionChange={updateAnimationExportResolution}
                   exportZoomPercent={animationExportZoomPercent}
@@ -2287,6 +2313,8 @@ function SketchyDrawPage() {
                   waitingForNext={animationPlayerWaitingForNext}
                   playbackSpeed={animationPlayerSpeed}
                   onPlaybackSpeedChange={updateTimelinePlaybackSpeed}
+                  videoBackendSpeed={videoBackendSpeed}
+                  onVideoBackendSpeedChange={updateVideoBackendSpeed}
                   exportResolution={animationExportResolution}
                   onExportResolutionChange={updateAnimationExportResolution}
                   exportZoomPercent={animationExportZoomPercent}

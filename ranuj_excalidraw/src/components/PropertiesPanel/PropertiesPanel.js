@@ -1015,7 +1015,7 @@ export default function PropertiesPanel({
                     <section className="animation-card simple-animation-settings">
                         <div className="animation-card-title">
                             <strong>Common timeline speed</strong>
-                            <span>This same speed is used by preview, GIF and video export.</span>
+                            <span>Used by preview and GIF. Server MP4 has a separate FFmpeg backend speed.</span>
                         </div>
                         <label className="animation-simple-field">
                             <span>Playback</span>
