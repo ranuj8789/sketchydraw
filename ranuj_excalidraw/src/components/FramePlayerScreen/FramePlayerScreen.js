@@ -3,7 +3,10 @@ import { renderCanvas } from "../../canvas/canvasRender";
 import { TIMELINE_PLAYBACK_SPEED_OPTIONS } from "../../canvas/animationTimeline";
 import {
     ANIMATION_EXPORT_RESOLUTION_OPTIONS,
+    ANIMATION_EXPORT_TEXT_SCALE_OPTIONS,
     ANIMATION_EXPORT_ZOOM_OPTIONS,
+    applyAnimationExportTextScale,
+    getAnimationExportFitZoomPercent,
     getAnimationExportTransform,
     resolveAnimationExportSize,
 } from "../../canvas/animationExportSettings";
@@ -12,6 +15,7 @@ import "./FramePlayerScreen.css";
 export default function FramePlayerScreen({
                                               open,
                                               frame,
+                                              exportFrames = [],
                                               frameIndex = 0,
                                               totalFrames = 1,
                                               mode = "current",
@@ -28,12 +32,19 @@ export default function FramePlayerScreen({
                                               onExportResolutionChange,
                                               exportZoomPercent = 150,
                                               onExportZoomPercentChange,
+                                              exportFitContent = true,
+                                              onExportFitContentChange,
+                                              exportCameraPan = { x: 0, y: 0 },
+                                              onExportCameraPanChange,
+                                              exportTextScalePercent = 125,
+                                              onExportTextScalePercentChange,
                                               onClose,
                                               onRestart,
                                               onRestartAll,
                                               onNext,
                                               onAdvanceModeChange,
                                               onExportGIF,
+                                              onExportVideo,
                                               gifExporting = false,
                                               gifExportProgress = 0,
                                               audioDataUrl = "",
@@ -42,11 +53,22 @@ export default function FramePlayerScreen({
     const canvasRef = useRef(null);
     const playerRef = useRef(null);
     const audioRef = useRef(null);
+    const panDragRef = useRef(null);
     const [isBrowserFullscreen, setIsBrowserFullscreen] = useState(false);
+    const [isPanning, setIsPanning] = useState(false);
+    const [videoExportState, setVideoExportState] = useState({ exporting: false, progress: 0, status: "" });
     const [screenSize, setScreenSize] = useState({
         width: typeof window !== "undefined" ? window.innerWidth : 1200,
         height: typeof window !== "undefined" ? window.innerHeight : 800,
     });
+
+    useEffect(() => {
+        const handleVideoExportState = (event) => {
+            setVideoExportState(event.detail || { exporting: false, progress: 0, status: "" });
+        };
+        window.addEventListener("sketchydraw:video-export-state", handleVideoExportState);
+        return () => window.removeEventListener("sketchydraw:video-export-state", handleVideoExportState);
+    }, []);
 
     useEffect(() => {
         const handleFullscreenChange = () => {
@@ -97,11 +119,13 @@ export default function FramePlayerScreen({
         const viewWidth = Math.max(1, Math.round(exportSize.width * scale));
         const viewHeight = Math.max(1, Math.round(exportSize.height * scale));
         const previewTransform = getAnimationExportTransform({
-            frames: [frame],
+            frames: exportFrames.length ? exportFrames : [frame],
             sourceSize: canvasSize,
             outputSize: { width: viewWidth, height: viewHeight },
             zoomPercent: exportZoomPercent,
-            padding: 28,
+            fitContent: exportFitContent,
+            pan: exportCameraPan,
+            padding: 56 * scale,
         });
 
         canvas.width = viewWidth;
@@ -115,7 +139,10 @@ export default function FramePlayerScreen({
                 width: viewWidth,
                 height: viewHeight,
             },
-            elements: frame?.elements || [],
+            elements: applyAnimationExportTextScale(
+                frame?.elements || [],
+                exportTextScalePercent
+            ),
             selectedIds: [],
             connectionHint: null,
             alignmentGuides: [],
@@ -142,6 +169,10 @@ export default function FramePlayerScreen({
         timeMs,
         exportResolution,
         exportZoomPercent,
+        exportFitContent,
+        exportCameraPan,
+        exportFrames,
+        exportTextScalePercent,
     ]);
 
     useEffect(() => {
@@ -163,6 +194,60 @@ export default function FramePlayerScreen({
     const hasAnimatedObjects = (frame?.elements || []).some(
         (element) => element?.animation?.type && element.animation.type !== "none"
     );
+    const currentZoom = Math.round(Number(exportZoomPercent) || 100);
+    const zoomChoices = [...new Set([...ANIMATION_EXPORT_ZOOM_OPTIONS, currentZoom])]
+        .sort((a, b) => a - b);
+    const zoomIndex = zoomChoices.indexOf(currentZoom);
+    const decreaseZoom = () => {
+        const nextIndex = zoomIndex > 0 ? zoomIndex - 1 : 0;
+        onExportFitContentChange?.(false);
+        onExportZoomPercentChange?.(zoomChoices[nextIndex]);
+    };
+    const increaseZoom = () => {
+        const nextIndex = Math.min(zoomChoices.length - 1, zoomIndex + 1);
+        onExportFitContentChange?.(false);
+        onExportZoomPercentChange?.(zoomChoices[nextIndex]);
+    };
+    const fitContent = () => {
+        const outputSize = resolveAnimationExportSize(exportResolution, canvasSize);
+        const fittedZoom = getAnimationExportFitZoomPercent({
+            frames: exportFrames.length ? exportFrames : [frame],
+            sourceSize: canvasSize,
+            outputSize,
+        });
+        onExportFitContentChange?.(true);
+        onExportZoomPercentChange?.(fittedZoom);
+        onExportCameraPanChange?.({ x: 0, y: 0 });
+    };
+    const startPan = (event) => {
+        if (event.button !== 0) return;
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        panDragRef.current = {
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY,
+            panX: Number(exportCameraPan?.x) || 0,
+            panY: Number(exportCameraPan?.y) || 0,
+            width: Math.max(1, canvas.clientWidth),
+            height: Math.max(1, canvas.clientHeight),
+        };
+        setIsPanning(true);
+    };
+    const movePan = (event) => {
+        const drag = panDragRef.current;
+        if (!drag || drag.pointerId !== event.pointerId) return;
+        onExportCameraPanChange?.({
+            x: drag.panX + (event.clientX - drag.startX) / drag.width,
+            y: drag.panY + (event.clientY - drag.startY) / drag.height,
+        });
+    };
+    const endPan = (event) => {
+        if (panDragRef.current?.pointerId !== event.pointerId) return;
+        panDragRef.current = null;
+        setIsPanning(false);
+    };
 
     return (
         <div className="frame-player-screen" ref={playerRef}>
@@ -223,13 +308,30 @@ export default function FramePlayerScreen({
                     </label>
 
                     <label>
-                        Export zoom
+                        Camera zoom
                         <select
                             value={exportZoomPercent}
-                            onChange={(event) => onExportZoomPercentChange?.(Number(event.target.value))}
+                            onChange={(event) => {
+                                onExportFitContentChange?.(false);
+                                onExportZoomPercentChange?.(Number(event.target.value));
+                            }}
+                            title="Magnify small content without changing the selected HD resolution"
                         >
-                            {ANIMATION_EXPORT_ZOOM_OPTIONS.map((zoom) => (
+                            {zoomChoices.map((zoom) => (
                                 <option key={zoom} value={zoom}>{zoom}%</option>
+                            ))}
+                        </select>
+                    </label>
+
+                    <label>
+                        Text size
+                        <select
+                            value={exportTextScalePercent}
+                            onChange={(event) => onExportTextScalePercentChange?.(Number(event.target.value))}
+                            title="Make all exported text larger without changing the drawing"
+                        >
+                            {ANIMATION_EXPORT_TEXT_SCALE_OPTIONS.map((size) => (
+                                <option key={size} value={size}>{size}%{size === 125 ? " · Clear" : ""}</option>
                             ))}
                         </select>
                     </label>
@@ -260,6 +362,9 @@ export default function FramePlayerScreen({
                         onClick={() => onExportGIF?.({
                             resolution: exportResolution,
                             zoomPercent: exportZoomPercent,
+                            fitContent: exportFitContent,
+                            pan: exportCameraPan,
+                            textScalePercent: exportTextScalePercent,
                         })}
                         disabled={gifExporting}
                         title="Export all frames as an animated GIF"
@@ -269,6 +374,24 @@ export default function FramePlayerScreen({
                                 (gifExportProgress || 0) * 100
                             )}%`
                             : "Export GIF"}
+                    </button>
+
+                    <button
+                        type="button"
+                        className="frame-player-video-btn"
+                        onClick={() => onExportVideo?.({
+                            resolution: exportResolution,
+                            zoomPercent: exportZoomPercent,
+                            fitContent: exportFitContent,
+                            pan: exportCameraPan,
+                            textScalePercent: exportTextScalePercent,
+                        })}
+                        disabled={videoExportState.exporting}
+                        title="Export all frames with the same camera framing"
+                    >
+                        {videoExportState.exporting
+                            ? `Video ${Math.round(videoExportState.progress || 0)}%`
+                            : "Export Video"}
                     </button>
 
                     <button
@@ -285,8 +408,54 @@ export default function FramePlayerScreen({
                 </div>
             </div>
 
-            <div className="frame-player-stage">
-                <canvas ref={canvasRef} />
+            <div className={`frame-player-stage${isPanning ? " is-panning" : ""}`}>
+                <canvas
+                    ref={canvasRef}
+                    onPointerDown={startPan}
+                    onPointerMove={movePan}
+                    onPointerUp={endPan}
+                    onPointerCancel={endPan}
+                    title="Drag to pan the GIF/video export camera"
+                />
+                <div className="frame-player-camera-zoom" aria-label="Export camera zoom controls">
+                    <button
+                        type="button"
+                        className="frame-player-fit-btn"
+                        onClick={fitContent}
+                        title="Fit all visible content inside the export"
+                    >
+                        Fit Content
+                    </button>
+                    <button
+                        type="button"
+                        onClick={decreaseZoom}
+                        disabled={zoomIndex <= 0}
+                        title="Zoom out"
+                        aria-label="Zoom out"
+                    >
+                        −
+                    </button>
+                    <span title="The export resolution stays unchanged">
+                        {exportFitContent ? "Auto fit" : "Camera zoom"} · {exportZoomPercent}%
+                    </span>
+                    <button
+                        type="button"
+                        onClick={increaseZoom}
+                        disabled={zoomIndex === zoomChoices.length - 1}
+                        title="Zoom in to make small content easier to see"
+                        aria-label="Zoom in"
+                    >
+                        +
+                    </button>
+                    <button
+                        type="button"
+                        className="frame-player-reset-pan-btn"
+                        onClick={() => onExportCameraPanChange?.({ x: 0, y: 0 })}
+                        title="Center the export camera"
+                    >
+                        Center
+                    </button>
+                </div>
             </div>
 
             {audioDataUrl && (

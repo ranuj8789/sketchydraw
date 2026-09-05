@@ -13,6 +13,7 @@ import {
 import {
     DEFAULT_ANIMATION_EXPORT_RESOLUTION,
     DEFAULT_ANIMATION_EXPORT_ZOOM_PERCENT,
+    applyAnimationExportTextScale,
     getAnimationExportTransform,
     normalizeAnimationExportZoomPercent,
     resolveAnimationExportSize,
@@ -581,6 +582,9 @@ async function exportServerVideo({
                                      exportScale = 1.1,
                                      resolution = DEFAULT_ANIMATION_EXPORT_RESOLUTION,
                                      zoomPercent,
+                                     fitContent,
+                                     pan,
+                                     textScalePercent,
                                      onProgress,
                                      onStatus,
                                  }) {
@@ -592,7 +596,10 @@ async function exportServerVideo({
         timelineFrames,
         historyStates,
         currentElements,
-    }).filter((frame) => frame.elements.length > 0);
+    }).filter((frame) => frame.elements.length > 0).map((frame) => ({
+        ...frame,
+        elements: applyAnimationExportTextScale(frame.elements, textScalePercent),
+    }));
     if (!frames.length) throw new Error("Nothing to export.");
 
     const holdAfterMs = Number.isFinite(Number(gapSeconds))
@@ -619,6 +626,8 @@ async function exportServerVideo({
             sourceSize: canvasSize,
             outputSize: safeCanvasSize,
             zoomPercent: safeZoomPercent,
+            fitContent,
+            pan,
         });
         const durations = frames.map((frame) =>
             getFrameDurationMs(
@@ -684,6 +693,9 @@ async function exportBrowserVideo({
                                       playbackSpeed = DEFAULT_TIMELINE_PLAYBACK_SPEED,
                                       resolution = DEFAULT_ANIMATION_EXPORT_RESOLUTION,
                                       zoomPercent,
+                                      fitContent,
+                                      pan,
+                                      textScalePercent,
                                       onProgress, onStatus,
                                   }) {
     if (typeof MediaRecorder === "undefined") throw new Error("Browser video export needs Chrome or Edge.");
@@ -692,7 +704,11 @@ async function exportBrowserVideo({
     const { mimeType, extension } = browserFormat;
 
     const frames = normalizeTimelineFrames({ timelineFrames, historyStates, currentElements })
-        .filter((frame) => frame.elements.length > 0);
+        .filter((frame) => frame.elements.length > 0)
+        .map((frame) => ({
+            ...frame,
+            elements: applyAnimationExportTextScale(frame.elements, textScalePercent),
+        }));
     if (!frames.length) throw new Error("Nothing to export.");
 
     const holdAfterMs = Number.isFinite(Number(gapSeconds))
@@ -713,6 +729,8 @@ async function exportBrowserVideo({
         sourceSize: canvasSize,
         outputSize: safeCanvasSize,
         zoomPercent: safeZoomPercent,
+        fitContent,
+        pan,
     });
     const durations = frames.map((frame) =>
         getFrameDurationMs(

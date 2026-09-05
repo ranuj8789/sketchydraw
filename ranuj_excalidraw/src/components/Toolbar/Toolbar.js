@@ -27,7 +27,10 @@ import {
 import { TIMELINE_PLAYBACK_SPEED_OPTIONS } from "../../canvas/animationTimeline";
 import {
     ANIMATION_EXPORT_RESOLUTION_OPTIONS,
+    ANIMATION_EXPORT_TEXT_SCALE_OPTIONS,
     ANIMATION_EXPORT_ZOOM_OPTIONS,
+    getAnimationExportFitZoomPercent,
+    resolveAnimationExportSize,
 } from "../../canvas/animationExportSettings";
 
 const TOOLBAR_TOOLS = [
@@ -72,6 +75,7 @@ export default function Toolbar({
                                     drawingTitle,
                                     onDrawingTitleChange,
                                     timelineFrames = [],
+                                    canvasSize = { width: 1200, height: 700 },
                                     currentFrameIndex = 0,
                                     onPresentFrames,
                                     onPreviousFrame,
@@ -86,6 +90,12 @@ export default function Toolbar({
                                     onExportResolutionChange,
                                     exportZoomPercent = 150,
                                     onExportZoomPercentChange,
+                                    exportFitContent = true,
+                                    onExportFitContentChange,
+                                    exportCameraPan = { x: 0, y: 0 },
+                                    onExportCameraPanChange,
+                                    exportTextScalePercent = 125,
+                                    onExportTextScalePercentChange,
                                     socialCreatorPreset = null,
                                     setSocialCreatorPreset,
                                     onToggleFocusMode,
@@ -114,6 +124,25 @@ export default function Toolbar({
     const [videoExportState, setVideoExportState] = useState({ exporting: false, progress: 0, status: "" });
     const [legalOpen, setLegalOpen] = useState(false);
     const [saveStatus, setSaveStatus] = useState({ state: "idle", message: "" });
+
+    const currentExportZoom = Math.round(Number(exportZoomPercent) || 100);
+    const exportZoomChoices = [...new Set([...ANIMATION_EXPORT_ZOOM_OPTIONS, currentExportZoom])]
+        .sort((a, b) => a - b);
+    const changeExportZoom = (value) => {
+        onExportFitContentChange?.(false);
+        onExportZoomPercentChange?.(Number(value));
+    };
+    const fitExportContent = () => {
+        const outputSize = resolveAnimationExportSize(exportResolution, canvasSize);
+        const fittedZoom = getAnimationExportFitZoomPercent({
+            frames: timelineFrames,
+            sourceSize: canvasSize,
+            outputSize,
+        });
+        onExportFitContentChange?.(true);
+        onExportZoomPercentChange?.(fittedZoom);
+        onExportCameraPanChange?.({ x: 0, y: 0 });
+    };
 
     const [user, setUser] = useState(getUser());
     const [loggedIn, setLoggedIn] = useState(isLoggedIn());
@@ -523,6 +552,9 @@ export default function Toolbar({
                     exportScale,
                     resolution: exportResolution,
                     zoomPercent: exportZoomPercent,
+                    fitContent: exportFitContent,
+                    pan: exportCameraPan,
+                    textScalePercent: exportTextScalePercent,
                     trimTrailingPause: trimVideoTrailingPause,
                     timelineFrames: JSON.parse(JSON.stringify(selectedFrames)),
                     mode: videoExportMode,
@@ -801,7 +833,7 @@ export default function Toolbar({
                                             <button type="button" onClick={() => { runExport(() => exportInstagram?.("story")); setFileOpen(false); }}>Instagram Story…</button>
                                             <button type="button" onClick={() => { runExport(() => exportInstagram?.("status")); setFileOpen(false); }}>WhatsApp Status…</button>
                                             <div className="native-menu-divider" />
-                                            <button type="button" onClick={() => { runProOnly("GIF export", () => runExport(() => exportGIF?.({ resolution: exportResolution, zoomPercent: exportZoomPercent }))); setFileOpen(false); }}>GIF… <span className="native-pro-badge">PRO</span></button>
+                                            <button type="button" onClick={() => { runProOnly("GIF export", () => runExport(() => exportGIF?.({ resolution: exportResolution, zoomPercent: exportZoomPercent, fitContent: exportFitContent, pan: exportCameraPan, textScalePercent: exportTextScalePercent }))); setFileOpen(false); }}>GIF… <span className="native-pro-badge">PRO</span></button>
 
                                             {showVideo && (
                                                 <>
@@ -872,13 +904,13 @@ export default function Toolbar({
                                                                 </label>
 
                                                                 <label>
-                                                                    <span>Frame zoom</span>
+                                                                    <span>HD camera zoom</span>
                                                                     <select
                                                                         value={exportZoomPercent}
-                                                                        onChange={(event) => onExportZoomPercentChange?.(Number(event.target.value))}
+                                                                        onChange={(event) => changeExportZoom(event.target.value)}
                                                                         disabled={videoExportState.exporting}
                                                                     >
-                                                                        {ANIMATION_EXPORT_ZOOM_OPTIONS.map((zoom) => (
+                                                                        {exportZoomChoices.map((zoom) => (
                                                                             <option key={zoom} value={zoom}>{zoom}%{zoom === 150 ? " · Recommended" : ""}</option>
                                                                         ))}
                                                                     </select>
@@ -1279,18 +1311,37 @@ export default function Toolbar({
                                         </select>
                                     </label>
                                     <label>
-                                        Animation export zoom
+                                        HD camera zoom
                                         <select
                                             value={exportZoomPercent}
-                                            onChange={(event) => onExportZoomPercentChange?.(Number(event.target.value))}
+                                            onChange={(event) => changeExportZoom(event.target.value)}
                                             disabled={gifExporting || videoExportState.exporting}
                                         >
-                                            {ANIMATION_EXPORT_ZOOM_OPTIONS.map((zoom) => (
+                                            {exportZoomChoices.map((zoom) => (
                                                 <option key={zoom} value={zoom}>{zoom}%{zoom === 150 ? " · Recommended" : ""}</option>
                                             ))}
                                         </select>
                                     </label>
-                                    <button type="button" onClick={() => runProOnly("GIF export", () => runExport(() => exportGIF?.({ resolution: exportResolution, zoomPercent: exportZoomPercent })))} disabled={gifExporting}>
+                                    <label>
+                                        Global text size
+                                        <select
+                                            value={exportTextScalePercent}
+                                            onChange={(event) => onExportTextScalePercentChange?.(Number(event.target.value))}
+                                            disabled={gifExporting || videoExportState.exporting}
+                                        >
+                                            {ANIMATION_EXPORT_TEXT_SCALE_OPTIONS.map((size) => (
+                                                <option key={size} value={size}>{size}%{size === 125 ? " · Clear" : ""}</option>
+                                            ))}
+                                        </select>
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={fitExportContent}
+                                        disabled={gifExporting || videoExportState.exporting}
+                                    >
+                                        ⛶ Fit content automatically
+                                    </button>
+                                    <button type="button" onClick={() => runProOnly("GIF export", () => runExport(() => exportGIF?.({ resolution: exportResolution, zoomPercent: exportZoomPercent, fitContent: exportFitContent, pan: exportCameraPan, textScalePercent: exportTextScalePercent })))} disabled={gifExporting}>
                                         🎞️ {gifExporting
                                         ? `Exporting GIF ${Math.round((gifExportProgress || 0) * 100)}%`
                                         : "Export as GIF · PRO"}
@@ -1338,17 +1389,38 @@ export default function Toolbar({
                                                 </label>
 
                                                 <label>
-                                                    Frame zoom
+                                                    HD camera zoom
                                                     <select
                                                         value={exportZoomPercent}
-                                                        onChange={(event) => onExportZoomPercentChange?.(Number(event.target.value))}
+                                                        onChange={(event) => changeExportZoom(event.target.value)}
                                                         disabled={videoExportState.exporting}
                                                     >
-                                                        {ANIMATION_EXPORT_ZOOM_OPTIONS.map((zoom) => (
+                                                        {exportZoomChoices.map((zoom) => (
                                                             <option key={zoom} value={zoom}>{zoom}%{zoom === 150 ? " · Recommended" : ""}</option>
                                                         ))}
                                                     </select>
                                                 </label>
+
+                                                <label>
+                                                    Global text size
+                                                    <select
+                                                        value={exportTextScalePercent}
+                                                        onChange={(event) => onExportTextScalePercentChange?.(Number(event.target.value))}
+                                                        disabled={videoExportState.exporting}
+                                                    >
+                                                        {ANIMATION_EXPORT_TEXT_SCALE_OPTIONS.map((size) => (
+                                                            <option key={size} value={size}>{size} %{size === 125 ? " · Clear" : ""}</option>
+                                                        ))}
+                                                    </select>
+                                                </label>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={fitExportContent}
+                                                    disabled={videoExportState.exporting}
+                                                >
+                                                    ⛶ Fit content automatically
+                                                </button>
 
                                                 <label>
                                                     <input

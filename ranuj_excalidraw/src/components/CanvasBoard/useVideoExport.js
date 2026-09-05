@@ -2,8 +2,10 @@ import { useCallback, useRef, useState } from "react";
 import { exportUndoRedoAnimationVideo } from "../../canvas/exportAnimationVideo";
 import {
     DEFAULT_ANIMATION_EXPORT_RESOLUTION,
+    DEFAULT_ANIMATION_EXPORT_TEXT_SCALE_PERCENT,
     DEFAULT_ANIMATION_EXPORT_ZOOM_PERCENT,
     normalizeAnimationExportResolution,
+    normalizeAnimationExportTextScalePercent,
     normalizeAnimationExportZoomPercent,
 } from "../../canvas/animationExportSettings";
 import {
@@ -34,6 +36,9 @@ export function useVideoExport({ history, elements, timelineFrames, canvasSize, 
         let playbackSpeed = options.playbackSpeed;
         let resolution = options.resolution;
         let zoomPercent = options.zoomPercent;
+        let fitContent = options.fitContent;
+        let pan = options.pan;
+        let textScalePercent = options.textScalePercent;
         try {
             if (playbackSpeed == null) {
                 playbackSpeed = window.localStorage.getItem("sketchydraw.timelinePlaybackSpeed");
@@ -44,10 +49,22 @@ export function useVideoExport({ history, elements, timelineFrames, canvasSize, 
             if (zoomPercent == null) {
                 zoomPercent = window.localStorage.getItem("sketchydraw.animationExportZoomPercent");
             }
+            if (fitContent == null) {
+                fitContent = window.localStorage.getItem("sketchydraw.animationExportFitContent") !== "false";
+            }
+            if (pan == null) {
+                pan = JSON.parse(window.localStorage.getItem("sketchydraw.animationExportPan") || "null");
+            }
+            if (textScalePercent == null) {
+                textScalePercent = window.localStorage.getItem("sketchydraw.animationExportTextScalePercent");
+            }
         } catch {}
         playbackSpeed = normalizeTimelinePlaybackSpeed(playbackSpeed ?? DEFAULT_TIMELINE_PLAYBACK_SPEED);
         resolution = normalizeAnimationExportResolution(resolution ?? DEFAULT_ANIMATION_EXPORT_RESOLUTION);
         zoomPercent = normalizeAnimationExportZoomPercent(zoomPercent ?? DEFAULT_ANIMATION_EXPORT_ZOOM_PERCENT);
+        textScalePercent = normalizeAnimationExportTextScalePercent(
+            textScalePercent ?? DEFAULT_ANIMATION_EXPORT_TEXT_SCALE_PERCENT
+        );
         const exportTimelineFrames = Array.isArray(options.timelineFrames)
         && options.timelineFrames.length > 0
             ? options.timelineFrames
@@ -86,6 +103,9 @@ export function useVideoExport({ history, elements, timelineFrames, canvasSize, 
                 exportScale: options.exportScale,
                 resolution,
                 zoomPercent,
+                fitContent,
+                pan,
+                textScalePercent,
                 trimTrailingPause: options.trimTrailingPause,
                 mode: options.mode || "server",
                 fileName: options.fileName || `sketchydraw-frames-${frameFrom}-${frameTo}.${options.mode === "browser" ? "webm" : "mp4"}`,

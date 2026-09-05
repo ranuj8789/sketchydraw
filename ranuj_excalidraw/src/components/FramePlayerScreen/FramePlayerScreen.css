@@ -92,6 +92,7 @@
 }
 
 .frame-player-stage {
+    position: relative;
     min-height: 0;
     display: flex;
     align-items: center;
@@ -100,12 +101,71 @@
     overflow: hidden;
 }
 
+.frame-player-camera-zoom {
+    position: absolute;
+    left: 50%;
+    bottom: 38px;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border: 1px solid rgba(203, 213, 225, 0.95);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.18);
+    transform: translateX(-50%);
+    backdrop-filter: blur(10px);
+}
+
+.frame-player-camera-zoom button {
+    width: 30px;
+    height: 30px;
+    border: 1px solid #dbe3ee;
+    border-radius: 50%;
+    background: #fffaf0;
+    color: #6f4d12;
+    font-size: 19px;
+    font-weight: 900;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.frame-player-camera-zoom .frame-player-fit-btn,
+.frame-player-camera-zoom .frame-player-reset-pan-btn {
+    width: auto;
+    min-width: 78px;
+    padding: 0 12px;
+    border-radius: 999px;
+    font-size: 11px;
+}
+
+.frame-player-camera-zoom button:disabled {
+    opacity: 0.38;
+    cursor: default;
+}
+
+.frame-player-camera-zoom span {
+    min-width: 120px;
+    color: #334155;
+    font-size: 11px;
+    font-weight: 850;
+    text-align: center;
+}
+
 .frame-player-stage canvas {
     max-width: 100%;
     max-height: 100%;
     border-radius: 16px;
     background: #ffffff;
     box-shadow: 0 28px 76px rgba(15, 23, 42, 0.14), 0 0 0 1px #e2e8f0;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+}
+
+.frame-player-stage.is-panning canvas {
+    cursor: grabbing;
 }
 
 .frame-player-hint {
@@ -143,6 +203,7 @@
 
 
 .frame-player-gif-btn,
+.frame-player-video-btn,
 .frame-player-fullscreen-btn {
     border: 1px solid #cbd5e1;
     background: #ffffff;
@@ -154,6 +215,12 @@
     border-color: #f59e0b;
     background: #fff8e7;
     color: #8a5b08;
+}
+
+.frame-player-video-btn {
+    border-color: #2563eb;
+    background: #eff6ff;
+    color: #1d4ed8;
 }
 
 .frame-player-gif-btn:disabled {

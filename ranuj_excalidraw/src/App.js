@@ -37,8 +37,12 @@ import {
 } from "./canvas/animationTimeline";
 import {
   DEFAULT_ANIMATION_EXPORT_RESOLUTION,
+  DEFAULT_ANIMATION_EXPORT_FIT_CONTENT,
+  DEFAULT_ANIMATION_EXPORT_TEXT_SCALE_PERCENT,
   DEFAULT_ANIMATION_EXPORT_ZOOM_PERCENT,
   normalizeAnimationExportResolution,
+  normalizeAnimationExportPan,
+  normalizeAnimationExportTextScalePercent,
   normalizeAnimationExportZoomPercent,
 } from "./canvas/animationExportSettings";
 import { buildTextElement } from "./canvas/canvasFactories";
@@ -376,6 +380,32 @@ function SketchyDrawPage() {
       return DEFAULT_ANIMATION_EXPORT_ZOOM_PERCENT;
     }
   });
+  const [animationExportFitContent, setAnimationExportFitContent] = useState(() => {
+    try {
+      return window.localStorage.getItem("sketchydraw.animationExportFitContent") !== "false";
+    } catch {
+      return DEFAULT_ANIMATION_EXPORT_FIT_CONTENT;
+    }
+  });
+  const [animationExportPan, setAnimationExportPan] = useState(() => {
+    try {
+      return normalizeAnimationExportPan(
+          JSON.parse(window.localStorage.getItem("sketchydraw.animationExportPan") || "null")
+      );
+    } catch {
+      return { x: 0, y: 0 };
+    }
+  });
+  const [animationExportTextScalePercent, setAnimationExportTextScalePercent] = useState(() => {
+    try {
+      return normalizeAnimationExportTextScalePercent(
+          window.localStorage.getItem("sketchydraw.animationExportTextScalePercent") ||
+          DEFAULT_ANIMATION_EXPORT_TEXT_SCALE_PERCENT
+      );
+    } catch {
+      return DEFAULT_ANIMATION_EXPORT_TEXT_SCALE_PERCENT;
+    }
+  });
   const animationPlayerAdvanceTimeoutRef = useRef(null);
   const frameActionUndoStackRef = useRef([]);
 
@@ -400,6 +430,30 @@ function SketchyDrawPage() {
     setAnimationExportZoomPercent(nextZoom);
     try {
       window.localStorage.setItem("sketchydraw.animationExportZoomPercent", String(nextZoom));
+    } catch {}
+  }, []);
+
+  const updateAnimationExportFitContent = useCallback((value) => {
+    const nextValue = Boolean(value);
+    setAnimationExportFitContent(nextValue);
+    try {
+      window.localStorage.setItem("sketchydraw.animationExportFitContent", String(nextValue));
+    } catch {}
+  }, []);
+
+  const updateAnimationExportPan = useCallback((value) => {
+    const nextPan = normalizeAnimationExportPan(value);
+    setAnimationExportPan(nextPan);
+    try {
+      window.localStorage.setItem("sketchydraw.animationExportPan", JSON.stringify(nextPan));
+    } catch {}
+  }, []);
+
+  const updateAnimationExportTextScalePercent = useCallback((value) => {
+    const nextValue = normalizeAnimationExportTextScalePercent(value);
+    setAnimationExportTextScalePercent(nextValue);
+    try {
+      window.localStorage.setItem("sketchydraw.animationExportTextScalePercent", String(nextValue));
     } catch {}
   }, []);
 
@@ -1312,6 +1366,11 @@ function SketchyDrawPage() {
         zoomPercent: normalizeAnimationExportZoomPercent(
             options.zoomPercent || animationExportZoomPercent
         ),
+        fitContent: options.fitContent ?? animationExportFitContent,
+        pan: normalizeAnimationExportPan(options.pan || animationExportPan),
+        textScalePercent: normalizeAnimationExportTextScalePercent(
+            options.textScalePercent || animationExportTextScalePercent
+        ),
         onProgress: (progress) => setGifExportProgress(progress || 0),
       });
     } catch (error) {
@@ -1335,7 +1394,47 @@ function SketchyDrawPage() {
     animationPlayerSpeed,
     animationExportResolution,
     animationExportZoomPercent,
+    animationExportFitContent,
+    animationExportPan,
+    animationExportTextScalePercent,
     showSketchyAlert,
+  ]);
+
+  const exportVideoFromPlayer = useCallback((options = {}) => {
+    let mode = "server";
+    try {
+      mode = window.localStorage.getItem("sketchydraw.videoExportMode") || "server";
+    } catch {}
+    window.dispatchEvent(new CustomEvent("sketchydraw:export-video", {
+      detail: {
+        gapSeconds: 0,
+        preAnimationDelaySeconds: 0,
+        playbackSpeed: animationPlayerSpeed,
+        resolution: options.resolution || animationExportResolution,
+        zoomPercent: options.zoomPercent || animationExportZoomPercent,
+        fitContent: options.fitContent ?? animationExportFitContent,
+        pan: normalizeAnimationExportPan(options.pan || animationExportPan),
+        textScalePercent: normalizeAnimationExportTextScalePercent(
+            options.textScalePercent || animationExportTextScalePercent
+        ),
+        trimTrailingPause: true,
+        timelineFrames: JSON.parse(JSON.stringify(timelineFrames)),
+        mode,
+        frameFrom: 1,
+        frameTo: timelineFrames.length,
+        totalFrames: timelineFrames.length,
+        fileName: `${currentDrawingMeta.title || DEFAULT_TITLE}.${mode === "browser" ? "webm" : "mp4"}`,
+      },
+    }));
+  }, [
+    animationPlayerSpeed,
+    animationExportResolution,
+    animationExportZoomPercent,
+    animationExportFitContent,
+    animationExportPan,
+    animationExportTextScalePercent,
+    timelineFrames,
+    currentDrawingMeta.title,
   ]);
 
   const commitHistory = useCallback((nextElements) => {
@@ -2011,6 +2110,7 @@ function SketchyDrawPage() {
                   exportExcel={exportExcel}
                   exportCSV={exportCSV}
                   exportProtectedDrawing={exportProtectedDrawing}
+                  canvasSize={canvasSize}
                   canvasProps={canvasProps}
                   updateCanvasProps={updateCanvasProps}
                   openJsonPicker={openJsonPicker}
@@ -2038,6 +2138,12 @@ function SketchyDrawPage() {
                   onExportResolutionChange={updateAnimationExportResolution}
                   exportZoomPercent={animationExportZoomPercent}
                   onExportZoomPercentChange={updateAnimationExportZoomPercent}
+                  exportFitContent={animationExportFitContent}
+                  onExportFitContentChange={updateAnimationExportFitContent}
+                  exportCameraPan={animationExportPan}
+                  onExportCameraPanChange={updateAnimationExportPan}
+                  exportTextScalePercent={animationExportTextScalePercent}
+                  onExportTextScalePercentChange={updateAnimationExportTextScalePercent}
                   socialCreatorPreset={socialCreatorPreset}
                   setSocialCreatorPreset={setSocialCreatorPreset}
                   onToggleFocusMode={enterFocusMode}
@@ -2167,6 +2273,7 @@ function SketchyDrawPage() {
               {proUser && <FramePlayerScreen
                   open={animationPlayerOpen}
                   frame={animationPlayerFrame}
+                  exportFrames={timelineFrames}
                   frameIndex={animationPlayerFrameIndex}
                   totalFrames={timelineFrames.length || 1}
                   mode={animationPlayerMode}
@@ -2184,12 +2291,19 @@ function SketchyDrawPage() {
                   onExportResolutionChange={updateAnimationExportResolution}
                   exportZoomPercent={animationExportZoomPercent}
                   onExportZoomPercentChange={updateAnimationExportZoomPercent}
+                  exportFitContent={animationExportFitContent}
+                  onExportFitContentChange={updateAnimationExportFitContent}
+                  exportCameraPan={animationExportPan}
+                  onExportCameraPanChange={updateAnimationExportPan}
+                  exportTextScalePercent={animationExportTextScalePercent}
+                  onExportTextScalePercentChange={updateAnimationExportTextScalePercent}
                   onClose={closeAnimationPlayer}
                   onRestart={restartAnimationPlayerFrame}
                   onRestartAll={restartAllAnimationPlayerFrames}
                   onNext={advanceAnimationPlayerFrame}
                   onAdvanceModeChange={setFrameAdvanceMode}
                   onExportGIF={exportGif}
+                  onExportVideo={exportVideoFromPlayer}
                   gifExporting={gifExporting}
                   gifExportProgress={gifExportProgress}
                   audioDataUrl={animationPlayerFrame?.audioDataUrl || ""}

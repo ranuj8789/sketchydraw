@@ -11,6 +11,7 @@ import {
 import {
     DEFAULT_ANIMATION_EXPORT_RESOLUTION,
     DEFAULT_ANIMATION_EXPORT_ZOOM_PERCENT,
+    applyAnimationExportTextScale,
     getAnimationExportTransform,
     normalizeAnimationExportZoomPercent,
     resolveAnimationExportSize,
@@ -119,13 +120,15 @@ function getAnimatedElementIds(elements = []) {
     );
 }
 
-function getExportSizing(frames, canvasSize = {}, resolution, zoomPercent) {
+function getExportSizing(frames, canvasSize = {}, resolution, zoomPercent, fitContent, pan) {
     const outputSize = resolveAnimationExportSize(resolution, canvasSize);
     const transform = getAnimationExportTransform({
         frames,
         sourceSize: canvasSize,
         outputSize,
         zoomPercent,
+        fitContent,
+        pan,
     });
 
     return {
@@ -205,10 +208,17 @@ export async function exportTimelineGif({
                                             exportScale = 1.1,
                                             resolution = DEFAULT_ANIMATION_EXPORT_RESOLUTION,
                                             zoomPercent,
+                                            fitContent,
+                                            pan,
+                                            textScalePercent,
                                             playbackSpeed = DEFAULT_TIMELINE_PLAYBACK_SPEED,
                                             onProgress,
                                         } = {}) {
     const safeFrames = frames.length ? frames : [{ elements: [] }];
+    const exportFrames = safeFrames.map((frame) => ({
+        ...frame,
+        elements: applyAnimationExportTextScale(frame?.elements || [], textScalePercent),
+    }));
     const safeFps = Math.max(8, Math.min(15, Number(fps) || DEFAULT_FPS));
     const frameDelayMs = Math.round(1000 / safeFps);
     const safePlaybackSpeed = normalizeTimelinePlaybackSpeed(playbackSpeed);
@@ -216,13 +226,20 @@ export async function exportTimelineGif({
         zoomPercent ?? Math.round((Number(exportScale) || DEFAULT_ANIMATION_EXPORT_ZOOM_PERCENT / 100) * 100)
     );
     const { GIF, workerScript } = await ensureGifEncoder();
-    const sizing = getExportSizing(safeFrames, canvasSize, resolution, safeZoomPercent);
+    const sizing = getExportSizing(
+        exportFrames,
+        canvasSize,
+        resolution,
+        safeZoomPercent,
+        fitContent,
+        pan
+    );
     const canvas = document.createElement("canvas");
 
     // First paint sets the actual pixel size used by renderCanvas.
     renderGifFrame({
         canvas,
-        frame: safeFrames[0],
+        frame: exportFrames[0],
         canvasSize: sizing.canvasSize,
         viewport: sizing.viewport,
         canvasProps,
@@ -238,7 +255,7 @@ export async function exportTimelineGif({
         workerScript,
     });
 
-    safeFrames.forEach((frame) => {
+    exportFrames.forEach((frame) => {
         const sourceDurationMs = getFrameAnimationDurationMs(frame);
         const durationMs = getTimelinePlaybackDurationMs(sourceDurationMs, safePlaybackSpeed);
         const hasAnimatedObjects = (frame?.elements || []).some(
