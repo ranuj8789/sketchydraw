@@ -21,6 +21,7 @@ import { getAnimationLabel } from "../../canvas/animationRegistry";
 import { TIMELINE_PLAYBACK_SPEED_OPTIONS } from "../../canvas/animationTimeline";
 import "./Sidebar.css";
 import { hasProAccess, requestProUpgrade } from "../../utils/proFeatureGate";
+import { ThreeDTab, is3DElement, to3DInsertRequest } from "../3d";
 
 const TOOLS = [
     { id: "select", label: "Select", icon: MousePointer2 },
@@ -934,7 +935,7 @@ export default function Sidebar({
     useEffect(() => {
         const handleToolbarSidebarRequest = (event) => {
             const section = event?.detail?.section;
-            if (!["draw", "properties", "gif"].includes(section)) return;
+            if (!["draw", "properties", "3d", "gif"].includes(section)) return;
             setActiveTab(section);
             setSidebarCollapsed(false);
         };
@@ -945,9 +946,11 @@ export default function Sidebar({
     useEffect(() => {
         if (!selectedElement || selectedElement.id === "__multi__") return;
 
-        // Selecting an object should immediately reveal its properties.
-        // Animation remains a separate workflow/dialog and is not mixed into
-        // the main toolbar navigation.
+        if (is3DElement(selectedElement)) {
+            setActiveTab("3d");
+            return;
+        }
+        // Normal 2D objects continue to reveal regular properties.
         setActiveTab("properties");
     }, [selectedElement?.id]);
 
@@ -1048,6 +1051,15 @@ export default function Sidebar({
 
                         <button
                             type="button"
+                            className={activeTab === "3d" ? "active" : ""}
+                            onClick={() => setActiveTab("3d")}
+                            title="Experimental 3D primitives and characters"
+                        >
+                            3D
+                        </button>
+
+                        <button
+                            type="button"
                             className={activeTab === "gif" ? "active" : ""}
                             onClick={() => setActiveTab("gif")}
                             title="GIF and animated drawing tools"
@@ -1100,6 +1112,15 @@ export default function Sidebar({
                                 onPlaybackSpeedChange={onPlaybackSpeedChange}
                                 forcedMode="properties"
                                 hideModeTabs
+                            />
+                        )}
+
+
+                        {activeTab === "3d" && (
+                            <ThreeDTab
+                                selectedElement={selectedElement}
+                                onInsert={(primitive) => onInsertGifPrimitive?.(to3DInsertRequest(primitive))}
+                                onPatch={updateSelectedElementStyle}
                             />
                         )}
 

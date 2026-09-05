@@ -96,6 +96,7 @@ public class VideoExportService {
                 state.progress,
                 state.uploadedSegments,
                 state.totalSegments,
+                state.ffmpegSpeed,
                 state.message,
                 state.error
         );
@@ -130,6 +131,7 @@ public class VideoExportService {
                 state.updatedAt = Instant.now();
                 Path finalFile = dir.resolve("final.mp4");
                 String speedFilter = videoSpeedFilter(state.ffmpegSpeed);
+                log.info("[video-export:{}] Applying FFmpeg speed={}x, filter={}", exportId, state.ffmpegSpeed, speedFilter);
                 run(exportId, "convert-continuous", List.of(
                         ffmpegBinary, "-y", "-i", inputs.get(0).toString(),
                         "-an", "-vf", speedFilter,
@@ -227,9 +229,10 @@ public class VideoExportService {
 
     private String videoSpeedFilter(double speed) {
         double safeSpeed = Double.isFinite(speed) ? Math.max(0.1, Math.min(4.0, speed)) : 1.0;
-        // STARTPTS removes MediaRecorder's possible non-zero initial timestamp,
-        // which otherwise appears as a blank/frozen delay at the start of MP4.
-        return String.format(java.util.Locale.ROOT, "setpts=(PTS-STARTPTS)/%.6f", safeSpeed);
+        // Use an explicit timestamp multiplier. Example: 0.1x => 10x timestamps, 0.125x => 8x.
+        // This makes slow-down behavior unambiguous and keeps STARTPTS at zero.
+        double ptsMultiplier = 1.0 / safeSpeed;
+        return String.format(java.util.Locale.ROOT, "setpts=(PTS-STARTPTS)*%.9f", ptsMultiplier);
     }
 
     private void validateStart(StartVideoExportRequest request) {

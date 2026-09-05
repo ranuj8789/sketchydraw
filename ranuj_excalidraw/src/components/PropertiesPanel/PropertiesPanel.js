@@ -274,6 +274,7 @@ export default function PropertiesPanel({
                                             onPlaybackSpeedChange,
                                             forcedMode = null,
                                             hideModeTabs = false,
+                                            onInsert3DPrimitive,
                                             compactHeader = false,
                                         }) {
     const isText = selectedElement?.type === "text";
@@ -361,7 +362,9 @@ export default function PropertiesPanel({
                 "floatIn",
                 "slideUp",
                 "scaleIn",
+                "elasticPop",
                 "typewriter",
+                "countUp",
                 "draw",
             ].includes(item.value)
         ),
@@ -374,6 +377,12 @@ export default function PropertiesPanel({
                 "blink",
                 "movingHead",
                 "movingDashes",
+                "dataFlow",
+                "energyTrace",
+                "arrivalPulse",
+                "signalBeam",
+                "arraySwap",
+                "highlightSweep",
             ].includes(item.value)
         ),
     };

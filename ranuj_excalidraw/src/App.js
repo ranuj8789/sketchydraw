@@ -54,6 +54,7 @@ import {
   pickTextStylePatch,
   hasTextStylePatch,
 } from "./canvas/textRenderStyle";
+import { create3DPrimitiveElement, is3DInsertType } from "./components/3d";
 
 const COLORS = [
   "#111827",
@@ -1582,7 +1583,16 @@ function SketchyDrawPage() {
 
     let nextElement;
 
-    if (primitiveType === "rectangle" || primitiveType === "ellipse" || primitiveType === "circle") {
+    if (is3DInsertType(primitiveType)) {
+      nextElement = create3DPrimitiveElement({
+        insertType: primitiveType,
+        center,
+        pageIndex,
+        stroke: baseStroke,
+        animation: createAnimationConfig(animationType),
+        makeId: makeObjectId,
+      });
+    } else if (primitiveType === "rectangle" || primitiveType === "ellipse" || primitiveType === "circle") {
       const isEllipse = primitiveType === "ellipse" || primitiveType === "circle";
       const size = primitiveType === "circle" ? 110 : null;
 

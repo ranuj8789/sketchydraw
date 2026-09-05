@@ -409,7 +409,16 @@ async function startExportSession({ width, height, fps, frameCount, ffmpegSpeed 
         throw new Error(await readError(response, `Could not start video export at ${url}.`));
     }
 
-    return response.json();
+    const payload = await response.json();
+    const requestedSpeed = Number(ffmpegSpeed);
+    const acceptedSpeed = Number(payload?.ffmpegSpeed);
+    if (!Number.isFinite(acceptedSpeed)) {
+        throw new Error("Video export API did not return the accepted FFmpeg speed.");
+    }
+    if (Math.abs(acceptedSpeed - requestedSpeed) > 0.000001) {
+        throw new Error(`FFmpeg speed mismatch: UI sent ${requestedSpeed}× but server accepted ${acceptedSpeed}×.`);
+    }
+    return payload;
 }
 
 async function uploadSegment(exportId, index, blob) {

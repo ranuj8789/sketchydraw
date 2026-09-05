@@ -3098,3 +3098,13 @@
     max-width: 118px !important;
     min-width: 0 !important;
 }
+
+.left-toolbar-tabs.sidebar-primary-tabs {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.left-toolbar-tabs.sidebar-primary-tabs button:nth-child(3).active {
+    border-color: #0f766e;
+    background: linear-gradient(135deg, #0f766e, #0d9488);
+    color: #ffffff;
+}

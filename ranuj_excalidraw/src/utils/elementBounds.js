@@ -9,6 +9,7 @@ export function getElementBounds(element) {
         element.type === "ellipse" ||
         element.type === "diamond" ||
         element.type === "user" ||
+        element.type === "webgl3d" ||
         isSystemDesignType(element.type) ||
         element.type === "image"
     ) {

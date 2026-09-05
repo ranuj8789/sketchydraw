@@ -11,6 +11,7 @@ public class VideoExportStatusResponse {
     private int progress;
     private int uploadedSegments;
     private int totalSegments;
+    private double ffmpegSpeed;
     private String message;
     private String error;
 }

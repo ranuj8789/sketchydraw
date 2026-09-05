@@ -21,8 +21,12 @@ public class VideoExportController {
     private final VideoExportService service;
 
     @PostMapping("/start")
-    public Map<String, String> start(@RequestBody StartVideoExportRequest request) throws Exception {
-        return Map.of("exportId", service.start(request));
+    public Map<String, Object> start(@RequestBody StartVideoExportRequest request) throws Exception {
+        String exportId = service.start(request);
+        return Map.of(
+                "exportId", exportId,
+                "ffmpegSpeed", request.getFfmpegSpeed()
+        );
     }
 
     @PostMapping(path = "/{exportId}/segments/{index}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

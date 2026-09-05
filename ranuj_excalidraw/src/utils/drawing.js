@@ -6,6 +6,7 @@ import {
 } from "../canvas/textRenderStyle";
 import { isSystemDesignType } from "../canvas/canvasConstants";
 import { wrapTextLines } from "../canvas/textMetrics";
+import { draw3DPrimitive } from "../components/3d/threeDRenderer";
 
 const SELECTION_COLOR = "#6965db";
 const SELECTION_PADDING = 6;
@@ -485,6 +486,196 @@ function drawPulseRing(ctx, element, animationState, stroke) {
     ctx.restore();
 }
 
+function stableAnimationDirection(id) {
+    const value = String(id || "");
+    let hash = 0;
+    for (let i = 0; i < value.length; i += 1) hash = ((hash << 5) - hash + value.charCodeAt(i)) | 0;
+    return Math.abs(hash) % 2 === 0 ? 1 : -1;
+}
+
+function elasticOut(t) {
+    const value = clamp01(t);
+    if (value === 0 || value === 1) return value;
+    const c4 = (2 * Math.PI) / 3;
+    return Math.pow(2, -10 * value) * Math.sin((value * 10 - 0.75) * c4) + 1;
+}
+
+function formatCountUpText(text, progress) {
+    const p = clamp01(progress);
+    return String(text || "").replace(/-?\d[\d,]*(?:\.\d+)?/g, (token) => {
+        const compact = token.replace(/,/g, "");
+        const target = Number(compact);
+        if (!Number.isFinite(target)) return token;
+        const decimalMatch = compact.match(/\.(\d+)$/);
+        const decimals = decimalMatch ? decimalMatch[1].length : 0;
+        const current = target * p;
+        const rounded = decimals > 0 ? current.toFixed(decimals) : String(Math.round(current));
+        const [whole, fraction] = rounded.split(".");
+        const sign = whole.startsWith("-") ? "-" : "";
+        const absWhole = sign ? whole.slice(1) : whole;
+        const withCommas = absWhole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        return `${sign}${withCommas}${fraction !== undefined ? `.${fraction}` : ""}`;
+    });
+}
+
+function traceCurrentElementPath(ctx, element) {
+    if (element.type === "rect" || element.type === "rectangle" || element.type === "user" || isSystemDesignType(element.type)) {
+        const box = getSelectionBox(element);
+        if (!box) return false;
+        const radius = element.type === "rect" || element.type === "rectangle" ? Math.max(0, Number(element.cornerRadius) || 0) : 12;
+        drawRoundedRectPath(ctx, box.x, box.y, box.w, box.h, Math.min(radius, Math.abs(box.w) / 2, Math.abs(box.h) / 2));
+        return true;
+    }
+    if (element.type === "ellipse") {
+        ctx.beginPath();
+        ctx.ellipse(element.x + element.w / 2, element.y + element.h / 2, Math.abs(element.w / 2), Math.abs(element.h / 2), 0, 0, Math.PI * 2);
+        return true;
+    }
+    if (element.type === "diamond") {
+        const cx = element.x + element.w / 2;
+        const cy = element.y + element.h / 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, element.y);
+        ctx.lineTo(element.x + element.w, cy);
+        ctx.lineTo(cx, element.y + element.h);
+        ctx.lineTo(element.x, cy);
+        ctx.closePath();
+        return true;
+    }
+    if (element.type === "line" || element.type === "arrow") {
+        ctx.beginPath();
+        ctx.moveTo(element.x1, element.y1);
+        ctx.bezierCurveTo(element.cx1 ?? element.x1, element.cy1 ?? element.y1, element.cx2 ?? element.x2, element.cy2 ?? element.y2, element.x2, element.y2);
+        return true;
+    }
+    return false;
+}
+
+function drawDataFlow(ctx, element, animationState, stroke, strokeWidth) {
+    if (!animationState.active || animationState.type !== "dataFlow") return;
+    if (element.type !== "line" && element.type !== "arrow") return;
+    const p0 = {x: element.x1, y: element.y1};
+    const p1 = {x: element.cx1 ?? element.x1, y: element.cy1 ?? element.y1};
+    const p2 = {x: element.cx2 ?? element.x2, y: element.cy2 ?? element.y2};
+    const p3 = {x: element.x2, y: element.y2};
+    const phase = (animationState.localTimeMs % Math.max(1, animationState.durationMs)) / Math.max(1, animationState.durationMs);
+    ctx.save();
+    ctx.setLineDash([]);
+    ctx.fillStyle = stroke || "#2563eb";
+    ctx.shadowColor = stroke || "#2563eb";
+    ctx.shadowBlur = 12;
+    [0, 0.33, 0.66].forEach((offset, index) => {
+        const t = (phase + offset) % 1;
+        const point = cubicBezierPoint(t, p0, p1, p2, p3);
+        const radius = Math.max(2.5, (strokeWidth || 2) * (index === 0 ? 1.8 : 1.35));
+        ctx.globalAlpha = index === 0 ? 1 : 0.68;
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+    });
+    ctx.restore();
+}
+
+function drawEnergyTrace(ctx, element, animationState, stroke, strokeWidth) {
+    if (!animationState.active || animationState.type !== "energyTrace") return;
+    ctx.save();
+    if (!traceCurrentElementPath(ctx, element)) { ctx.restore(); return; }
+    const box = getSelectionBox(element);
+    const approxLength = element.type === "line" || element.type === "arrow"
+        ? Math.max(80, Math.hypot((element.x2 || 0) - (element.x1 || 0), (element.y2 || 0) - (element.y1 || 0)) * 1.25)
+        : Math.max(100, 2 * (Math.abs(box?.w || 80) + Math.abs(box?.h || 50)));
+    const segment = Math.max(26, approxLength * 0.22);
+    const phase = (animationState.localTimeMs % Math.max(1, animationState.durationMs)) / Math.max(1, animationState.durationMs);
+    ctx.strokeStyle = stroke || "#2563eb";
+    ctx.lineWidth = Math.max(2, (strokeWidth || 2) + 1.5);
+    ctx.setLineDash([segment, Math.max(1, approxLength - segment)]);
+    ctx.lineDashOffset = -phase * approxLength;
+    ctx.shadowColor = stroke || "#2563eb";
+    ctx.shadowBlur = 14;
+    ctx.globalAlpha = 0.92;
+    ctx.stroke();
+    ctx.restore();
+}
+
+function drawSignalBeam(ctx, element, animationState, stroke, strokeWidth) {
+    if (!animationState.active || animationState.type !== "signalBeam") return;
+    if (element.type !== "line" && element.type !== "arrow") return;
+    const wave = getPulseWave(animationState);
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(element.x1, element.y1);
+    ctx.bezierCurveTo(element.cx1 ?? element.x1, element.cy1 ?? element.y1, element.cx2 ?? element.x2, element.cy2 ?? element.y2, element.x2, element.y2);
+    ctx.setLineDash([]);
+    ctx.strokeStyle = stroke || "#2563eb";
+    ctx.lineWidth = Math.max(2, (strokeWidth || 2) + 2 + wave * 3);
+    ctx.globalAlpha = 0.22 + wave * 0.34;
+    ctx.shadowColor = stroke || "#2563eb";
+    ctx.shadowBlur = 12 + wave * 18;
+    ctx.stroke();
+    ctx.restore();
+}
+
+function drawArrivalPulse(ctx, element, animationState, stroke) {
+    if (!animationState.active || animationState.type !== "arrivalPulse") return;
+    const box = getSelectionBox(element);
+    if (!box) return;
+    const p = clamp01(animationState.progress);
+    const burst = Math.sin(p * Math.PI);
+    const pad = 8 + p * 22;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, 0.55 * (1 - p));
+    ctx.strokeStyle = stroke || "#2563eb";
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = stroke || "#2563eb";
+    ctx.shadowBlur = 10 + burst * 14;
+    ctx.setLineDash([]);
+    if (element.type === "ellipse") {
+        ctx.beginPath();
+        ctx.ellipse(box.x + box.w / 2, box.y + box.h / 2, Math.abs(box.w / 2) + pad, Math.abs(box.h / 2) + pad, 0, 0, Math.PI * 2);
+    } else {
+        ctx.beginPath();
+        if (typeof ctx.roundRect === "function") ctx.roundRect(box.x - pad, box.y - pad, box.w + pad * 2, box.h + pad * 2, 14);
+        else ctx.rect(box.x - pad, box.y - pad, box.w + pad * 2, box.h + pad * 2);
+    }
+    ctx.stroke();
+    ctx.restore();
+}
+
+function drawHighlightSweep(ctx, element, animationState) {
+    if (!animationState.active || animationState.type !== "highlightSweep") return;
+    const box = getSelectionBox(element);
+    if (!box || !Number.isFinite(box.x) || !Number.isFinite(box.y)) return;
+    const phase = (animationState.localTimeMs % Math.max(1, animationState.durationMs)) / Math.max(1, animationState.durationMs);
+    const sweepW = Math.max(22, Math.abs(box.w) * 0.22);
+    const startX = box.x - sweepW * 1.4;
+    const x = startX + phase * (Math.abs(box.w) + sweepW * 2.8);
+    ctx.save();
+    ctx.beginPath();
+    if (element.type === "ellipse") {
+        ctx.ellipse(box.x + box.w / 2, box.y + box.h / 2, Math.abs(box.w / 2), Math.abs(box.h / 2), 0, 0, Math.PI * 2);
+    } else {
+        ctx.rect(box.x, box.y, box.w, box.h);
+    }
+    ctx.clip();
+    const gradient = ctx.createLinearGradient(x - sweepW, box.y, x + sweepW, box.y);
+    gradient.addColorStop(0, "rgba(255,255,255,0)");
+    gradient.addColorStop(0.5, "rgba(255,255,255,0.46)");
+    gradient.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = gradient;
+    ctx.translate(x, box.y + box.h / 2);
+    ctx.rotate(-0.20);
+    ctx.fillRect(-sweepW, -Math.abs(box.h), sweepW * 2, Math.abs(box.h) * 2);
+    ctx.restore();
+}
+
+function drawPremiumAnimationOverlay(ctx, element, animationState, stroke, strokeWidth) {
+    drawDataFlow(ctx, element, animationState, stroke, strokeWidth);
+    drawEnergyTrace(ctx, element, animationState, stroke, strokeWidth);
+    drawSignalBeam(ctx, element, animationState, stroke, strokeWidth);
+    drawArrivalPulse(ctx, element, animationState, stroke);
+    drawHighlightSweep(ctx, element, animationState);
+}
+
 function getAnimatedTextLines(text, animationState, ctx, maxWidth) {
     const fullText = String(text || "");
 
@@ -499,7 +690,13 @@ function getAnimatedTextLines(text, animationState, ctx, maxWidth) {
 export function hitTest(element, x, y) {
     if (!element) return false;
 
-    if (element.type === "rect" || element.type === "rectangle") {
+    if (element.type === "webgl3d") {
+        const minX = Math.min(element.x, element.x + element.w);
+        const minY = Math.min(element.y, element.y + element.h);
+        const maxX = Math.max(element.x, element.x + element.w);
+        const maxY = Math.max(element.y, element.y + element.h);
+        return x >= minX && x <= maxX && y >= minY && y <= maxY;
+    } else if (element.type === "rect" || element.type === "rectangle") {
         const minX = Math.min(element.x, element.x + element.w);
         const minY = Math.min(element.y, element.y + element.h);
         const maxX = Math.max(element.x, element.x + element.w);
@@ -926,6 +1123,7 @@ function drawSystemDesignShape(ctx, element) {
     }
 }
 
+
 export function drawElement(ctx, element, selected = false, renderOptions = {}) {
     if (!element) return;
 
@@ -990,9 +1188,51 @@ export function drawElement(ctx, element, selected = false, renderOptions = {}) 
         }
     }
 
+    if (animationState.active && animationState.type === "elasticPop") {
+        const box = getSelectionBox(element);
+        if (box) {
+            const cx = box.x + box.w / 2;
+            const cy = box.y + box.h / 2;
+            const spring = elasticOut(animationState.progress);
+            const scale = Math.max(0.05, 0.45 + spring * 0.55);
+            ctx.translate(cx, cy);
+            ctx.scale(scale, scale);
+            ctx.translate(-cx, -cy);
+            ctx.globalAlpha *= clamp01(animationState.progress * 2.4);
+        }
+    }
+
+    if (animationState.active && animationState.type === "arrivalPulse") {
+        const box = getSelectionBox(element);
+        if (box) {
+            const cx = box.x + box.w / 2;
+            const cy = box.y + box.h / 2;
+            const bump = Math.sin(clamp01(animationState.progress) * Math.PI) * 0.075;
+            ctx.translate(cx, cy);
+            ctx.scale(1 + bump, 1 + bump);
+            ctx.translate(-cx, -cy);
+            ctx.shadowColor = stroke;
+            ctx.shadowBlur = 8 + bump * 140;
+        }
+    }
+
+    if (animationState.active && animationState.type === "arraySwap") {
+        const box = getSelectionBox(element);
+        if (box) {
+            const p = clamp01(animationState.progress);
+            const arc = Math.sin(p * Math.PI);
+            const direction = stableAnimationDirection(element.id);
+            const horizontal = direction * (Math.abs(box.w) + 12) * arc;
+            const vertical = -Math.max(14, Math.min(34, Math.abs(box.h) * 0.35)) * arc;
+            ctx.translate(horizontal, vertical);
+        }
+    }
+
     applyAnimationBeforeDraw(ctx, element, animationState);
 
-    if (element.type === "rect" || element.type === "rectangle") {
+    if (element.type === "webgl3d") {
+        draw3DPrimitive(ctx, element, renderOptions);
+    } else if (element.type === "rect" || element.type === "rectangle") {
         const radius = element.cornerRadius ?? 0;
         const drawProgressPath = shouldDrawPathProgress(animationState);
 
@@ -1257,8 +1497,11 @@ export function drawElement(ctx, element, selected = false, renderOptions = {}) 
         ) {
             drawRichTextElement(ctx, element, style);
         } else {
+            const animatedText = animationState?.active && animationState?.type === "countUp"
+                ? formatCountUpText(element.text, animationState.easedProgress ?? animationState.progress)
+                : element.text;
             const lines = getAnimatedTextLines(
-                element.text,
+                animatedText,
                 animationState,
                 ctx,
                 Math.max(1, (element.w || 120) - 8)
@@ -1293,6 +1536,7 @@ export function drawElement(ctx, element, selected = false, renderOptions = {}) 
         if (parentBounds) ctx.restore();
     }
 
+    drawPremiumAnimationOverlay(ctx, element, animationState, stroke, strokeWidth);
     drawPulseRing(ctx, element, animationState, stroke);
 
     if (selected) {
