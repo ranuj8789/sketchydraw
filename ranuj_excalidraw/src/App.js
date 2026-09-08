@@ -1591,6 +1591,7 @@ function SketchyDrawPage() {
         stroke: baseStroke,
         animation: createAnimationConfig(animationType),
         makeId: makeObjectId,
+        patch: payload.threeDPatch || {},
       });
     } else if (primitiveType === "rectangle" || primitiveType === "ellipse" || primitiveType === "circle") {
       const isEllipse = primitiveType === "ellipse" || primitiveType === "circle";

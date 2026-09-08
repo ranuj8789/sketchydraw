@@ -96,7 +96,16 @@ function drawSelection(ctx, element) {
 export function hitTest3D(element, x, y) {
     if (!is3DElement(element)) return false;
     const box = normalizeBox(element);
-    return x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h;
+    const depth = Math.max(0, Number(element.depth) || 0) * Math.max(.1, Number(element.scale3d) || 1);
+    const yaw = ((Number(element.rotationY) || 0) + (Number(element.cameraYaw) || 0)) * Math.PI / 180;
+    const pitch = ((Number(element.rotationX) || 0) + (Number(element.cameraPitch) || 0)) * Math.PI / 180;
+    const extrudeX = Math.cos(yaw) * depth * .55;
+    const extrudeY = Math.sin(pitch) * depth * .55 - depth * .35;
+    const left = Math.min(box.x, box.x + extrudeX) - 8;
+    const right = Math.max(box.x + box.w, box.x + box.w + extrudeX) + 8;
+    const top = Math.min(box.y, box.y + extrudeY) - 8;
+    const bottom = Math.max(box.y + box.h, box.y + box.h + extrudeY) + 8;
+    return x >= left && x <= right && y >= top && y <= bottom;
 }
 
 export function drawElement3D(ctx, element, selected = false, renderOptions = {}) {

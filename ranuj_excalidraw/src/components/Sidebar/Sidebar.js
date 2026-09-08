@@ -1166,7 +1166,7 @@ export default function Sidebar({
                         {activeTab === "3d" && (
                             <ThreeDTab
                                 selectedElement={selectedElement}
-                                onInsert={(primitive) => onInsertGifPrimitive?.(to3DInsertRequest(primitive))}
+                                onInsert={(primitive, patch) => onInsertGifPrimitive?.(to3DInsertRequest(primitive, patch))}
                                 onPatch={updateSelectedElementStyle}
                             />
                         )}

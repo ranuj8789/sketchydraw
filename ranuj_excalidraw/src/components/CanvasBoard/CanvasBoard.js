@@ -110,6 +110,7 @@ import {
     getAnimationLabel,
     getAnimationPresetsForSelection,
 } from "../../canvas/animationRegistry";
+import { createAnimeCanvasClock } from "../3d/anime3dEngine";
 
 
 const SOCIAL_TEXT_PAGINATION_PRESETS = new Set(["post", "story", "status"]);
@@ -625,6 +626,7 @@ export default function CanvasBoard({
     const textCommitLockRef = useRef(0);
 
     const [imageRenderTick, setImageRenderTick] = useState(0);
+    const [live3DTimeMs, setLive3DTimeMs] = useState(0);
 
     const [contextMenu, setContextMenu] = useState({
         visible: false,
@@ -921,6 +923,25 @@ export default function CanvasBoard({
         });
     }, [elements, editor?.id, editor?.mode]);
 
+    const hasLive3DMotion = useMemo(
+        () => (renderElements || []).some(
+            (element) => element?.type === "webgl3d" && element.motion3d && element.motion3d !== "none"
+        ),
+        [renderElements]
+    );
+
+    useEffect(() => {
+        if (!hasLive3DMotion || renderOptions?.animationMode) return undefined;
+        const clock = createAnimeCanvasClock(setLive3DTimeMs);
+        return () => clock.cancel();
+    }, [hasLive3DMotion, renderOptions?.animationMode]);
+
+    const effectiveRenderOptions = useMemo(() => (
+        renderOptions?.animationMode
+            ? renderOptions
+            : { ...renderOptions, animationTimeMs: live3DTimeMs, live3DPreview: hasLive3DMotion }
+    ), [renderOptions, live3DTimeMs, hasLive3DMotion]);
+
     useCanvasRender({
         canvasRef,
         canvasSize,
@@ -934,7 +955,7 @@ export default function CanvasBoard({
             ...canvasProps,
             __imageRenderTick: imageRenderTick,
         },
-        renderOptions,
+        renderOptions: effectiveRenderOptions,
     });
 
     useEffect(() => {

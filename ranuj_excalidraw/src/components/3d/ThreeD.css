@@ -3,6 +3,9 @@
 .webgl-primitive-grid button:hover { border-color:#94a3b8; background:#f8fafc; }
 .webgl-primitive-grid button strong { font-size:12px; color:#0f172a; }
 .webgl-primitive-grid button span { font-size:10px; color:#64748b; }
+.webgl-palette-group { margin-top: 12px; }
+.webgl-palette-group:first-child { margin-top: 0; }
+.webgl-palette-group > label { color:#475569; font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
 .webgl-number-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; margin-top:7px; }
 .webgl-number-grid label { display:flex; flex-direction:column; gap:4px; min-width:0; font-size:10px; color:#64748b; }
 .webgl-number-grid input { width:100%; min-width:0; box-sizing:border-box; border:1px solid #dbe3ef; border-radius:8px; padding:7px 6px; font-size:12px; }
@@ -32,3 +35,35 @@
     height: 34px;
     box-sizing: border-box;
 }
+
+.three-d-motion-section {
+    border: 1px solid #c4b5fd;
+    background: linear-gradient(145deg, #faf5ff, #eef2ff);
+    border-radius: 12px;
+    padding: 10px;
+}
+
+.three-d-check-row {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center;
+    gap: 8px;
+    margin-top: 9px;
+}
+
+.three-d-check-row input { width: auto; }
+
+.three-d-code-card textarea {
+    width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 10px;
+    background: #0f172a;
+    color: #e2e8f0;
+    font: 12px/1.5 "Courier New", monospace;
+}
+
+.three-d-code-presets { display:flex; gap:6px; margin:8px 0; flex-wrap:wrap; }
+.three-d-code-presets button { border:1px solid #dbe3ef; border-radius:8px; background:#fff; padding:6px 9px; cursor:pointer; }
