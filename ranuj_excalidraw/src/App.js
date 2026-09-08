@@ -1870,6 +1870,29 @@ function SketchyDrawPage() {
     // });
   };
 
+  useEffect(() => {
+    const handleHistoryShortcut = (event) => {
+      const target = event.target;
+      const isTyping =
+          target instanceof HTMLInputElement ||
+          target instanceof HTMLTextAreaElement ||
+          target?.isContentEditable;
+
+      if (isTyping || !(event.ctrlKey || event.metaKey)) return;
+      if (event.key.toLowerCase() !== "z") return;
+
+      event.preventDefault();
+      if (event.shiftKey) {
+        redo();
+      } else {
+        undo();
+      }
+    };
+
+    window.addEventListener("keydown", handleHistoryShortcut);
+    return () => window.removeEventListener("keydown", handleHistoryShortcut);
+  });
+
   const createNewDrawing = () => {
     showSketchyAlert({
       type: "confirm",

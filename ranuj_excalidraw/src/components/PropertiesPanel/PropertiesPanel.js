@@ -340,13 +340,28 @@ export default function PropertiesPanel({
 
     const supportedAnimationOptions = getAnimationPresetsForElement(
         selectedElement
-    ).map((preset) => ({
-        label: preset.label,
-        value: preset.type,
-        durationMs: preset.durationMs,
-        loop: !!preset.loop,
-        description: preset.description || "",
-    }));
+    )
+        .map((preset) => ({
+            label: preset.label,
+            value: preset.type,
+            durationMs: preset.durationMs,
+            loop: !!preset.loop,
+            description: preset.description || "",
+        }))
+        .sort((left, right) => {
+            if (selectedElement?.type !== "text") return 0;
+
+            // Keep the two text-specific effects at the top of the toolbar
+            // animation panel instead of hiding them below generic effects.
+            const textPriority = {
+                none: 0,
+                typewriter: 1,
+                countUp: 2,
+            };
+            const leftPriority = textPriority[left.value] ?? 10;
+            const rightPriority = textPriority[right.value] ?? 10;
+            return leftPriority - rightPriority;
+        });
 
     const animationGroups = {
         entrance: supportedAnimationOptions.filter((item) =>

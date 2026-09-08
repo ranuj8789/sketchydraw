@@ -15,6 +15,7 @@ import {
     UserRound,
     PanelLeftOpen,
     PanelLeftClose,
+    Zap,
 } from "lucide-react";
 import PropertiesPanel from "../PropertiesPanel/PropertiesPanel";
 import { getAnimationLabel } from "../../canvas/animationRegistry";
@@ -935,7 +936,7 @@ export default function Sidebar({
     useEffect(() => {
         const handleToolbarSidebarRequest = (event) => {
             const section = event?.detail?.section;
-            if (!["draw", "properties", "3d", "gif"].includes(section)) return;
+            if (!["draw", "properties", "animation", "3d", "gif"].includes(section)) return;
             setActiveTab(section);
             setSidebarCollapsed(false);
         };
@@ -951,7 +952,9 @@ export default function Sidebar({
             return;
         }
         // Normal 2D objects continue to reveal regular properties.
-        setActiveTab("properties");
+        setActiveTab((currentTab) =>
+            currentTab === "animation" ? "animation" : "properties"
+        );
     }, [selectedElement?.id]);
 
     const chooseTab = (tab, feature) => {
@@ -987,6 +990,20 @@ export default function Sidebar({
                     </button>
 
                     <div className="floating-sidebar-quick-tools" aria-label="Drawing tools">
+                        <button
+                            type="button"
+                            className={activeTab === "animation" ? "active" : ""}
+                            onPointerDown={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                setActiveTab("animation");
+                                setSidebarCollapsed(false);
+                            }}
+                            title="Selected object animation"
+                            aria-label="Selected object animation"
+                        >
+                            <Zap size={17} />
+                        </button>
                         {TOOLS.map((item) => {
                             const Icon = item.icon;
                             return (
@@ -994,7 +1011,8 @@ export default function Sidebar({
                                     key={item.id}
                                     type="button"
                                     className={tool === item.id ? "active" : ""}
-                                    onClick={(event) => {
+                                    onPointerDown={(event) => {
+                                        event.preventDefault();
                                         event.stopPropagation();
                                         chooseTool(item);
                                     }}
@@ -1047,6 +1065,15 @@ export default function Sidebar({
                             title="Canvas or selected object properties"
                         >
                             Properties
+                        </button>
+
+                        <button
+                            type="button"
+                            className={activeTab === "animation" ? "active" : ""}
+                            onClick={() => setActiveTab("animation")}
+                            title="Animate the selected object, including text"
+                        >
+                            Animation
                         </button>
 
                         <button
@@ -1111,6 +1138,26 @@ export default function Sidebar({
                                 playbackSpeed={playbackSpeed}
                                 onPlaybackSpeedChange={onPlaybackSpeedChange}
                                 forcedMode="properties"
+                                hideModeTabs
+                            />
+                        )}
+
+                        {activeTab === "animation" && (
+                            <PropertiesPanel
+                                selectedElement={selectedElement}
+                                colors={colors}
+                                updateSelectedElementStyle={updateSelectedElementStyle}
+                                deleteSelected={deleteSelected}
+                                toggleSelectedLineCurve={toggleSelectedLineCurve}
+                                canvasProps={canvasProps}
+                                updateCanvasProps={updateCanvasProps}
+                                frames={frames}
+                                currentFrameIndex={currentFrameIndex}
+                                onUpdateFrameAudio={onUpdateFrameAudio}
+                                onRemoveFrameAudio={onRemoveFrameAudio}
+                                playbackSpeed={playbackSpeed}
+                                onPlaybackSpeedChange={onPlaybackSpeedChange}
+                                forcedMode="animation"
                                 hideModeTabs
                             />
                         )}

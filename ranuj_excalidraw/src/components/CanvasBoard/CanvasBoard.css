@@ -20,6 +20,24 @@
     width: 100%;
     height: 100%;
 }
+
+.animation-dependency-picker-hint {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    z-index: 40;
+    transform: translateX(-50%);
+    padding: 10px 16px;
+    border: 1px solid rgba(124, 58, 237, 0.28);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 10px 30px rgba(17, 24, 39, 0.15);
+    color: #4c1d95;
+    font-size: 13px;
+    font-weight: 700;
+    pointer-events: none;
+    white-space: nowrap;
+}
 /* Small page switch animation for notebook single-page mode. */
 .canvas-stage.notebook-slide-next .board-canvas {
     animation: notebookSlideNext 240ms ease both;

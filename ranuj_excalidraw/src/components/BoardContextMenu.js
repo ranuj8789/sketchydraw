@@ -19,6 +19,12 @@ export default function BoardContextMenu({
                                              onCopySelectedSVG,
 
                                              hasSelection = false,
+                                             object = null,
+                                             animationPresets = [],
+                                             onSetAnimation,
+                                             onAnimateAfter,
+                                             onToggleAnimationLoop,
+                                             onRemoveAnimation,
                                          }) {
     if (!visible) return null;
 
@@ -41,6 +47,52 @@ export default function BoardContextMenu({
                     left: x,
                 }}
             >
+                {object && (
+                    <>
+                        <div style={sectionTitleStyle}>Object animation</div>
+
+                        <div style={effectGridStyle}>
+                            {animationPresets.map((preset) => (
+                                <button
+                                    type="button"
+                                    key={preset.type}
+                                    title={preset.description}
+                                    onClick={() => runAndClose(() => onSetAnimation?.(preset.type))}
+                                    style={{
+                                        ...effectButtonStyle,
+                                        ...(object?.animation?.type === preset.type ? activeEffectButtonStyle : {}),
+                                    }}
+                                >
+                                    {preset.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        <MenuButton
+                            disabled={!object?.animation?.type || object.animation.type === "none"}
+                            onClick={() => runAndClose(onAnimateAfter)}
+                        >
+                            Animate after…
+                        </MenuButton>
+
+                        <MenuButton
+                            disabled={!object?.animation?.type || object.animation.type === "none"}
+                            onClick={() => runAndClose(onToggleAnimationLoop)}
+                        >
+                            {object?.animation?.loop ? "✓ Loop animation" : "Loop animation"}
+                        </MenuButton>
+
+                        <MenuButton
+                            disabled={!object?.animation?.type || object.animation.type === "none"}
+                            onClick={() => runAndClose(onRemoveAnimation)}
+                        >
+                            Remove animation
+                        </MenuButton>
+
+                        <div style={dividerStyle} />
+                    </>
+                )}
+
                 <MenuButton onClick={() => runAndClose(onExportPDF)}>
                     Export to PDF
                 </MenuButton>
@@ -130,6 +182,32 @@ const menuStyle = {
     borderRadius: 12,
     boxShadow: "0 8px 30px rgba(0,0,0,0.15)",
     padding: 8,
+    maxHeight: "min(680px, calc(100vh - 24px))",
+    overflowY: "auto",
+};
+
+const effectGridStyle = {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 6,
+    padding: "4px 8px 8px",
+};
+
+const effectButtonStyle = {
+    border: "1px solid #e5e7eb",
+    background: "#fff",
+    color: "#111827",
+    borderRadius: 8,
+    padding: "8px 9px",
+    textAlign: "left",
+    fontSize: 12,
+    cursor: "pointer",
+};
+
+const activeEffectButtonStyle = {
+    borderColor: "#8b5cf6",
+    background: "#f5f3ff",
+    color: "#6d28d9",
 };
 
 const menuButtonStyle = {

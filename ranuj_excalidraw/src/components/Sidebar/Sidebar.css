@@ -3100,10 +3100,16 @@
 }
 
 .left-toolbar-tabs.sidebar-primary-tabs {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .left-toolbar-tabs.sidebar-primary-tabs button:nth-child(3).active {
+    border-color: #7c3aed;
+    background: linear-gradient(135deg, #7c3aed, #4f46e5);
+    color: #ffffff;
+}
+
+.left-toolbar-tabs.sidebar-primary-tabs button:nth-child(4).active {
     border-color: #0f766e;
     background: linear-gradient(135deg, #0f766e, #0d9488);
     color: #ffffff;

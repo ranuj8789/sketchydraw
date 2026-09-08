@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import "./Toolbar.css";
 import { SOCIAL_MEDIA_PRESETS } from "../../utils/socialMediaPresets";
 import { requestProUpgrade } from "../../utils/proFeatureGate";
-import { Pencil, Square, Circle, Slash, MousePointer2, Eraser, Type, MoveRight, Diamond, Hand, Image as ImageIcon, UserRound, MoreHorizontal, Film } from "lucide-react";
+import { Pencil, Square, Circle, Slash, MousePointer2, Eraser, Type, MoveRight, Diamond, Hand, Image as ImageIcon, UserRound, MoreHorizontal, Film, Zap } from "lucide-react";
 
 import {
     getUser,
@@ -1642,6 +1642,16 @@ export default function Toolbar({
                             })}
 
                             <span className="toolbar-strip-divider" aria-hidden="true" />
+
+                            <button
+                                type="button"
+                                className="toolbar-more-tools"
+                                onClick={() => openSidebarSection("animation")}
+                                title="Animate selected object or text"
+                                aria-label="Animation"
+                            >
+                                <Zap size={17} strokeWidth={1.9} />
+                            </button>
 
                             <button type="button" className="toolbar-more-tools" onClick={() => openSidebarSection("draw")} title="Open all tools">
                                 <MoreHorizontal size={18} />

@@ -101,8 +101,12 @@ export function createTextElementHelper({
             ...fitTextGeometry({
                 text: finalText,
                 style,
-                x: parentBounds.x,
-                y: parentBounds.y,
+                // Preserve the point where the user clicked. `fitTextGeometry`
+                // only clamps it when the text would extend beyond the parent.
+                // Using parentBounds.x/y here made every new child text jump to
+                // the rectangle corner as soon as it was committed.
+                x,
+                y,
                 parentBounds,
             }),
         };

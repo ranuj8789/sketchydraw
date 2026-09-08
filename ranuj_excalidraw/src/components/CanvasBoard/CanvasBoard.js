@@ -258,6 +258,26 @@ function isBoundsInside(inner, outer, padding = 1) {
     );
 }
 
+function detachMovedTextOutsideParents(elements, movingIds) {
+    const movedSet = movingIds instanceof Set ? movingIds : new Set(movingIds || []);
+    if (movedSet.size === 0) return elements;
+
+    const elementsById = new Map((elements || []).map((element) => [element.id, element]));
+
+    return (elements || []).map((element) => {
+        if (element.type !== "text" || !element.parentId || !movedSet.has(element.id)) {
+            return element;
+        }
+
+        const parentBounds = getElementBounds(elementsById.get(element.parentId));
+        const textBounds = getElementBounds(element);
+
+        return isBoundsInside(textBounds, parentBounds, 0)
+            ? element
+            : { ...element, parentId: null };
+    });
+}
+
 function scaleNumber(value, fromStart, toStart, scale) {
     return toStart + (value - fromStart) * scale;
 }
@@ -610,6 +630,7 @@ export default function CanvasBoard({
         visible: false,
         x: 0,
         y: 0,
+        objectId: null,
     });
 
     const [dragState, setDragState] = useState(null);
@@ -621,6 +642,7 @@ export default function CanvasBoard({
     const [isSpacePressed, setIsSpacePressed] = useState(false);
     const [myDrawingsOpen, setMyDrawingsOpen] = useState(false);
     const [animationMenuOpen, setAnimationMenuOpen] = useState(false);
+    const [animationDependencyPicker, setAnimationDependencyPicker] = useState(null);
 
     const socialGuide = useMemo(() => {
         const preset = getSocialMediaPreset(socialCreatorPreset);
@@ -1218,6 +1240,7 @@ export default function CanvasBoard({
             visible: false,
             x: 0,
             y: 0,
+            objectId: null,
         });
     };
 
@@ -1237,6 +1260,7 @@ export default function CanvasBoard({
 
             if (e.key === "Escape") {
                 closeContextMenu();
+                setAnimationDependencyPicker(null);
             }
         };
 
@@ -1446,10 +1470,17 @@ export default function CanvasBoard({
         lastPastePointRef.current = worldPoint;
         contextMenuPastePointRef.current = worldPoint;
 
+        const target = findTopElementAtPoint(elementsRef.current || [], worldPoint);
+        if (target && !(selectedIdsRef.current || []).includes(target.id)) {
+            selectedIdsRef.current = [target.id];
+            setSelectedIds([target.id]);
+        }
+
         setContextMenu({
             visible: true,
             x: e.clientX,
             y: e.clientY,
+            objectId: target?.id || null,
         });
     };
 
@@ -1569,6 +1600,12 @@ export default function CanvasBoard({
         selectedAnimationElements.length === 1
             ? selectedAnimationElements[0]?.animation?.type || "none"
             : "multiple";
+    const contextMenuObject = elements.find(
+        (element) => element.id === contextMenu.objectId
+    ) || null;
+    const contextAnimationPresets = contextMenuObject
+        ? getAnimationPresetsForSelection([contextMenuObject])
+        : [];
 
     const applyAnimationToSelected = (animationType) => {
         if (!selectedIds.length) return;
@@ -1594,6 +1631,84 @@ export default function CanvasBoard({
         if (animation.type !== "none") {
             onStartAnimationPreview?.();
         }
+    };
+
+    const updateContextObjectAnimation = (updater) => {
+        const objectId = contextMenu.objectId;
+        if (!objectId) return;
+
+        const next = (elementsRef.current || []).map((element) => {
+            if (element.id !== objectId) return element;
+            const currentAnimation = element.animation || createAnimationConfig("none");
+            return {
+                ...element,
+                animation: typeof updater === "function" ? updater(currentAnimation) : updater,
+            };
+        });
+
+        elementsRef.current = next;
+        setElements(next);
+        commitHistory(next);
+        onUpdateTimelineFrame?.(next);
+    };
+
+    const setContextObjectAnimation = (animationType) => {
+        const previous = (elementsRef.current || []).find(
+            (element) => element.id === contextMenu.objectId
+        )?.animation;
+        updateContextObjectAnimation(createAnimationConfig(animationType, {
+            dependsOnId: previous?.dependsOnId || "",
+            dependencyMode: previous?.dependencyMode || "absolute",
+            dependencyOffsetMs: Number(previous?.dependencyOffsetMs) || 0,
+        }));
+        if (animationType !== "none") onStartAnimationPreview?.();
+    };
+
+    const startContextAnimationDependencyPicker = () => {
+        if (!contextMenu.objectId) return;
+        setAnimationDependencyPicker({ sourceId: contextMenu.objectId });
+    };
+
+    const pickAnimationDependency = (point) => {
+        const sourceId = animationDependencyPicker?.sourceId;
+        if (!sourceId) return false;
+
+        const target = findTopElementAtPoint(elementsRef.current || [], point);
+        if (!target || target.id === sourceId) return true;
+
+        const createsCycle = (() => {
+            const byId = new Map((elementsRef.current || []).map((element) => [element.id, element]));
+            let cursor = target;
+            const visited = new Set();
+            while (cursor?.id && !visited.has(cursor.id)) {
+                if (cursor.id === sourceId) return true;
+                visited.add(cursor.id);
+                cursor = byId.get(cursor.animation?.dependsOnId);
+            }
+            return false;
+        })();
+        if (createsCycle) return true;
+
+        const next = (elementsRef.current || []).map((element) =>
+            element.id === sourceId
+                ? {
+                    ...element,
+                    animation: {
+                        ...(element.animation || createAnimationConfig("fadeIn")),
+                        dependsOnId: target.id,
+                        dependencyMode: "afterEnd",
+                        dependencyOffsetMs: 0,
+                    },
+                }
+                : element
+        );
+        elementsRef.current = next;
+        setElements(next);
+        commitHistory(next);
+        onUpdateTimelineFrame?.(next);
+        setSelectedIds([sourceId]);
+        setAnimationDependencyPicker(null);
+        return true;
     };
 
     const getSelectedScreenCrop = () => {
@@ -2383,6 +2498,12 @@ export default function CanvasBoard({
         if (event.button !== 0) return;
         if (event.detail === 2) return;
 
+        if (animationDependencyPicker) {
+            event.preventDefault();
+            pickAnimationDependency(point);
+            return;
+        }
+
         if (tool === "eraser") {
             const target = findTopElementAtPoint(elements, point);
             if (!target) return;
@@ -2859,6 +2980,11 @@ export default function CanvasBoard({
             );
 
             preview = reverseBindingResult.elements;
+
+            // A text element is clipped while it belongs to a rectangle.
+            // Detach it as soon as the user drags it beyond that rectangle so
+            // it stays visible and becomes an independent canvas object.
+            preview = detachMovedTextOutsideParents(preview, movingIds);
 
             dragPreviewElementsRef.current = preview;
             elementsRef.current = preview;
@@ -3421,7 +3547,13 @@ export default function CanvasBoard({
                     />
                 )}
 
-                {tool === "select" &&
+                {animationDependencyPicker && (
+                    <div className="animation-dependency-picker-hint">
+                        Click the object that should animate first · Esc to cancel
+                    </div>
+                )}
+
+                {false && tool === "select" &&
                     !editor &&
                     !dragState &&
                     selectedAnimationElements.length > 0 && (
@@ -3523,6 +3655,19 @@ export default function CanvasBoard({
                     onCopySelectedJPEG={handleCopySelectedJPEG}
                     onCopySelectedSVG={handleCopySelectedSVG}
                     hasSelection={selectedIds.length > 0}
+                    object={contextMenuObject}
+                    animationPresets={contextAnimationPresets}
+                    onSetAnimation={setContextObjectAnimation}
+                    onAnimateAfter={startContextAnimationDependencyPicker}
+                    onToggleAnimationLoop={() =>
+                        updateContextObjectAnimation((animation) => ({
+                            ...animation,
+                            loop: !animation.loop,
+                        }))
+                    }
+                    onRemoveAnimation={() =>
+                        updateContextObjectAnimation(createAnimationConfig("none"))
+                    }
                 />
             </div>
 
