@@ -9,6 +9,7 @@ import {
     getAnimationExportTransform,
     resolveAnimationExportSize,
 } from "../../canvas/animationExportSettings";
+import { resolveFrameCameraViewport } from "../../canvas/frameCameraTransition";
 import "./FramePlayerScreen.css";
 
 export default function FramePlayerScreen({
@@ -20,6 +21,7 @@ export default function FramePlayerScreen({
                                               mode = "current",
                                               advanceMode = "enter",
                                               canvasSize,
+                                              canvasViewport,
                                               canvasProps,
                                               renderOptions = {},
                                               playing,
@@ -152,6 +154,19 @@ export default function FramePlayerScreen({
             pan: exportCameraPan,
             padding: 56 * scale,
         });
+        const fallbackViewport = {
+            zoom: previewTransform.scale,
+            offsetX: previewTransform.offsetX,
+            offsetY: previewTransform.offsetY,
+        };
+        const cameraViewport = resolveFrameCameraViewport({
+            frame,
+            previousFrame: frameIndex > 0 ? exportFrames[frameIndex - 1] : null,
+            timeMs,
+            sourceSize: canvasSize,
+            outputSize: { width: viewWidth, height: viewHeight },
+            fallbackViewport,
+        });
 
         canvas.width = viewWidth;
         canvas.height = viewHeight;
@@ -171,11 +186,7 @@ export default function FramePlayerScreen({
             selectedIds: [],
             connectionHint: null,
             alignmentGuides: [],
-            viewport: {
-                zoom: previewTransform.scale,
-                offsetX: previewTransform.offsetX,
-                offsetY: previewTransform.offsetY,
-            },
+            viewport: cameraViewport,
             showGrid: false,
             canvasProps,
             renderOptions: {
@@ -188,6 +199,7 @@ export default function FramePlayerScreen({
         frame,
         frameIndex,
         canvasSize,
+        canvasViewport,
         canvasProps,
         renderOptions,
         screenSize,

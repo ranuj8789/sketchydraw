@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sketchydraw.local/schema/camera-track.json",
+  "title": "SketchyDraw frame camera track",
+  "type": "object",
+  "required": ["camera", "cameraKeyframes"],
+  "properties": {
+    "camera": { "$ref": "#/$defs/camera" },
+    "cameraKeyframes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/keyframe" }
+    },
+    "cameraTemplate": { "enum": ["slow-pan", "wide-detail-wide", "quick-zoom", "reveal-left-right", "follow-packet", "zoom-out", null] },
+    "cameraFollowElementId": { "type": ["string", "null"] },
+    "cameraFollowDeadZone": { "type": "number", "minimum": 0, "default": 48 }
+  },
+  "$defs": {
+    "camera": {
+      "type": "object",
+      "required": ["zoom", "offsetX", "offsetY"],
+      "properties": {
+        "zoom": { "type": "number", "exclusiveMinimum": 0 },
+        "offsetX": { "type": "number" },
+        "offsetY": { "type": "number" }
+      },
+      "additionalProperties": true
+    },
+    "keyframe": {
+      "allOf": [
+        { "$ref": "#/$defs/camera" },
+        {
+          "type": "object",
+          "required": ["timeMs"],
+          "properties": {
+            "timeMs": { "type": "number", "minimum": 0 },
+            "holdMs": { "type": "number", "minimum": 0, "default": 0 },
+            "easing": { "enum": ["smooth", "cinematic", "fast", "spring", "linear"] },
+            "label": { "type": "string" }
+          }
+        }
+      ]
+    }
+  },
+  "additionalProperties": true
+}

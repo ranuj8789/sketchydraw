@@ -62,6 +62,10 @@ export function create3DPrimitiveElement({
         motionDurationMs: 2400,
         motionEasing: "inOut",
         motionDirection: "alternate",
+        dataPath3d: (aiPrimitive || primitive3d === "graph3d" || primitive3d === "linkedlist3d" || primitive3d === "queue3d")
+            ? [{ x: -80, y: 0, z: 10 }, { x: 0, y: -45, z: 70 }, { x: 80, y: 0, z: 10 }]
+            : undefined,
+        pathDurationMs: 2200,
         perspective: 720,
         cameraPitch: 12,
         cameraYaw: 0,

@@ -16,6 +16,8 @@ import {
     normalizeAnimationExportZoomPercent,
     resolveAnimationExportSize,
 } from "../canvas/animationExportSettings";
+import { resolveFrameCameraViewport } from "../canvas/frameCameraTransition";
+import { compositeThreeDFrame, isWebGLAvailable } from "../components/3d/ThreeDWebGLLayer";
 
 const GIF_JS_URLS = [
     "https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js",
@@ -171,8 +173,11 @@ function renderGifFrame({
             resolvedAnimationTimings,
             loopAnimation: false,
             pixelRatio: 1,
+            webglOverlayActive: isWebGLAvailable(),
         },
     });
+
+    if (isWebGLAvailable()) compositeThreeDFrame(canvas, elements, viewport, animationTimeMs);
 
     const ctx = canvas.getContext("2d");
     drawExportBranding(ctx, canvas);
@@ -255,19 +260,28 @@ export async function exportTimelineGif({
         workerScript,
     });
 
-    exportFrames.forEach((frame) => {
+    exportFrames.forEach((frame, frameIndex) => {
         const sourceDurationMs = getFrameAnimationDurationMs(frame);
         const durationMs = getTimelinePlaybackDurationMs(sourceDurationMs, safePlaybackSpeed);
         const hasAnimatedObjects = (frame?.elements || []).some(
             (element) => element?.animation?.type && element.animation.type !== "none"
         );
+        const hasCameraTransition = (frame?.cameraKeyframes || []).length > 1 || (frameIndex > 0 && frame?.camera && ["camera", "zoom"].includes(frame?.transition));
+        const viewportAt = (sourceTimeMs) => resolveFrameCameraViewport({
+            frame,
+            previousFrame: frameIndex > 0 ? exportFrames[frameIndex - 1] : null,
+            timeMs: sourceTimeMs,
+            sourceSize: canvasSize,
+            outputSize: sizing.canvasSize,
+            fallbackViewport: sizing.viewport,
+        });
 
-        if (!hasAnimatedObjects) {
+        if (!hasAnimatedObjects && !hasCameraTransition) {
             renderGifFrame({
                 canvas,
                 frame,
                 canvasSize: sizing.canvasSize,
-                viewport: sizing.viewport,
+                viewport: viewportAt(sourceDurationMs),
                 canvasProps,
                 animationTimeMs: sourceDurationMs,
             });
@@ -288,7 +302,7 @@ export async function exportTimelineGif({
                 canvas,
                 frame,
                 canvasSize: sizing.canvasSize,
-                viewport: sizing.viewport,
+                viewport: viewportAt(renderTimeMs),
                 canvasProps,
                 animationTimeMs: renderTimeMs,
             });

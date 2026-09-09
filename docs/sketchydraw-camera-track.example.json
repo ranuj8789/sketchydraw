@@ -1,0 +1,16 @@
+{
+  "id": "frame-system-overview",
+  "name": "Wide to API details to big picture",
+  "durationMs": 6500,
+  "camera": { "zoom": 1, "offsetX": 0, "offsetY": 0 },
+  "cameraTemplate": "wide-detail-wide",
+  "cameraKeyframes": [
+    { "label": "Wide view", "timeMs": 0, "holdMs": 500, "zoom": 1, "offsetX": 0, "offsetY": 0, "easing": "cinematic" },
+    { "label": "Focus API Gateway", "timeMs": 1800, "holdMs": 1200, "zoom": 2.15, "offsetX": -720, "offsetY": -180, "easing": "cinematic" },
+    { "label": "Move to database", "timeMs": 4300, "holdMs": 700, "zoom": 1.8, "offsetX": -1320, "offsetY": -140, "easing": "smooth" },
+    { "label": "Final big picture", "timeMs": 6500, "holdMs": 500, "zoom": 1, "offsetX": 0, "offsetY": 0, "easing": "cinematic" }
+  ],
+  "cameraFollowElementId": null,
+  "cameraFollowDeadZone": 48,
+  "elements": []
+}

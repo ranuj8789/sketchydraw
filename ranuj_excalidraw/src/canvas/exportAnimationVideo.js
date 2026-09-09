@@ -18,6 +18,8 @@ import {
     normalizeAnimationExportZoomPercent,
     resolveAnimationExportSize,
 } from "./animationExportSettings";
+import { resolveFrameCameraViewport } from "./frameCameraTransition";
+import { compositeThreeDFrame, isWebGLAvailable } from "../components/3d/ThreeDWebGLLayer";
 
 const CONFIGURED_VIDEO_EXPORT_API_BASE = (
     process.env.REACT_APP_VIDEO_EXPORT_API_BASE ||
@@ -76,6 +78,9 @@ function normalizeTimelineFrames({ timelineFrames = [], historyStates = [], curr
             durationMs: Number.isFinite(Number(frame.durationMs))
                 ? Math.max(100, Number(frame.durationMs))
                 : undefined,
+            transition: frame.transition || "none",
+            cameraTransitionMs: Math.max(100, Number(frame.cameraTransitionMs) || 1200),
+            camera: frame.camera ? { ...frame.camera } : null,
         }));
 
     if (fromTimeline.length) return fromTimeline;
@@ -145,7 +150,7 @@ function getFrameDurationMs(
     );
 }
 
-function drawFrame(canvas, frame, canvasSize, transform, canvasProps = {}, animationTimeMs = 0) {
+function drawFrame(canvas, frame, canvasSize, transform, canvasProps = {}, animationTimeMs = 0, previousFrame = null, sourceSize = canvasSize) {
     const ctx = canvas.getContext("2d", { alpha: false });
     if (!ctx) throw new Error("Could not create export canvas context.");
 
@@ -171,14 +176,24 @@ function drawFrame(canvas, frame, canvasSize, transform, canvasProps = {}, anima
         resolvedAnimationTimings,
     };
 
+    const viewport = resolveFrameCameraViewport({
+        frame,
+        previousFrame,
+        timeMs: animationTimeMs,
+        sourceSize,
+        outputSize: canvasSize,
+        fallbackViewport: { zoom: transform.scale, offsetX: transform.offsetX, offsetY: transform.offsetY },
+    });
     ctx.save();
-    ctx.translate(transform.offsetX, transform.offsetY);
-    ctx.scale(transform.scale, transform.scale);
+    ctx.translate(viewport.offsetX, viewport.offsetY);
+    ctx.scale(viewport.zoom, viewport.zoom);
     visibleElements.forEach((element) => {
+        if (element?.type === "webgl3d" && isWebGLAvailable()) return;
         if (!isElementVisibleAtTime(element, animationTimeMs, resolvedAnimationTimings.get(element.id))) return;
         drawElement(ctx, element, false, renderOptions);
     });
     ctx.restore();
+    if (isWebGLAvailable()) compositeThreeDFrame(canvas, visibleElements, viewport, animationTimeMs);
 }
 
 async function preloadImages(frames = []) {
@@ -509,6 +524,7 @@ async function recordTimelineSegment({
                                          canvasSize,
                                          transform,
                                          canvasProps,
+                                         sourceSize,
                                          preAnimationDelayMs = 0,
                                          playbackSpeed = DEFAULT_TIMELINE_PLAYBACK_SPEED,
                                          onTick,
@@ -516,7 +532,7 @@ async function recordTimelineSegment({
     const mimeType = pickWebmMimeType();
     if (!mimeType) throw new Error("Chrome could not create a WebM recording stream.");
 
-    drawFrame(canvas, frames[0], canvasSize, transform, canvasProps, 0);
+    drawFrame(canvas, frames[0], canvasSize, transform, canvasProps, 0, null, sourceSize);
     const capture = createCanvasCapture(canvas, fps);
     const { stream } = capture;
     capture.requestFrame();
@@ -552,7 +568,9 @@ async function recordTimelineSegment({
                         elapsed,
                         preAnimationDelayMs,
                         playbackSpeed
-                    )
+                    ),
+                    index > 0 ? frames[index - 1] : null,
+                    sourceSize
                 );
             },
             onTick: (elapsed) => onTick?.({
@@ -675,6 +693,7 @@ async function exportServerVideo({
             canvasSize: safeCanvasSize,
             transform,
             canvasProps,
+            sourceSize: canvasSize,
             preAnimationDelayMs,
             playbackSpeed: recordingPlaybackSpeed,
             onTick: ({ completedDuration, elapsed, totalDuration }) => {
@@ -766,7 +785,7 @@ async function exportBrowserVideo({
         progress: 0,
     });
 
-    drawFrame(canvas, frames[0], safeCanvasSize, transform, canvasProps, 0);
+    drawFrame(canvas, frames[0], safeCanvasSize, transform, canvasProps, 0, null, canvasSize);
     const capture = createCanvasCapture(canvas, fps);
     const { stream } = capture;
     capture.requestFrame();
@@ -797,7 +816,9 @@ async function exportBrowserVideo({
                         elapsed,
                         preAnimationDelayMs,
                         safePlaybackSpeed
-                    )
+                    ),
+                    index > 0 ? frames[index - 1] : null,
+                    canvasSize
                 );
             },
             onTick: (elapsed) => {

@@ -721,9 +721,28 @@ export default function FramesPanel({
                             </div>
                             <label><input type="number" min="0.5" step="0.1" value={((Number(frame.durationMs) || 1300) / 1000).toFixed(1)} onClick={(event) => event.stopPropagation()} onChange={(event) => onUpdateFrame?.(index, { durationMs: Math.round(Number(event.target.value) * 1000) })}/><span>s</span></label>
                             <label><input type="number" min="0" step="0.1" value={((Number(frame.gapAfterMs) || 0) / 1000).toFixed(1)} onClick={(event) => event.stopPropagation()} onChange={(event) => onUpdateFrame?.(index, { gapAfterMs: Math.round(Number(event.target.value) * 1000) })}/><span>s</span></label>
-                            <select value={frame.transition || "none"} onClick={(event) => event.stopPropagation()} onChange={(event) => onUpdateFrame?.(index, { transition: event.target.value })}>
-                                <option value="none">None</option><option value="fade">Fade</option><option value="slide">Slide</option>
-                            </select>
+                            <div className="frame-camera-transition-cell" onClick={(event) => event.stopPropagation()}>
+                                <select value={frame.transition || "none"} onChange={(event) => onUpdateFrame?.(index, { transition: event.target.value })}>
+                                    <option value="none">None</option><option value="fade">Fade</option><option value="slide">Slide</option><option value="camera">Camera pan + zoom</option>
+                                </select>
+                                {frame.transition === "camera" && <>
+                                    <label title="Camera movement duration"><input type="number" min="0.1" step="0.1" value={((Number(frame.cameraTransitionMs) || 1200) / 1000).toFixed(1)} onChange={(event) => onUpdateFrame?.(index, { cameraTransitionMs: Math.max(100, Number(event.target.value) * 1000) })}/><span>move s</span></label>
+                                    <label title="Hold before moving"><input type="number" min="0" step="0.1" value={((Number(frame.cameraHoldMs) || 0) / 1000).toFixed(1)} onChange={(event) => onUpdateFrame?.(index, { cameraHoldMs: Math.max(0, Number(event.target.value) * 1000) })}/><span>hold s</span></label>
+                                    <select value={frame.cameraEasing || "smooth"} onChange={(event) => onUpdateFrame?.(index, { cameraEasing: event.target.value })}>
+                                        <option value="smooth">Smooth</option><option value="cinematic">Cinematic</option><option value="fast">Fast focus</option><option value="spring">Spring</option><option value="linear">Linear</option>
+                                    </select>
+                                    <select value={frame.cameraFollowElementId || ""} onChange={(event) => onUpdateFrame?.(index, { cameraFollowElementId: event.target.value || null })}>
+                                        <option value="">No camera follow</option>
+                                        {(frame.elements || []).map((element, elementIndex) => <option key={element.id || elementIndex} value={element.id}>{element.name || element.label || element.text || `${element.type} ${elementIndex + 1}`}</option>)}
+                                    </select>
+                                    <button type="button" onClick={() => {
+                                        const keys = Array.isArray(frame.cameraKeyframes) ? frame.cameraKeyframes : [];
+                                        const lastTime = keys.length ? Number(keys[keys.length - 1].timeMs) || 0 : 0;
+                                        onUpdateFrame?.(index, { cameraKeyframes: [...keys, { ...canvasViewport, timeMs: lastTime + (Number(frame.cameraTransitionMs) || 1200), holdMs: Number(frame.cameraHoldMs) || 0 }] });
+                                    }}>+ Camera key</button>
+                                    <button type="button" onClick={() => window.dispatchEvent(new CustomEvent("sketchydraw:preview-camera-transition", { detail: { frameIndex: index } }))}>Preview transition</button>
+                                </>}
+                            </div>
                             <button
                                 type="button"
                                 className="frames-animation-manage-btn"
@@ -744,6 +763,12 @@ export default function FramesPanel({
                             <div className="frames-row-actions">
                                 <button type="button" disabled={index === frames.length - 1} onClick={(event) => { event.stopPropagation(); onMergeFrameWithNext?.(index); }}>Merge next</button>
                                 <button type="button" className="danger-link" disabled={frames.length <= 1} onClick={(event) => { event.stopPropagation(); onDeleteFrame?.(index); }}>Delete</button>
+                            </div>
+                            <div className="frame-unified-timeline" title="Camera, object transforms, data paths and code steps share this frame timeline">
+                                <span className="camera">Camera {(frame.cameraKeyframes || []).length}</span>
+                                <span className="object">Object {(frame.elements || []).reduce((sum, element) => sum + (element.transformKeyframes?.length || 0), 0)}</span>
+                                <span className="data">Data {(frame.elements || []).filter((element) => element.dataPath3d?.length > 1).length}</span>
+                                <span className="code">Code {(frame.elements || []).reduce((sum, element) => sum + (element.codeSteps?.length || 0), 0)}</span>
                             </div>
                         </div>
                     ))}

@@ -69,18 +69,20 @@ export function getFrameTimelineEndMs(elements = []) {
 
 export function getFramePlaybackDurationMs(frame, staticFallbackMs = 1300) {
   const elements = frame?.elements || [];
+  const cameraEndMs = (Array.isArray(frame?.cameraKeyframes) ? frame.cameraKeyframes : [])
+      .reduce((maximum, key) => Math.max(maximum, clampMs(key?.timeMs, 0) + clampMs(key?.holdMs, 0)), 0);
   const hasAnimatedElements = elements.some(
       (element) => element?.animation?.type && element.animation.type !== "none"
   );
 
   if (hasAnimatedElements) {
-    return Math.max(1, getFrameTimelineEndMs(elements));
+    return Math.max(1, getFrameTimelineEndMs(elements), cameraEndMs);
   }
 
   const authoredDurationMs = Number(frame?.durationMs);
-  return Number.isFinite(authoredDurationMs) && authoredDurationMs > 0
+  return Math.max(cameraEndMs, Number.isFinite(authoredDurationMs) && authoredDurationMs > 0
       ? authoredDurationMs
-      : staticFallbackMs;
+      : staticFallbackMs);
 }
 
 export function isElementVisibleAtTime(element, timeMs, timing) {

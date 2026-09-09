@@ -11,6 +11,7 @@ export function findElementHitsAtPoint(elements, point) {
                 element: el,
                 index: i,
                 kind: hit.kind,
+                depth: Number(el?.z) || 0,
                 area: getElementArea(el),
             });
         }
@@ -22,6 +23,7 @@ export function findElementHitsAtPoint(elements, point) {
     // several smaller objects are inside the rectangle. Fill clicks still
     // prefer the smallest inner object.
     hits.sort((a, b) => {
+        if (a.depth !== b.depth) return b.depth - a.depth;
         if (a.kind !== b.kind) return a.kind === "border" ? -1 : 1;
         if (a.area !== b.area) return a.area - b.area;
         return b.index - a.index;

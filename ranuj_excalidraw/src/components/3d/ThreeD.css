@@ -67,3 +67,38 @@
 
 .three-d-code-presets { display:flex; gap:6px; margin:8px 0; flex-wrap:wrap; }
 .three-d-code-presets button { border:1px solid #dbe3ef; border-radius:8px; background:#fff; padding:6px 9px; cursor:pointer; }
+.three-d-depth-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.three-d-depth-actions button,
+.three-d-reset-camera {
+    min-height: 30px;
+    border: 1px solid #d7dce5;
+    border-radius: 7px;
+    background: #fff;
+    color: #253047;
+    cursor: pointer;
+    font-size: 11px;
+}
+
+.three-d-orbit-help {
+    margin: 8px 0 6px;
+    color: #667085;
+    font-size: 11px;
+    line-height: 1.35;
+}
+.three-d-code-step-list {
+    max-height: 150px;
+    overflow: auto;
+    padding: 9px;
+    border-radius: 7px;
+    background: #0f172a;
+    color: #dbeafe;
+    font-size: 10px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+}

@@ -55,6 +55,7 @@ import {
   hasTextStylePatch,
 } from "./canvas/textRenderStyle";
 import { create3DPrimitiveElement, is3DInsertType } from "./components/3d";
+import { getFrameCameraAtTime, normalizeFrameCamera, smoothCameraKeyframes } from "./canvas/frameCameraTransition";
 
 const COLORS = [
   "#111827",
@@ -145,6 +146,12 @@ function createTimelineFrame(elements = [], index = 0, patch = {}) {
     durationMs: 1300,
     gapAfterMs: 0,
     transition: "none",
+    camera: null,
+    cameraTransitionMs: 1200,
+    cameraHoldMs: 0,
+    cameraKeyframes: [],
+    cameraEasing: "smooth",
+    cameraFollowElementId: null,
     ...patch,
   };
 }
@@ -321,6 +328,14 @@ function SketchyDrawPage() {
   const [gifExportProgress, setGifExportProgress] = useState(0);
   const [markdownViewer, setMarkdownViewer] = useState({ open: false, title: "Markdown Grid", content: "" });
   const [workspaceMode, setWorkspaceMode] = useState("canvas");
+  const [viewport, setViewport] = useState({
+    zoom: 1,
+    offsetX: 0,
+    offsetY: 0,
+  });
+  const [cameraRecording, setCameraRecording] = useState(false);
+  const [cameraRecordingTimeMs, setCameraRecordingTimeMs] = useState(0);
+  const cameraRecordingRef = useRef({ active: false, startedAt: 0, lastSampleAt: -Infinity });
 
   const [timelineFrames, setTimelineFrames] = useState(() => [
     createTimelineFrame([], 0),
@@ -571,6 +586,63 @@ function SketchyDrawPage() {
 
   const currentTimelineFrame = timelineFrames[currentFrameIndex] || timelineFrames[0];
 
+  const recordViewportSample = useCallback((nextViewport, force = false) => {
+    const recording = cameraRecordingRef.current;
+    if (!recording.active) return;
+    const timeMs = Math.max(0, Math.round(performance.now() - recording.startedAt));
+    if (!force && timeMs - recording.lastSampleAt < 50) return;
+    recording.lastSampleAt = timeMs;
+    const camera = normalizeFrameCamera(nextViewport);
+    setTimelineFrames((frames) => frames.map((frame, index) => {
+      if (index !== currentFrameIndex) return frame;
+      const keys = Array.isArray(frame.cameraKeyframes) ? frame.cameraKeyframes : [];
+      const previous = keys[keys.length - 1];
+      if (!force && previous && Math.abs(previous.zoom - camera.zoom) < 0.0005 && Math.abs(previous.offsetX - camera.offsetX) < 0.25 && Math.abs(previous.offsetY - camera.offsetY) < 0.25) return frame;
+      return {
+        ...frame,
+        camera,
+        durationMs: Math.max(Number(frame.durationMs) || 1000, timeMs + 250),
+        cameraKeyframes: [...keys, { ...camera, timeMs, easing: "smooth" }],
+      };
+    }));
+    setCameraRecordingTimeMs(timeMs);
+  }, [currentFrameIndex]);
+
+  const updateViewport = useCallback((value) => {
+    setViewport((previous) => {
+      const next = typeof value === "function" ? value(previous) : value;
+      const normalized = normalizeFrameCamera(next, previous);
+      recordViewportSample(normalized);
+      return normalized;
+    });
+  }, [recordViewportSample]);
+
+  const startCameraRecording = useCallback(() => {
+    const startedAt = performance.now();
+    cameraRecordingRef.current = { active: true, startedAt, lastSampleAt: 0 };
+    setTimelineFrames((frames) => frames.map((frame, index) => index === currentFrameIndex
+        ? { ...frame, camera: { ...viewport }, cameraKeyframes: [{ ...viewport, timeMs: 0, easing: "smooth" }] }
+        : frame));
+    setCameraRecordingTimeMs(0);
+    setCameraRecording(true);
+  }, [currentFrameIndex, viewport]);
+
+  const stopCameraRecording = useCallback(() => {
+    recordViewportSample(viewport, true);
+    cameraRecordingRef.current.active = false;
+    setTimelineFrames((frames) => frames.map((frame, index) => index === currentFrameIndex
+        ? { ...frame, cameraKeyframes: smoothCameraKeyframes(frame.cameraKeyframes, { minIntervalMs: 90, strength: .4 }) }
+        : frame));
+    setCameraRecording(false);
+  }, [recordViewportSample, viewport, currentFrameIndex]);
+
+  useEffect(() => () => { cameraRecordingRef.current.active = false; }, []);
+
+  const editorViewport = useMemo(() => {
+    if (!frameAnimationPlaying) return viewport;
+    return getFrameCameraAtTime(currentTimelineFrame, timelineFrames[currentFrameIndex - 1], frameAnimationTimeMs);
+  }, [viewport, frameAnimationPlaying, currentTimelineFrame, timelineFrames, currentFrameIndex, frameAnimationTimeMs]);
+
   const animationRenderOptions = useMemo(() => {
     return {
       animationMode: frameAnimationPlaying,
@@ -637,6 +709,7 @@ function SketchyDrawPage() {
       setAnimationPlayerPlaying(true);
       setCurrentFrameIndex(nextIndex);
       setElements(cloneElements(timelineFrames[nextIndex]?.elements || []));
+      if (timelineFrames[nextIndex]?.camera) setViewport({ ...timelineFrames[nextIndex].camera });
       setSelectedIds([]);
       return nextIndex;
     });
@@ -785,22 +858,22 @@ function SketchyDrawPage() {
 
       const nextFrames = safeFrames.slice(0, safeIndex + 1);
       const newIndex = nextFrames.length;
-      nextFrames.push(createTimelineFrame(snapshot, newIndex));
+      nextFrames.push(createTimelineFrame(snapshot, newIndex, { camera: { ...viewport } }));
       setCurrentFrameIndex(newIndex);
       return nextFrames;
     });
 
     setFrameAnimationPlaying(false);
     setFrameAnimationTimeMs(0);
-  }, [currentFrameIndex]);
+  }, [currentFrameIndex, viewport]);
 
   const replaceTimelineWithElements = useCallback((nextElements) => {
-    const nextFrame = createTimelineFrame(nextElements, 0);
+    const nextFrame = createTimelineFrame(nextElements, 0, { camera: { ...viewport } });
     setTimelineFrames([nextFrame]);
     setCurrentFrameIndex(0);
     setFrameAnimationPlaying(false);
     setFrameAnimationTimeMs(0);
-  }, []);
+  }, [viewport]);
 
 
   const restoreTimelineFrames = useCallback((savedFrames, requestedIndex = 0) => {
@@ -828,6 +901,7 @@ function SketchyDrawPage() {
     setTimelineFrames(nextFrames);
     setCurrentFrameIndex(safeIndex);
     setElements(cloneElements(nextFrames[safeIndex]?.elements || []));
+    if (nextFrames[safeIndex]?.camera) setViewport({ ...nextFrames[safeIndex].camera });
     setSelectedIds([]);
     setHistory([cloneElements(nextFrames[safeIndex]?.elements || [])]);
     setHistoryIndex(0);
@@ -844,6 +918,7 @@ function SketchyDrawPage() {
 
     setCurrentFrameIndex(index);
     setElements(cloneElements(frame.elements));
+    if (frame.camera) setViewport({ ...frame.camera });
     setSelectedIds([]);
     setFrameAnimationPlaying(false);
     setFrameAnimationTimeMs(0);
@@ -857,7 +932,9 @@ function SketchyDrawPage() {
       const safeIndex = Math.max(0, Math.min(currentFrameIndex, safeFrames.length - 1));
       const nextFrames = [...safeFrames];
       const insertIndex = safeIndex + 1;
-      nextFrames.splice(insertIndex, 0, createTimelineFrame(snapshot, insertIndex));
+      nextFrames.splice(insertIndex, 0, createTimelineFrame(snapshot, insertIndex, {
+        camera: { ...viewport },
+      }));
 
       const renamed = nextFrames.map((frame, index) => ({
         ...frame,
@@ -870,7 +947,7 @@ function SketchyDrawPage() {
 
     setFrameAnimationPlaying(false);
     setFrameAnimationTimeMs(0);
-  }, [currentFrameIndex, elements]);
+  }, [currentFrameIndex, elements, viewport]);
 
   const createSocialTextPages = useCallback(({
                                                pages = [],
@@ -1291,6 +1368,20 @@ function SketchyDrawPage() {
   }, [currentFrameIndex, timelineFrames]);
 
   useEffect(() => {
+    const previewCameraTransition = (event) => {
+      const index = Math.max(0, Math.min(Number(event.detail?.frameIndex) || 0, timelineFrames.length - 1));
+      setCurrentFrameIndex(index);
+      setAnimationPlayerFrameIndex(index);
+      setAnimationPlayerMode("current");
+      setAnimationPlayerTimeMs(0);
+      setAnimationPlayerOpen(true);
+      setAnimationPlayerPlaying(true);
+    };
+    window.addEventListener("sketchydraw:preview-camera-transition", previewCameraTransition);
+    return () => window.removeEventListener("sketchydraw:preview-camera-transition", previewCameraTransition);
+  }, [timelineFrames.length]);
+
+  useEffect(() => {
     const openAnimationStoryboard = () => {
       openAnimationPlayer("current");
     };
@@ -1348,11 +1439,15 @@ function SketchyDrawPage() {
     setAnimationPlayerPlaying(true);
   }, [timelineFrames]);
 
-  const [viewport, setViewport] = useState({
-    zoom: 1,
-    offsetX: 0,
-    offsetY: 0,
-  });
+  // The hand/pan position and zoom are part of the active frame. This makes a
+  // large canvas camera move reproducible in preview, GIF and video export.
+  useEffect(() => {
+    setTimelineFrames((prevFrames) => prevFrames.map((frame, index) =>
+        index === currentFrameIndex
+            ? { ...frame, camera: { zoom: viewport.zoom, offsetX: viewport.offsetX, offsetY: viewport.offsetY } }
+            : frame
+    ));
+  }, [viewport.zoom, viewport.offsetX, viewport.offsetY, currentFrameIndex]);
 
   const [currentDrawingMeta, setCurrentDrawingMeta] = useState({
     id: null,
@@ -2120,7 +2215,6 @@ function SketchyDrawPage() {
                 onAdvanceModeChange={setFrameAdvanceMode}
                 onOpenPlayer={openAnimationPlayer}
                 onAddFrameAfter={addTimelineFrameAfterCurrent}
-                onToggleFrameAnimation={toggleCurrentFrameAnimation}
                 onApplyFrameObjectOrderTiming={applyFrameObjectOrderTiming}
                 onUpdateFrameElementAnimation={updateFrameElementAnimation}
                 onPreviewTimeChange={(timeMs) => { setFrameAnimationPlaying(false); setFrameAnimationTimeMs(Math.max(0, Number(timeMs) || 0)); }}
@@ -2224,8 +2318,8 @@ function SketchyDrawPage() {
                   history={history}
                   showGrid={showGrid}
                   canvasRef={canvasRef}
-                  viewport={viewport}
-                  setViewport={setViewport}
+                  viewport={editorViewport}
+                  setViewport={updateViewport}
                   canvasSize={canvasSize}
                   setCanvasSize={setCanvasSize}
                   currentDrawingMeta={currentDrawingMeta}
@@ -2243,8 +2337,13 @@ function SketchyDrawPage() {
                   onStartAnimationPreview={startCurrentFrameAnimationPreview}
                   onCreateSocialTextPages={createSocialTextPages}
                   onSelectTimelineFrame={(index) => requirePro("Frames", () => selectTimelineFrame(index))}
+                  onUpdateFrameMeta={updateTimelineFrameMeta}
                   socialCreatorPreset={socialCreatorPreset}
                   focusMode={focusMode}
+                  cameraRecording={cameraRecording}
+                  cameraRecordingTimeMs={cameraRecordingTimeMs}
+                  onStartCameraRecording={startCameraRecording}
+                  onStopCameraRecording={stopCameraRecording}
               />}
 
               {workspaceMode === "canvas" && !focusMode && <StoryboardBar
@@ -2305,7 +2404,6 @@ function SketchyDrawPage() {
                   onDeleteFrame={deleteTimelineFrame}
                   onReorderFrames={reorderTimelineFrames}
                   onUpdateFrame={updateTimelineFrameMeta}
-                  onUpdateFrameElementAnimation={updateFrameElementAnimation}
                   onUpdateFrameAudio={updateFrameAudio}
                   onRemoveFrameAudio={removeFrameAudio}
                   onUndoFrameAction={undoLastFrameAction}

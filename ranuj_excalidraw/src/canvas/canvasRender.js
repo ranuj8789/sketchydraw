@@ -285,7 +285,16 @@ export function renderCanvas({
     const finalRenderOptions = { ...renderOptions, resolvedAnimationTimings };
     const elementsById = new Map((elements || []).map((element) => [element.id, element]));
 
-    (elements || []).forEach((element) => {
+    const depthOrderedElements = (elements || [])
+        .map((element, index) => ({ element, index }))
+        .sort((a, b) => {
+            const depthDelta = (Number(a.element?.z) || 0) - (Number(b.element?.z) || 0);
+            return depthDelta || a.index - b.index;
+        })
+        .map(({ element }) => element);
+
+    depthOrderedElements.forEach((element) => {
+        if (renderOptions?.webglOverlayActive && element?.type === "webgl3d") return;
         if (hiddenSet?.has?.(element.id)) {
             return;
         }

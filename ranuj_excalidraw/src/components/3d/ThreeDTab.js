@@ -10,6 +10,7 @@ export default function ThreeDTab({ selectedElement, onInsert, onPatch }) {
 
     const generateFromCode = () => {
         const source = String(code || "");
+        const codeSteps = source.split(/\r?\n/).map((line, index) => ({ index, line, targetIndex: index, action: "highlight" })).filter((step) => step.line.trim());
         const lower = source.toLowerCase();
         const numbers = (source.match(/-?\d+(?:\.\d+)?/g) || []).slice(0, 16).map(Number);
         let primitive = "array3d";
@@ -54,7 +55,7 @@ export default function ThreeDTab({ selectedElement, onInsert, onPatch }) {
             patch = { values: numbers.length ? numbers : [7, 2, 9, 4, 1], motion3d: "wave" };
         }
 
-        onInsert?.(primitive, { ...patch, sourceCode: source, generatedFromCode: true });
+        onInsert?.(primitive, { ...patch, sourceCode: source, codeSteps, stepDurationMs: 900, generatedFromCode: true });
     };
 
     return (

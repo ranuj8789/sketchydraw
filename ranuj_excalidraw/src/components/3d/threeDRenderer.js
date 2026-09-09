@@ -1,22 +1,68 @@
-import { getAnime3DTime } from "./anime3dEngine";
+import { resolve3DStep, resolve3DTransform, resolveDataPathPoint } from "./threeDKeyframes";
+
+// Animation timing is deliberately self-contained. The renderer receives a
+// timestamp from the canvas and applies native cubic-bezier easing without a
+// second animation runtime or clock.
+const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
+
+const CUBIC_EASINGS = {
+    linear: [0, 0, 1, 1],
+    in: [0.42, 0, 1, 1],
+    out: [0, 0, 0.58, 1],
+    inOut: [0.42, 0, 0.58, 1],
+};
+
+function cubicBezierAt(progress, x1, y1, x2, y2) {
+    const x = clamp01(progress);
+    if (x1 === y1 && x2 === y2) return x;
+    const sample = (t, a1, a2) => {
+        const inv = 1 - t;
+        return 3 * inv * inv * t * a1 + 3 * inv * t * t * a2 + t * t * t;
+    };
+    let low = 0;
+    let high = 1;
+    let t = x;
+    for (let i = 0; i < 12; i += 1) {
+        t = (low + high) / 2;
+        if (sample(t, x1, x2) < x) low = t;
+        else high = t;
+    }
+    return sample(t, y1, y2);
+}
+
+function getMotionTime(element, timeMs) {
+    const durationMs = Math.max(100, Number(element?.motionDurationMs) || 2400);
+    const elapsed = Math.max(0, Number(timeMs) || 0) * Math.max(0.05, Number(element?.motionSpeed) || 1);
+    const iteration = Math.floor(elapsed / durationMs);
+    let progress = (elapsed % durationMs) / durationMs;
+    const direction = element?.motionDirection || "alternate";
+    if (direction === "reverse" || (direction === "alternate" && iteration % 2 === 1)) {
+        progress = 1 - progress;
+    }
+    const curve = CUBIC_EASINGS[element?.motionEasing] || CUBIC_EASINGS.inOut;
+    const eased = cubicBezierAt(progress, ...curve);
+    return { durationMs, iteration, progress, eased, phase: eased * Math.PI * 2 };
+}
 
 export function draw3DPrimitive(ctx, element, renderOptions = {}) {
-    let x = Number(element.x || 0);
-    let y = Number(element.y || 0);
+    const timeMs = Math.max(0, Number(renderOptions.animationTimeMs) || 0);
+    const keyedTransform = resolve3DTransform(element, timeMs);
+    const codeStep = resolve3DStep(element, timeMs);
+    let x = keyedTransform.x;
+    let y = keyedTransform.y;
     const w = Math.max(20, Math.abs(Number(element.w || 180)));
     const h = Math.max(20, Math.abs(Number(element.h || 180)));
     const d = Math.max(8, Number(element.depth || 70));
-    let scale = Math.max(0.1, Number(element.scale3d || 1));
-    const timeMs = Math.max(0, Number(renderOptions.animationTimeMs) || 0);
+    let scale = Math.max(0.1, keyedTransform.scale3d);
     const motion = element.motion3d || "none";
-    const animeTime = getAnime3DTime(element, timeMs);
-    const phase = animeTime.phase;
-    let rotationX = Number(element.rotationX ?? -18) + Number(element.cameraPitch || 0);
-    let rotationY = Number(element.rotationY ?? 28) + Number(element.cameraYaw || 0);
-    const rotationZ = Number(element.rotationZ || 0);
-    if (motion === "rotateY") rotationY += animeTime.eased * 360;
+    const motionTime = getMotionTime(element, timeMs);
+    const phase = motionTime.phase;
+    let rotationX = keyedTransform.rotationX + Number(element.cameraPitch || 0);
+    let rotationY = keyedTransform.rotationY + Number(element.cameraYaw || 0);
+    const rotationZ = keyedTransform.rotationZ;
+    if (motion === "rotateY") rotationY += motionTime.eased * 360;
     if (motion === "rotateXYZ") {
-        rotationY += animeTime.eased * 360;
+        rotationY += motionTime.eased * 360;
         rotationX += Math.sin(phase) * 24;
     }
     if (motion === "float") y += Math.sin(phase * 1.6) * Math.min(18, h * 0.08);
@@ -26,7 +72,7 @@ export function draw3DPrimitive(ctx, element, renderOptions = {}) {
     const dx = Math.cos((rotationY * Math.PI) / 180) * d * 0.55 * scale * depthFactor;
     const dy = Math.sin((rotationX * Math.PI) / 180) * d * 0.55 * scale - d * 0.35 * scale;
     const stroke = element.stroke || "#0f172a";
-    const fill = element.fill && element.fill !== "transparent" ? element.fill : "#e2e8f0";
+    const fill = keyedTransform.materialColor || (element.fill && element.fill !== "transparent" ? element.fill : "#e2e8f0");
     const primitive = element.primitive3d || "box";
 
     const alphaColor = (hex, alpha) => {
@@ -94,6 +140,7 @@ export function draw3DPrimitive(ctx, element, renderOptions = {}) {
     };
 
     ctx.save();
+    ctx.globalAlpha *= keyedTransform.opacity;
     ctx.lineWidth = Math.max(1.5, Number(element.strokeWidth || 2));
     ctx.lineJoin = "round";
 
@@ -422,5 +469,8 @@ export function draw3DPrimitive(ctx, element, renderOptions = {}) {
         box(x, y, w, h, 1);
     }
 
+    const dataPoint = resolveDataPathPoint(element, timeMs);
+    if (dataPoint) node(x + w / 2 + dataPoint.x, y + h / 2 + dataPoint.y, 6, "#38bdf8", 14);
+    if (codeStep.index >= 0 && element.showCodeStepLabel !== false) label(`Step ${codeStep.index + 1}`, x + w / 2, y + 12, 11);
     ctx.restore();
 }

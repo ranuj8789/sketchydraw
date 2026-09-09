@@ -634,3 +634,36 @@
         margin: 12px 16px;
     }
 }
+.frame-camera-transition-cell {
+    display: grid;
+    gap: 5px;
+}
+
+.frame-camera-transition-cell label {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 4px;
+    font-size: 10px;
+}
+
+.frame-camera-transition-cell button {
+    min-height: 27px;
+    border: 1px solid #bfdbfe;
+    border-radius: 6px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    cursor: pointer;
+}
+
+.frame-unified-timeline {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 3px;
+    padding-top: 5px;
+}
+.frame-unified-timeline span { min-height: 6px; border-radius: 99px; padding: 3px 6px; font-size: 9px; text-align: center; }
+.frame-unified-timeline .camera { background: #dbeafe; color: #1d4ed8; }
+.frame-unified-timeline .object { background: #ede9fe; color: #6d28d9; }
+.frame-unified-timeline .data { background: #cffafe; color: #0e7490; }
+.frame-unified-timeline .code { background: #dcfce7; color: #15803d; }

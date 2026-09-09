@@ -110,8 +110,20 @@ import {
     getAnimationLabel,
     getAnimationPresetsForSelection,
 } from "../../canvas/animationRegistry";
-import { createAnimeCanvasClock } from "../3d/anime3dEngine";
-
+import ThreeDWebGLLayer, { isWebGLAvailable } from "../3d/ThreeDWebGLLayer";
+import CameraPathOverlay from "./CameraPathOverlay";
+import { createCameraTemplate, createFocusCamera, smoothCameraKeyframes } from "../../canvas/frameCameraTransition";
+const createNativeCanvasClock = (onTick) => {
+    let frameId = null;
+    let startedAt = null;
+    const tick = (timestamp) => {
+        if (startedAt === null) startedAt = timestamp;
+        onTick?.(timestamp - startedAt);
+        frameId = window.requestAnimationFrame(tick);
+    };
+    frameId = window.requestAnimationFrame(tick);
+    return { cancel: () => frameId !== null && window.cancelAnimationFrame(frameId) };
+};
 
 const SOCIAL_TEXT_PAGINATION_PRESETS = new Set(["post", "story", "status"]);
 const MAX_SOCIAL_TEXT_PAGES = 20;
@@ -600,8 +612,13 @@ export default function CanvasBoard({
                                         onStartAnimationPreview,
                                         onCreateSocialTextPages,
                                         onSelectTimelineFrame,
+                                        onUpdateFrameMeta,
                                         socialCreatorPreset = null,
                                         focusMode = false,
+                                        cameraRecording = false,
+                                        cameraRecordingTimeMs = 0,
+                                        onStartCameraRecording,
+                                        onStopCameraRecording,
                                     }) {
     const wrapRef = useRef(null);
     const localDraftIdRef = useRef(null);
@@ -627,6 +644,12 @@ export default function CanvasBoard({
 
     const [imageRenderTick, setImageRenderTick] = useState(0);
     const [live3DTimeMs, setLive3DTimeMs] = useState(0);
+    const [gizmoEnabled, setGizmoEnabled] = useState(false);
+    const [gizmoMode, setGizmoMode] = useState("translate");
+    const [cameraDirectorOpen, setCameraDirectorOpen] = useState(false);
+    const [showCameraSafeArea, setShowCameraSafeArea] = useState(false);
+    const [dsa3DPlaying, setDsa3DPlaying] = useState(true);
+    const webglAvailable = useMemo(() => isWebGLAvailable(), []);
 
     const [contextMenu, setContextMenu] = useState({
         visible: false,
@@ -931,16 +954,28 @@ export default function CanvasBoard({
     );
 
     useEffect(() => {
-        if (!hasLive3DMotion || renderOptions?.animationMode) return undefined;
-        const clock = createAnimeCanvasClock(setLive3DTimeMs);
+        if (!hasLive3DMotion || renderOptions?.animationMode || !dsa3DPlaying) return undefined;
+        const clock = createNativeCanvasClock(setLive3DTimeMs);
         return () => clock.cancel();
-    }, [hasLive3DMotion, renderOptions?.animationMode]);
+    }, [hasLive3DMotion, renderOptions?.animationMode, dsa3DPlaying]);
+
+    useEffect(() => {
+        const handleStep = (event) => {
+            const action = event.detail?.action;
+            const duration = Math.max(100, Number(event.detail?.durationMs) || 900);
+            if (action === "toggle") setDsa3DPlaying((value) => !value);
+            if (action === "next") { setDsa3DPlaying(false); setLive3DTimeMs((value) => value + duration); }
+            if (action === "previous") { setDsa3DPlaying(false); setLive3DTimeMs((value) => Math.max(0, value - duration)); }
+        };
+        window.addEventListener("sketchydraw:3d-step", handleStep);
+        return () => window.removeEventListener("sketchydraw:3d-step", handleStep);
+    }, []);
 
     const effectiveRenderOptions = useMemo(() => (
         renderOptions?.animationMode
-            ? renderOptions
-            : { ...renderOptions, animationTimeMs: live3DTimeMs, live3DPreview: hasLive3DMotion }
-    ), [renderOptions, live3DTimeMs, hasLive3DMotion]);
+            ? { ...renderOptions, webglOverlayActive: webglAvailable }
+            : { ...renderOptions, animationTimeMs: live3DTimeMs, live3DPreview: hasLive3DMotion, webglOverlayActive: webglAvailable }
+    ), [renderOptions, live3DTimeMs, hasLive3DMotion, webglAvailable]);
 
     useCanvasRender({
         canvasRef,
@@ -2236,6 +2271,27 @@ export default function CanvasBoard({
         const currentSelectedIds = selectedIdsRef.current || [];
         const currentElements = elementsRef.current || [];
 
+        if (event?.ctrlKey || event?.metaKey) {
+            const orbitTarget = findTopElementHitAtPoint(currentElements, point)?.element;
+            if (orbitTarget?.type === "webgl3d") {
+                event.preventDefault?.();
+                const nextSelectedIds = [orbitTarget.id];
+                selectedIdsRef.current = nextSelectedIds;
+                setSelectedIds(nextSelectedIds);
+                dragBaseElementsRef.current = currentElements;
+                dragPreviewElementsRef.current = null;
+                setDragState({
+                    mode: "orbit-3d",
+                    id: orbitTarget.id,
+                    startX: point.x,
+                    startY: point.y,
+                    startYaw: Number(orbitTarget.cameraYaw) || 0,
+                    startPitch: Number(orbitTarget.cameraPitch) || 0,
+                });
+                return;
+            }
+        }
+
         if (event?.altKey) {
             const hits = findElementHitsAtPoint(currentElements, point);
             if (!hits.length) {
@@ -2656,6 +2712,23 @@ export default function CanvasBoard({
         }
 
         if (!dragState) return;
+
+        if (dragState.mode === "orbit-3d") {
+            canvas.style.cursor = "grabbing";
+            if (isBelowPointerDragThreshold(dragState, point, viewport.zoom)) return;
+            const baseElements = dragBaseElementsRef.current || elementsRef.current;
+            const nextElements = baseElements.map((element) => element.id === dragState.id
+                ? {
+                    ...element,
+                    cameraYaw: dragState.startYaw + (point.x - dragState.startX) * 0.65,
+                    cameraPitch: Math.max(-80, Math.min(80, dragState.startPitch + (point.y - dragState.startY) * 0.65)),
+                }
+                : element);
+            dragPreviewElementsRef.current = nextElements;
+            elementsRef.current = nextElements;
+            renderLivePreview(nextElements);
+            return;
+        }
 
         if (dragState.mode === "curve-handle") {
             canvas.style.cursor = "pointer";
@@ -3148,7 +3221,8 @@ export default function CanvasBoard({
         const geometryDrag =
             dragState?.mode === "move" ||
             dragState?.mode === "resize" ||
-            dragState?.mode === "curve-handle";
+            dragState?.mode === "curve-handle" ||
+            dragState?.mode === "orbit-3d";
 
         if (geometryDrag && event && canvas) {
             const rawPoint = getPointerPosition(event, canvas);
@@ -3474,6 +3548,68 @@ export default function CanvasBoard({
         }
     };
 
+    const focusCameraOnSelection = () => {
+        const selectedSet = new Set(selectedIdsRef.current || []);
+        const bounds = (elementsRef.current || []).filter((element) => selectedSet.has(element.id)).map(getElementBounds).filter(Boolean);
+        if (!bounds.length) return;
+        const left = Math.min(...bounds.map((item) => item.x));
+        const top = Math.min(...bounds.map((item) => item.y));
+        const right = Math.max(...bounds.map((item) => item.x + item.w));
+        const bottom = Math.max(...bounds.map((item) => item.y + item.h));
+        const padding = 96;
+        const width = Math.max(1, right - left);
+        const height = Math.max(1, bottom - top);
+        const zoom = Math.max(.1, Math.min(6, Math.min((canvasSize.width - padding * 2) / width, (canvasSize.height - padding * 2) / height)));
+        setViewport({ zoom, offsetX: canvasSize.width / 2 - (left + width / 2) * zoom, offsetY: canvasSize.height / 2 - (top + height / 2) * zoom });
+    };
+
+    const currentCameraFrame = timelineFrames[currentFrameIndex] || {};
+    const cameraKeys = Array.isArray(currentCameraFrame.cameraKeyframes) ? currentCameraFrame.cameraKeyframes : [];
+    const selectedCameraBounds = () => {
+        const selectedSet = new Set(selectedIdsRef.current || []);
+        const bounds = (elementsRef.current || []).filter((element) => selectedSet.has(element.id)).map(getElementBounds).filter(Boolean);
+        if (!bounds.length) return null;
+        const x = Math.min(...bounds.map((item) => item.x));
+        const y = Math.min(...bounds.map((item) => item.y));
+        const right = Math.max(...bounds.map((item) => item.x + item.w));
+        const bottom = Math.max(...bounds.map((item) => item.y + item.h));
+        return { x, y, w: right - x, h: bottom - y };
+    };
+    const focusCameraForSelection = () => createFocusCamera(selectedCameraBounds(), canvasSize);
+    const nextCameraTime = () => cameraKeys.length ? (Number(cameraKeys[cameraKeys.length - 1].timeMs) || 0) + 1000 : 0;
+    const updateCameraKeys = (keys, patch = {}) => {
+        const trackEnd = keys.reduce((maximum, key) => Math.max(maximum, (Number(key.timeMs) || 0) + (Number(key.holdMs) || 0)), 0);
+        onUpdateFrameMeta?.(currentFrameIndex, { cameraKeyframes: keys, durationMs: Math.max(Number(currentCameraFrame.durationMs) || 0, trackEnd), ...patch });
+    };
+    const addFocusPoint = () => {
+        const bounds = selectedCameraBounds();
+        if (!bounds) return;
+        const camera = createFocusCamera(bounds, canvasSize);
+        updateCameraKeys([...cameraKeys, { ...camera, timeMs: nextCameraTime(), holdMs: 0, easing: "cinematic", label: "Focus selection" }], { camera });
+        setViewport(camera);
+    };
+    const addHold = () => {
+        if (!cameraKeys.length) updateCameraKeys([{ ...viewport, timeMs: 0, holdMs: 1000, easing: "smooth", label: "Hold" }]);
+        else updateCameraKeys(cameraKeys.map((key, index) => index === cameraKeys.length - 1 ? { ...key, holdMs: (Number(key.holdMs) || 0) + 1000 } : key));
+    };
+    const applyCameraTemplate = (template) => {
+        const focus = focusCameraForSelection();
+        if (!focus && !["slow-pan", "reveal-left-right"].includes(template)) return;
+        const keys = createCameraTemplate(template, { wideCamera: viewport, focusCamera: focus || viewport, durationMs: Math.max(3000, Number(currentCameraFrame.durationMs) || 5000) });
+        const followId = template === "follow-packet" ? selectedIds[0] : currentCameraFrame.cameraFollowElementId;
+        updateCameraKeys(keys, { camera: keys[keys.length - 1], cameraTemplate: template, cameraFollowElementId: followId || null });
+    };
+    const patchCameraKey = (index, patch) => updateCameraKeys(cameraKeys.map((key, keyIndex) => keyIndex === index ? { ...key, ...patch } : key));
+    const moveCameraKey = (index, direction) => {
+        const target = index + direction;
+        if (target < 0 || target >= cameraKeys.length) return;
+        const keys = cameraKeys.slice();
+        [keys[index], keys[target]] = [keys[target], keys[index]];
+        updateCameraKeys(keys.map((key, keyIndex) => ({ ...key, timeMs: keyIndex === 0 ? 0 : Math.max(Number(key.timeMs) || 0, (Number(keys[keyIndex - 1]?.timeMs) || 0) + 100) })));
+    };
+    const safeWidth = Math.min(canvasSize.width, canvasSize.height * 16 / 9);
+    const safeHeight = safeWidth * 9 / 16;
+
     return (
         <div className="canvas-wrap" ref={wrapRef}>
             <div className="canvas-stage">
@@ -3495,6 +3631,80 @@ export default function CanvasBoard({
                     onWheel={onWheel}
                     onContextMenu={handleBoardRightClick}
                     className="board-canvas"
+                />
+                {webglAvailable && <ThreeDWebGLLayer
+                    elements={renderElements}
+                    viewport={viewport}
+                    canvasSize={canvasSize}
+                    timeMs={effectiveRenderOptions.animationTimeMs || 0}
+                    interactionCanvas={canvasRef.current}
+                    selectedIds={selectedIds}
+                    gizmoEnabled={gizmoEnabled}
+                    gizmoMode={gizmoMode}
+                    onSelect={(id, event) => {
+                        const next = event?.shiftKey ? [...new Set([...selectedIdsRef.current, id])] : [id];
+                        selectedIdsRef.current = next;
+                        setSelectedIds(next);
+                    }}
+                    onTransformCommit={(id, patch) => {
+                        const next = (elementsRef.current || []).map((element) => element.id === id ? { ...element, ...patch } : element);
+                        elementsRef.current = next;
+                        setElements(next);
+                        onUpdateTimelineFrame?.(next);
+                    }}
+                />}
+                {tool === "select" && selectedIds.length > 0 && (
+                    <button type="button" className="focus-selection-camera" onClick={focusCameraOnSelection}>Focus camera</button>
+                )}
+                <div className={`camera-record-controls ${cameraRecording ? "recording" : ""}`}>
+                    <button
+                        type="button"
+                        onClick={cameraRecording ? onStopCameraRecording : onStartCameraRecording}
+                        title="Record hand-tool pan and zoom inside this frame"
+                    >
+                        {cameraRecording ? "■ Stop camera" : "● Record camera"}
+                    </button>
+                    {cameraRecording && <span>{(cameraRecordingTimeMs / 1000).toFixed(1)}s · pan or zoom now</span>}
+                    {cameraRecording && <button type="button" onClick={addHold}>⏸ Hold 1s</button>}
+                    {cameraRecording && selectedIds.length > 0 && <button type="button" onClick={addFocusPoint}>＋ Focus selected</button>}
+                    {!cameraRecording && <button type="button" onClick={() => setCameraDirectorOpen((value) => !value)}>Camera track</button>}
+                </div>
+                {showCameraSafeArea && <div className="camera-safe-area" style={{ width: safeWidth, height: safeHeight, left: (canvasSize.width - safeWidth) / 2, top: (canvasSize.height - safeHeight) / 2 }}><span>16:9 export safe area</span></div>}
+                {cameraDirectorOpen && <section className="camera-director-panel" onMouseDown={(event) => event.stopPropagation()}>
+                    <header><div><strong>Camera track</strong><small>Same-frame pan and zoom storytelling</small></div><button onClick={() => setCameraDirectorOpen(false)}>×</button></header>
+                    <div className="camera-director-actions">
+                        <button disabled={!selectedIds.length} onClick={addFocusPoint}>＋ Focus point</button>
+                        <button onClick={addHold}>⏸ Hold 1s</button>
+                        <button disabled={cameraKeys.length < 3} onClick={() => updateCameraKeys(smoothCameraKeyframes(cameraKeys, { strength: .45 }))}>⌁ Smooth</button>
+                        <button onClick={() => setShowCameraSafeArea((value) => !value)}>{showCameraSafeArea ? "Hide" : "Show"} 16:9</button>
+                        <button disabled={!selectedIds.length} onClick={() => { const camera = focusCameraForSelection(); setViewport(camera); }}>Snap to object</button>
+                    </div>
+                    <label className="camera-template-select">Template<select defaultValue="" onChange={(event) => { if (event.target.value) applyCameraTemplate(event.target.value); event.target.value = ""; }}><option value="">Choose…</option><option value="slow-pan">Slow pan</option><option value="wide-detail-wide">Wide → Detail → Wide</option><option value="quick-zoom">Quick zoom</option><option value="reveal-left-right">Reveal left → right</option><option value="follow-packet">Follow selected packet</option><option value="zoom-out">Zoom out to big picture</option></select></label>
+                    <div className="camera-follow-row"><label>Follow<select value={currentCameraFrame.cameraFollowElementId || ""} onChange={(event) => onUpdateFrameMeta?.(currentFrameIndex, { cameraFollowElementId: event.target.value || null })}><option value="">None</option>{elements.map((element, index) => <option key={element.id || index} value={element.id}>{element.text || element.label || element.name || `${element.type} ${index + 1}`}</option>)}</select></label><label>Dead zone<input type="number" min="0" max="300" value={Number(currentCameraFrame.cameraFollowDeadZone) || 48} onChange={(event) => onUpdateFrameMeta?.(currentFrameIndex, { cameraFollowDeadZone: Number(event.target.value) || 0 })}/></label></div>
+                    <div className="camera-track-lane">{cameraKeys.map((key, index) => <i key={`${key.timeMs}-${index}`} style={{ left: `${Math.min(100, (Number(key.timeMs) || 0) / Math.max(1, Number(currentCameraFrame.durationMs) || 5000) * 100)}%` }} title={`${key.label || `Key ${index + 1}`} · ${((Number(key.timeMs) || 0) / 1000).toFixed(1)}s`} />)}</div>
+                    <div className="camera-key-list">{cameraKeys.map((key, index) => (
+                        <div className="camera-key-row" key={`${index}-${key.timeMs}`}>
+                            <strong>{index + 1}</strong>
+                            <input title="Label" value={key.label || ""} placeholder="Camera point" onChange={(event) => patchCameraKey(index, { label: event.target.value })}/>
+                            <label>at<input type="number" step="0.1" min="0" value={((Number(key.timeMs) || 0) / 1000).toFixed(1)} onChange={(event) => patchCameraKey(index, { timeMs: Number(event.target.value) * 1000 })}/></label>
+                            <label>hold<input type="number" step="0.1" min="0" value={((Number(key.holdMs) || 0) / 1000).toFixed(1)} onChange={(event) => patchCameraKey(index, { holdMs: Number(event.target.value) * 1000 })}/></label>
+                            <label>zoom<input type="number" step="0.1" min="0.05" value={(Number(key.zoom) || 1).toFixed(2)} onChange={(event) => patchCameraKey(index, { zoom: Number(event.target.value) || 1 })}/></label>
+                            <label>x<input type="number" step="10" value={Math.round(Number(key.offsetX) || 0)} onChange={(event) => patchCameraKey(index, { offsetX: Number(event.target.value) || 0 })}/></label>
+                            <label>y<input type="number" step="10" value={Math.round(Number(key.offsetY) || 0)} onChange={(event) => patchCameraKey(index, { offsetY: Number(event.target.value) || 0 })}/></label>
+                            <select value={key.easing || "smooth"} onChange={(event) => patchCameraKey(index, { easing: event.target.value })}><option value="smooth">Smooth</option><option value="cinematic">Cinematic</option><option value="fast">Fast</option><option value="spring">Spring</option><option value="linear">Linear</option></select>
+                            <button disabled={index === 0} onClick={() => moveCameraKey(index, -1)}>↑</button><button disabled={index === cameraKeys.length - 1} onClick={() => moveCameraKey(index, 1)}>↓</button><button className="danger" onClick={() => updateCameraKeys(cameraKeys.filter((_, keyIndex) => keyIndex !== index))}>×</button>
+                        </div>
+                    ))}</div>
+                </section>}
+                {tool === "select" && selectedIds.length === 1 && elements.find((element) => element.id === selectedIds[0])?.type === "webgl3d" && (
+                    <div className="three-d-gizmo-tools"><button type="button" className={`three-d-gizmo-toggle ${gizmoEnabled ? "active" : ""}`} onClick={() => setGizmoEnabled((value) => !value)}>{gizmoEnabled ? "Exit gizmo" : "Edit 3D axes"}</button>{gizmoEnabled && <><button onClick={() => setGizmoMode("translate")}>Move</button><button onClick={() => setGizmoMode("rotate")}>Rotate</button><button onClick={() => setGizmoMode("scale")}>Scale</button></>}</div>
+                )}
+                <CameraPathOverlay
+                    frame={timelineFrames[currentFrameIndex]}
+                    nextFrame={timelineFrames[currentFrameIndex + 1]}
+                    canvasSize={canvasSize}
+                    viewport={viewport}
+                    onChange={(cameraKeyframes) => onUpdateFrameMeta?.(currentFrameIndex, { cameraKeyframes })}
                 />
 
                 {socialGuide && (
