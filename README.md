@@ -171,3 +171,48 @@ Most important next patch should be:
 **Export parity + perspective camera + raycasting selection.**
 
 Otherwise editor mein scene impressive dikhega, but exported course video may not exactly match it. Backend change still required nahi hai.
+
+
+Honestly, SketchyDraw ab **normal drawing tool nahi raha**. Ye ek JSON-driven visual explanation studio ban raha hai—especially system design, DSA aur AI courses ke liye. Idea genuinely strong hai.
+
+Abhi strengths:
+
+* 2D diagrams aur system-design primitives
+* Object-by-object educational animation
+* Dependencies: `this object comes after that object`
+* Frames, timeline, delays and holds
+* Pan/zoom recording and camera storytelling
+* GIF/video export
+* JSON import/export
+* 3D primitives and Three.js foundation
+* DSA arrays, matrices, graph/heap direction
+* Code-synchronised animation architecture
+
+Sabse differentiated part **3D nahi**, balki ye combination hai:
+
+> JSON → diagram → sequential explanation → camera movement → exportable course video
+
+Canva drawing deta hai, Excalidraw sketching deta hai, Blender 3D deta hai—but SketchyDraw ka opportunity hai: **technical concepts ko explainable animation mein convert karna**.
+
+Current weaknesses bhi clear hain:
+
+* Bahut features ek saath aa gaye hain; UX scattered lag sakta hai.
+* Core selection/dragging absolutely reliable nahi hai—3D sphere gizmo iska example hai.
+* Animation, frames aur camera controls ko one unified timeline chahiye.
+* Export ko editor preview se pixel-perfect match karna hoga.
+* JSON schema ko strict validation and migration support chahiye.
+* Feature discoverability weak hai; user ko pata nahi chalta next action kya hai.
+* Automated browser tests ab zaroori hain, warna ek fix dusra workflow break karega.
+
+Meri product recommendation:
+
+1. Pehle **2D course-video workflow ko flawless** karo.
+2. One visible timeline: objects + camera + holds.
+3. Import JSON → play → export should never fail.
+4. 3D ko initially “experimental” label do.
+5. Ready-made templates do: system flow, Kafka, caching, BFS, neural network.
+6. Ek `Creator Mode` rakho aur ek simple `Present Mode`.
+
+Overall, concept **8.5/10** hai. Current implementation perhaps **6.5/10**—powerful but stability and UX polish pending. Agar reliable bana diya, this can become SketchyDraw’s sharp positioning:
+
+**“Create animated technical lessons from JSON—without After Effects or Blender.”**
