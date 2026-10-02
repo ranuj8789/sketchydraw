@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 2,
+  "app": "SketchyDraw",
+  "name": "2D Camera X-Axis Test",
+  "createdAt": "2026-09-15T20:30:00.000Z",
+  "updatedAt": "2026-09-15T20:30:00.000Z",
+  "canvas": {
+    "width": 1400,
+    "height": 800,
+    "background": "grid"
+  },
+  "canvasProps": {
+    "backgroundColor": "#f8fafc",
+    "pattern": "grid",
+    "cornerRadius": 16,
+    "pageMode": false,
+    "pageCount": 1,
+    "currentPageIndex": 0,
+    "pageViewMode": "single"
+  },
+  "viewport": {
+    "zoom": 1,
+    "offsetX": 0,
+    "offsetY": 0
+  },
+  "frames": [
+    {
+      "id": "camera-x-axis-frame",
+      "name": "Camera Pan on X Axis",
+      "durationMs": 6000,
+      "gapAfterMs": 800,
+      "transition": "none",
+      "hiddenElementIds": [],
+      "camera": {
+        "zoom": 1,
+        "offsetX": 300,
+        "offsetY": 0
+      },
+      "cameraTemplate": "slow-pan",
+      "cameraKeyframes": [
+        {
+          "label": "Box on left",
+          "timeMs": 0,
+          "holdMs": 500,
+          "zoom": 1,
+          "offsetX": -300,
+          "offsetY": 0,
+          "easing": "linear"
+        },
+        {
+          "label": "Box in center",
+          "timeMs": 3000,
+          "holdMs": 300,
+          "zoom": 1,
+          "offsetX": 0,
+          "offsetY": 0,
+          "easing": "smooth"
+        },
+        {
+          "label": "Box on right",
+          "timeMs": 6000,
+          "holdMs": 0,
+          "zoom": 1,
+          "offsetX": 300,
+          "offsetY": 0,
+          "easing": "smooth"
+        }
+      ],
+      "cameraFollowElementId": null,
+      "cameraFollowDeadZone": 48,
+      "elements": [
+        {
+          "id": "moving-box-screen-x",
+          "type": "rect",
+          "x": 590,
+          "y": 300,
+          "w": 220,
+          "h": 180,
+          "stroke": "#1d4ed8",
+          "fill": "#3b82f6",
+          "strokeWidth": 5,
+          "strokeDash": "solid",
+          "cornerRadius": 22,
+          "opacity": 1,
+          "animation": {
+            "type": "glow",
+            "durationMs": 1200,
+            "delayMs": 0,
+            "loop": true
+          }
+        },
+        {
+          "id": "moving-box-label",
+          "type": "text",
+          "x": 625,
+          "y": 360,
+          "w": 150,
+          "h": 48,
+          "text": "X AXIS",
+          "stroke": "#ffffff",
+          "fill": "transparent",
+          "strokeWidth": 1,
+          "strokeDash": "solid",
+          "opacity": 1,
+          "fontSize": 32,
+          "lineHeight": 40,
+          "fontFamily": "Arial, sans-serif",
+          "bold": true,
+          "italic": false,
+          "underline": false,
+          "textAlign": "center",
+          "parentId": "moving-box-screen-x",
+          "richText": [],
+          "animation": {
+            "type": "none",
+            "durationMs": 1000,
+            "delayMs": 0,
+            "loop": false
+          }
+        }
+      ]
+    }
+  ],
+  "activeFrameIndex": 0,
+  "currentFrameIndex": 0
+}

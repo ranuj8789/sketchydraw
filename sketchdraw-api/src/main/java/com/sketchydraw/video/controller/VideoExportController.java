@@ -39,6 +39,22 @@ public class VideoExportController {
         return ResponseEntity.accepted().build();
     }
 
+    @PostMapping(path = "/{exportId}/backgrounds/{index}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Void> background(@PathVariable String exportId, @PathVariable int index,
+                                           @RequestPart("frame") MultipartFile frame) throws Exception {
+        service.saveBackground(exportId, index, frame);
+        return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping(path = "/{exportId}/blender-scene", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Void> blenderScene(@PathVariable String exportId,
+                                             @RequestPart("scene") MultipartFile scene,
+                                             @RequestPart(value = "audio", required = false) MultipartFile audio,
+                                             @RequestParam(defaultValue = "1") double audioPlaybackRate) throws Exception {
+        service.saveBlenderScene(exportId, scene, audio, audioPlaybackRate);
+        return ResponseEntity.accepted().build();
+    }
+
     @GetMapping("/{exportId}/status")
     public VideoExportStatusResponse status(@PathVariable String exportId) {
         return service.status(exportId);

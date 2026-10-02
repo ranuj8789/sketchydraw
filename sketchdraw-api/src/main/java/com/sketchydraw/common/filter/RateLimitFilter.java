@@ -29,6 +29,12 @@ public class RateLimitFilter implements Filter {
     @Value("${rate.limit.user.requests:120}")
     private int userMaxRequests;
 
+    @Value("${rate.limit.video-upload.ip.requests:4000}")
+    private int videoUploadIpMaxRequests;
+
+    @Value("${rate.limit.video-upload.user.requests:8000}")
+    private int videoUploadUserMaxRequests;
+
     @Value("${rate.limit.window-seconds:60}")
     private int windowSeconds;
 
@@ -65,7 +71,8 @@ public class RateLimitFilter implements Filter {
 
         String ipKey = redisPrefix + ":rate_limit:ip:" + ip + ":" + normalizedPath;
 
-        RateLimitResult ipResult = incrementAndCheck(ipKey, ipMaxRequests);
+        boolean videoUpload = isVideoUpload(req.getMethod(), path);
+        RateLimitResult ipResult = incrementAndCheck(ipKey, videoUpload ? videoUploadIpMaxRequests : ipMaxRequests);
 
         if (ipResult.blocked()) {
             writeBlockedResponse(
@@ -81,7 +88,7 @@ public class RateLimitFilter implements Filter {
 
         if (email != null && !email.isBlank()) {
             String userKey = redisPrefix + ":rate_limit:user:" + email.toLowerCase(Locale.ROOT) + ":" + normalizedPath;
-            RateLimitResult userResult = incrementAndCheck(userKey, userMaxRequests);
+            RateLimitResult userResult = incrementAndCheck(userKey, videoUpload ? videoUploadUserMaxRequests : userMaxRequests);
 
             if (userResult.blocked()) {
                 writeBlockedResponse(
@@ -110,6 +117,13 @@ public class RateLimitFilter implements Filter {
         boolean blocked = count != null && count > maxRequests;
 
         return new RateLimitResult(blocked, count == null ? 0 : count, retryAfterSeconds);
+    }
+
+    private boolean isVideoUpload(String method, String path) {
+        // Blender exports upload hundreds of frame PNGs under one export job.
+        // Only these bounded upload endpoints receive the separate budget.
+        return "POST".equalsIgnoreCase(method) && path != null
+                && path.matches("/api/video-exports/[0-9a-fA-F-]{36}/(?:backgrounds|segments)/[0-9]+");
     }
 
     private boolean shouldSkip(String path) {

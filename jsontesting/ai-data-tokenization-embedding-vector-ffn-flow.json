@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 2,
+  "app": "SketchyDraw",
+  "name": "AI Data Transformation Flow",
+  "createdAt": "2026-09-15T21:30:00.000Z",
+  "updatedAt": "2026-09-15T21:30:00.000Z",
+  "canvas": { "width": 1920, "height": 900, "background": "blank" },
+  "canvasProps": { "backgroundColor": "#06101f", "pattern": "blank", "cornerRadius": 16, "pageMode": false, "pageCount": 1, "currentPageIndex": 0, "pageViewMode": "single" },
+  "viewport": { "zoom": 0.9, "offsetX": 0, "offsetY": 0 },
+  "frames": [
+    {
+      "id": "complete-ai-flow",
+      "name": "Data → Tokens → Embeddings → Vectors → FFN → Prediction",
+      "durationMs": 16000,
+      "gapAfterMs": 1200,
+      "transition": "none",
+      "hiddenElementIds": [],
+      "camera": { "zoom": 0.9, "offsetX": 0, "offsetY": -10 },
+      "cameraKeyframes": [],
+      "cameraFollowElementId": "travelling-data",
+      "cameraFollowDeadZone": 240,
+      "elements": [
+        { "id": "main-title", "type": "text", "x": 350, "y": 55, "w": 1220, "h": 65, "text": "HOW TEXT BECOMES AN AI PREDICTION", "stroke": "#ffffff", "fill": "transparent", "opacity": 1, "fontSize": 48, "lineHeight": 58, "fontFamily": "Arial, sans-serif", "bold": true, "italic": false, "underline": false, "textAlign": "center", "parentId": null, "richText": [], "animation": { "type": "fadeIn", "durationMs": 700, "delayMs": 0, "loop": false } },
+
+        { "id": "input-box", "type": "rect", "x": 80, "y": 270, "w": 330, "h": 280, "stroke": "#38bdf8", "fill": "#0c3557", "strokeWidth": 5, "strokeDash": "solid", "cornerRadius": 26, "opacity": 1, "animation": { "type": "glow", "durationMs": 1500, "delayMs": 0, "loop": true } },
+        { "id": "input-heading", "type": "text", "x": 110, "y": 305, "w": 270, "h": 45, "text": "1. INPUT DATA", "stroke": "#ffffff", "fill": "transparent", "opacity": 1, "fontSize": 34, "lineHeight": 42, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "parentId": "input-box", "richText": [], "animation": { "type": "fadeIn", "durationMs": 500, "delayMs": 200, "loop": false } },
+        { "id": "input-value", "type": "text", "x": 112, "y": 385, "w": 266, "h": 90, "text": "“AI learns fast”", "stroke": "#bae6fd", "fill": "transparent", "opacity": 1, "fontSize": 30, "lineHeight": 38, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "parentId": "input-box", "richText": [], "animation": { "type": "typewriter", "durationMs": 1000, "delayMs": 500, "loop": false } },
+
+        { "id": "token-box", "type": "rect", "x": 490, "y": 270, "w": 330, "h": 280, "stroke": "#22d3ee", "fill": "#164e63", "strokeWidth": 5, "strokeDash": "solid", "cornerRadius": 26, "opacity": 1, "animation": { "type": "scaleIn", "durationMs": 650, "delayMs": 2400, "loop": false } },
+        { "id": "token-heading", "type": "text", "x": 520, "y": 305, "w": 270, "h": 45, "text": "2. TOKENIZATION", "stroke": "#ffffff", "fill": "transparent", "opacity": 1, "fontSize": 32, "lineHeight": 40, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "parentId": "token-box", "richText": [], "animation": { "type": "fadeIn", "durationMs": 500, "delayMs": 2500, "loop": false } },
+        { "id": "token-value", "type": "text", "x": 515, "y": 375, "w": 280, "h": 110, "text": "[AI] [learns] [fast]\nIDs: 3192 · 10211 · 3431", "stroke": "#cffafe", "fill": "transparent", "opacity": 1, "fontSize": 25, "lineHeight": 36, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "parentId": "token-box", "richText": [], "animation": { "type": "fadeIn", "durationMs": 600, "delayMs": 2800, "loop": false } },
+
+        { "id": "embedding-box", "type": "rect", "x": 900, "y": 270, "w": 330, "h": 280, "stroke": "#a78bfa", "fill": "#312e81", "strokeWidth": 5, "strokeDash": "solid", "cornerRadius": 26, "opacity": 1, "animation": { "type": "scaleIn", "durationMs": 650, "delayMs": 5000, "loop": false } },
+        { "id": "embedding-heading", "type": "text", "x": 930, "y": 305, "w": 270, "h": 45, "text": "3. EMBEDDING", "stroke": "#ffffff", "fill": "transparent", "opacity": 1, "fontSize": 33, "lineHeight": 41, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "parentId": "embedding-box", "richText": [], "animation": { "type": "fadeIn", "durationMs": 500, "delayMs": 5100, "loop": false } },
+        { "id": "embedding-value", "type": "text", "x": 925, "y": 370, "w": 280, "h": 120, "text": "Embedding table lookup\nToken ID → learned meaning", "stroke": "#ddd6fe", "fill": "transparent", "opacity": 1, "fontSize": 26, "lineHeight": 37, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "parentId": "embedding-box", "richText": [], "animation": { "type": "fadeIn", "durationMs": 600, "delayMs": 5400, "loop": false } },
+
+        { "id": "vector-box", "type": "rect", "x": 1310, "y": 270, "w": 330, "h": 280, "stroke": "#f472b6", "fill": "#701a4f", "strokeWidth": 5, "strokeDash": "solid", "cornerRadius": 26, "opacity": 1, "animation": { "type": "scaleIn", "durationMs": 650, "delayMs": 7600, "loop": false } },
+        { "id": "vector-heading", "type": "text", "x": 1340, "y": 305, "w": 270, "h": 45, "text": "4. VECTOR DATA", "stroke": "#ffffff", "fill": "transparent", "opacity": 1, "fontSize": 32, "lineHeight": 40, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "parentId": "vector-box", "richText": [], "animation": { "type": "fadeIn", "durationMs": 500, "delayMs": 7700, "loop": false } },
+        { "id": "vector-value", "type": "text", "x": 1335, "y": 365, "w": 280, "h": 135, "text": "AI     [0.21, −0.44, 0.78]\nlearns [0.63, 0.12, −0.31]\nfast   [0.47, 0.81, 0.09]", "stroke": "#fbcfe8", "fill": "transparent", "opacity": 1, "fontSize": 22, "lineHeight": 34, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "left", "parentId": "vector-box", "richText": [], "animation": { "type": "fadeIn", "durationMs": 700, "delayMs": 8000, "loop": false } },
+
+        { "id": "ffn-box", "type": "rect", "x": 1720, "y": 270, "w": 330, "h": 280, "stroke": "#fbbf24", "fill": "#713f12", "strokeWidth": 5, "strokeDash": "solid", "cornerRadius": 26, "opacity": 1, "animation": { "type": "scaleIn", "durationMs": 650, "delayMs": 10200, "loop": false } },
+        { "id": "ffn-heading", "type": "text", "x": 1750, "y": 305, "w": 270, "h": 45, "text": "5. FFN", "stroke": "#ffffff", "fill": "transparent", "opacity": 1, "fontSize": 36, "lineHeight": 44, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "parentId": "ffn-box", "richText": [], "animation": { "type": "fadeIn", "durationMs": 500, "delayMs": 10300, "loop": false } },
+        { "id": "ffn-value", "type": "text", "x": 1745, "y": 365, "w": 280, "h": 130, "text": "Expand → ReLU → Compress\n\nFFN(x) = ReLU(xW₁+b₁)W₂+b₂", "stroke": "#fde68a", "fill": "transparent", "opacity": 1, "fontSize": 23, "lineHeight": 34, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "parentId": "ffn-box", "richText": [], "animation": { "type": "fadeIn", "durationMs": 700, "delayMs": 10600, "loop": false } },
+
+        { "id": "prediction-box", "type": "rect", "x": 2130, "y": 270, "w": 330, "h": 280, "stroke": "#34d399", "fill": "#065f46", "strokeWidth": 5, "strokeDash": "solid", "cornerRadius": 26, "opacity": 1, "animation": { "type": "scaleIn", "durationMs": 650, "delayMs": 13200, "loop": false } },
+        { "id": "prediction-heading", "type": "text", "x": 2160, "y": 305, "w": 270, "h": 45, "text": "6. PREDICTION", "stroke": "#ffffff", "fill": "transparent", "opacity": 1, "fontSize": 32, "lineHeight": 40, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "parentId": "prediction-box", "richText": [], "animation": { "type": "fadeIn", "durationMs": 500, "delayMs": 13300, "loop": false } },
+        { "id": "prediction-value", "type": "text", "x": 2155, "y": 370, "w": 280, "h": 120, "text": "Output probabilities\n\nNext token: “better”  75%", "stroke": "#a7f3d0", "fill": "transparent", "opacity": 1, "fontSize": 26, "lineHeight": 38, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "parentId": "prediction-box", "richText": [], "animation": { "type": "fadeIn", "durationMs": 700, "delayMs": 13600, "loop": false } },
+
+        { "id": "arrow-1", "type": "arrow", "x1": 410, "y1": 410, "x2": 490, "y2": 410, "cx1": 437, "cy1": 410, "cx2": 463, "cy2": 410, "stroke": "#67e8f9", "fill": "transparent", "strokeWidth": 7, "strokeDash": "solid", "lineStyle": "straight", "arrowStart": false, "arrowEnd": true, "opacity": 1, "animation": { "type": "dataFlow", "durationMs": 1200, "delayMs": 1800, "loop": true } },
+        { "id": "arrow-2", "type": "arrow", "x1": 820, "y1": 410, "x2": 900, "y2": 410, "cx1": 847, "cy1": 410, "cx2": 873, "cy2": 410, "stroke": "#67e8f9", "fill": "transparent", "strokeWidth": 7, "strokeDash": "solid", "lineStyle": "straight", "arrowStart": false, "arrowEnd": true, "opacity": 1, "animation": { "type": "dataFlow", "durationMs": 1200, "delayMs": 4400, "loop": true } },
+        { "id": "arrow-3", "type": "arrow", "x1": 1230, "y1": 410, "x2": 1310, "y2": 410, "cx1": 1257, "cy1": 410, "cx2": 1283, "cy2": 410, "stroke": "#c4b5fd", "fill": "transparent", "strokeWidth": 7, "strokeDash": "solid", "lineStyle": "straight", "arrowStart": false, "arrowEnd": true, "opacity": 1, "animation": { "type": "dataFlow", "durationMs": 1200, "delayMs": 7000, "loop": true } },
+        { "id": "arrow-4", "type": "arrow", "x1": 1640, "y1": 410, "x2": 1720, "y2": 410, "cx1": 1667, "cy1": 410, "cx2": 1693, "cy2": 410, "stroke": "#f9a8d4", "fill": "transparent", "strokeWidth": 7, "strokeDash": "solid", "lineStyle": "straight", "arrowStart": false, "arrowEnd": true, "opacity": 1, "animation": { "type": "dataFlow", "durationMs": 1200, "delayMs": 9600, "loop": true } },
+        { "id": "arrow-5", "type": "arrow", "x1": 2050, "y1": 410, "x2": 2130, "y2": 410, "cx1": 2077, "cy1": 410, "cx2": 2103, "cy2": 410, "stroke": "#fde68a", "fill": "transparent", "strokeWidth": 7, "strokeDash": "solid", "lineStyle": "straight", "arrowStart": false, "arrowEnd": true, "opacity": 1, "animation": { "type": "dataFlow", "durationMs": 1200, "delayMs": 12200, "loop": true } },
+
+        { "id": "travel-line", "type": "arrow", "x1": 210, "y1": 650, "x2": 2300, "y2": 650, "cx1": 800, "cy1": 650, "cx2": 1700, "cy2": 650, "stroke": "#334155", "fill": "transparent", "strokeWidth": 4, "strokeDash": "dashed", "lineStyle": "straight", "arrowStart": false, "arrowEnd": true, "opacity": 0.9, "animation": { "type": "movingDashes", "durationMs": 1500, "delayMs": 0, "loop": true } },
+        { "id": "travelling-data", "type": "ellipse", "x": 190, "y": 605, "w": 90, "h": 90, "stroke": "#ffffff", "fill": "#06b6d4", "strokeWidth": 6, "strokeDash": "solid", "opacity": 1, "transformKeyframes": [
+          { "timeMs": 0, "x": 190, "y": 605, "scale2d": 0.92 },
+          { "timeMs": 1600, "x": 190, "y": 605, "scale2d": 1 },
+          { "timeMs": 2600, "x": 600, "y": 605, "scale2d": 1.08 },
+          { "timeMs": 4200, "x": 600, "y": 605, "scale2d": 1 },
+          { "timeMs": 5200, "x": 1010, "y": 605, "scale2d": 1.08 },
+          { "timeMs": 6800, "x": 1010, "y": 605, "scale2d": 1 },
+          { "timeMs": 7800, "x": 1420, "y": 605, "scale2d": 1.08 },
+          { "timeMs": 9400, "x": 1420, "y": 605, "scale2d": 1 },
+          { "timeMs": 10400, "x": 1830, "y": 605, "scale2d": 1.08 },
+          { "timeMs": 12000, "x": 1830, "y": 605, "scale2d": 1 },
+          { "timeMs": 13200, "x": 2240, "y": 605, "scale2d": 1.12 },
+          { "timeMs": 16000, "x": 2240, "y": 605, "scale2d": 0.95 }
+        ], "animation": { "type": "glow", "durationMs": 900, "delayMs": 0, "loop": true } },
+        { "id": "travelling-label", "type": "text", "x": 205, "y": 632, "w": 60, "h": 32, "text": "DATA", "stroke": "#ffffff", "fill": "transparent", "opacity": 1, "fontSize": 18, "lineHeight": 24, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "parentId": null, "richText": [], "transformKeyframes": [
+          { "timeMs": 0, "x": 205, "y": 632 }, { "timeMs": 1600, "x": 205, "y": 632 },
+          { "timeMs": 2600, "x": 615, "y": 632 }, { "timeMs": 4200, "x": 615, "y": 632 },
+          { "timeMs": 5200, "x": 1025, "y": 632 }, { "timeMs": 6800, "x": 1025, "y": 632 },
+          { "timeMs": 7800, "x": 1435, "y": 632 }, { "timeMs": 9400, "x": 1435, "y": 632 },
+          { "timeMs": 10400, "x": 1845, "y": 632 }, { "timeMs": 12000, "x": 1845, "y": 632 },
+          { "timeMs": 13200, "x": 2255, "y": 632 }, { "timeMs": 16000, "x": 2255, "y": 632 }
+        ], "animation": { "type": "none", "durationMs": 1000, "delayMs": 0, "loop": false } }
+      ]
+    }
+  ],
+  "activeFrameIndex": 0,
+  "currentFrameIndex": 0
+}

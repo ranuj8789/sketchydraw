@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 2,
+  "app": "SketchyDraw",
+  "name": "Camera Follow and Zoom Test",
+  "createdAt": "2026-09-15T22:00:00.000Z",
+  "updatedAt": "2026-09-15T22:00:00.000Z",
+  "canvas": { "width": 1400, "height": 800, "background": "grid" },
+  "canvasProps": { "backgroundColor": "#f8fafc", "pattern": "grid", "cornerRadius": 16, "pageMode": false, "pageCount": 1, "currentPageIndex": 0, "pageViewMode": "single" },
+  "viewport": { "zoom": 1, "offsetX": 0, "offsetY": 0 },
+  "frames": [
+    {
+      "id": "follow-zoom-frame",
+      "name": "Follow Moving Box + Camera Zoom",
+      "durationMs": 8000,
+      "gapAfterMs": 800,
+      "transition": "none",
+      "hiddenElementIds": [],
+      "camera": { "zoom": 0.85, "offsetX": 0, "offsetY": 0 },
+      "cameraKeyframes": [
+        { "label": "Normal", "timeMs": 0, "holdMs": 500, "zoom": 1, "offsetX": 0, "offsetY": 0, "easing": "linear" },
+        { "label": "Zoom in", "timeMs": 3000, "holdMs": 1000, "zoom": 1.5, "offsetX": 0, "offsetY": 0, "easing": "cinematic" },
+        { "label": "Zoom out", "timeMs": 8000, "holdMs": 0, "zoom": 0.85, "offsetX": 0, "offsetY": 0, "easing": "cinematic" }
+      ],
+      "cameraFollowElementId": "follow-box",
+      "cameraFollowDeadZone": 0,
+      "elements": [
+        {
+          "id": "left-marker",
+          "type": "ellipse",
+          "x": 100,
+          "y": 150,
+          "w": 90,
+          "h": 90,
+          "stroke": "#94a3b8",
+          "fill": "#e2e8f0",
+          "strokeWidth": 3,
+          "opacity": 1,
+          "animation": { "type": "none", "durationMs": 1000, "delayMs": 0, "loop": false }
+        },
+        {
+          "id": "center-marker",
+          "type": "ellipse",
+          "x": 655,
+          "y": 150,
+          "w": 90,
+          "h": 90,
+          "stroke": "#94a3b8",
+          "fill": "#e2e8f0",
+          "strokeWidth": 3,
+          "opacity": 1,
+          "animation": { "type": "none", "durationMs": 1000, "delayMs": 0, "loop": false }
+        },
+        {
+          "id": "right-marker",
+          "type": "ellipse",
+          "x": 1210,
+          "y": 150,
+          "w": 90,
+          "h": 90,
+          "stroke": "#94a3b8",
+          "fill": "#e2e8f0",
+          "strokeWidth": 3,
+          "opacity": 1,
+          "animation": { "type": "none", "durationMs": 1000, "delayMs": 0, "loop": false }
+        },
+        {
+          "id": "follow-box",
+          "type": "rect",
+          "x": 160,
+          "y": 335,
+          "w": 220,
+          "h": 150,
+          "stroke": "#1d4ed8",
+          "fill": "#3b82f6",
+          "strokeWidth": 5,
+          "strokeDash": "solid",
+          "cornerRadius": 24,
+          "opacity": 1,
+          "transformKeyframes": [
+            { "timeMs": 0, "x": 160, "y": 335, "scale2d": 1, "opacity": 1 },
+            { "timeMs": 3000, "x": 590, "y": 335, "scale2d": 1, "opacity": 1 },
+            { "timeMs": 5000, "x": 590, "y": 335, "scale2d": 1, "opacity": 1 },
+            { "timeMs": 8000, "x": 1020, "y": 335, "scale2d": 1, "opacity": 1 }
+          ],
+          "animation": { "type": "glow", "durationMs": 1000, "delayMs": 0, "loop": true }
+        }
+      ]
+    }
+  ],
+  "activeFrameIndex": 0,
+  "currentFrameIndex": 0
+}

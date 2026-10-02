@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 2,
+  "app": "SketchyDraw",
+  "name": "Complete 2D Movement and Camera Test",
+  "createdAt": "2026-09-15T22:30:00.000Z",
+  "updatedAt": "2026-09-15T22:30:00.000Z",
+  "canvas": { "width": 1600, "height": 900, "background": "grid" },
+  "canvasProps": { "backgroundColor": "#f8fafc", "pattern": "grid", "cornerRadius": 16, "pageMode": false, "pageCount": 1, "currentPageIndex": 0, "pageViewMode": "single" },
+  "viewport": { "zoom": 1, "offsetX": 0, "offsetY": 0 },
+  "frames": [
+    {
+      "id": "test-tokenization",
+      "name": "1 · Tokenization · Dead Zone 0",
+      "durationMs": 5000,
+      "gapAfterMs": 700,
+      "transition": "camera",
+      "cameraTransitionMs": 700,
+      "cameraEasing": "cinematic",
+      "hiddenElementIds": [],
+      "camera": { "zoom": 1.25, "offsetX": 0, "offsetY": 0 },
+      "cameraKeyframes": [
+        { "label": "Wide", "timeMs": 0, "holdMs": 400, "zoom": 1, "offsetX": 0, "offsetY": 0, "easing": "smooth" },
+        { "label": "Token detail", "timeMs": 5000, "holdMs": 0, "zoom": 1.25, "offsetX": 0, "offsetY": 0, "easing": "cinematic" }
+      ],
+      "cameraFollowElementId": "data-packet",
+      "cameraFollowDeadZone": 0,
+      "elements": [
+        { "id": "f1-title", "type": "text", "x": 390, "y": 75, "w": 820, "h": 58, "text": "FRAME 1 · TOKENIZATION", "stroke": "#0f172a", "fill": "transparent", "opacity": 1, "fontSize": 44, "lineHeight": 54, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "parentId": null, "richText": [], "animation": { "type": "fadeIn", "durationMs": 600, "delayMs": 0, "loop": false } },
+        { "id": "input-card", "type": "rect", "x": 160, "y": 280, "w": 390, "h": 230, "stroke": "#0284c7", "fill": "#e0f2fe", "strokeWidth": 5, "strokeDash": "solid", "cornerRadius": 24, "opacity": 1, "animation": { "type": "glow", "durationMs": 1300, "delayMs": 0, "loop": true } },
+        { "id": "input-label", "type": "text", "x": 195, "y": 330, "w": 320, "h": 110, "text": "INPUT TEXT\n“AI learns fast”", "stroke": "#0c4a6e", "fill": "transparent", "opacity": 1, "fontSize": 32, "lineHeight": 43, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "parentId": "input-card", "richText": [], "animation": { "type": "typewriter", "durationMs": 1000, "delayMs": 300, "loop": false } },
+        { "id": "tokens-card", "type": "rect", "x": 940, "y": 280, "w": 470, "h": 230, "stroke": "#7c3aed", "fill": "#ede9fe", "strokeWidth": 5, "strokeDash": "solid", "cornerRadius": 24, "opacity": 1, "animation": { "type": "scaleIn", "durationMs": 700, "delayMs": 2800, "loop": false } },
+        { "id": "tokens-label", "type": "text", "x": 975, "y": 325, "w": 400, "h": 125, "text": "TOKENS\n[AI] [learns] [fast]\nIDs: 3192 · 10211 · 3431", "stroke": "#4c1d95", "fill": "transparent", "opacity": 1, "fontSize": 28, "lineHeight": 38, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "parentId": "tokens-card", "richText": [], "animation": { "type": "fadeIn", "durationMs": 700, "delayMs": 3100, "loop": false } },
+        { "id": "f1-flow", "type": "arrow", "x1": 550, "y1": 395, "x2": 940, "y2": 395, "cx1": 680, "cy1": 340, "cx2": 810, "cy2": 450, "stroke": "#2563eb", "fill": "transparent", "strokeWidth": 7, "strokeDash": "solid", "lineStyle": "curved", "arrowStart": false, "arrowEnd": true, "opacity": 1, "animation": { "type": "dataFlow", "durationMs": 1200, "delayMs": 1200, "loop": true } },
+        { "id": "data-packet", "type": "rect", "x": 200, "y": 650, "w": 150, "h": 90, "stroke": "#ffffff", "fill": "#2563eb", "strokeWidth": 5, "strokeDash": "solid", "cornerRadius": 20, "opacity": 1, "rotation": 0, "transformKeyframes": [
+          { "timeMs": 0, "x": 200, "y": 650, "rotation": 0, "scale2d": 1, "opacity": 1 },
+          { "timeMs": 2300, "x": 610, "y": 565, "rotation": 18, "scale2d": 1.25, "opacity": 0.65 },
+          { "timeMs": 5000, "x": 980, "y": 650, "rotation": 35, "scale2d": 1, "opacity": 1 }
+        ], "animation": { "type": "glow", "durationMs": 900, "delayMs": 0, "loop": true } }
+      ]
+    },
+    {
+      "id": "test-embedding-vectors",
+      "name": "2 · Embeddings and Vectors · Dead Zone 120",
+      "durationMs": 5000,
+      "gapAfterMs": 700,
+      "transition": "camera",
+      "cameraTransitionMs": 700,
+      "cameraEasing": "cinematic",
+      "hiddenElementIds": [],
+      "camera": { "zoom": 0.95, "offsetX": 0, "offsetY": 0 },
+      "cameraKeyframes": [
+        { "label": "Continue from frame 1", "timeMs": 0, "holdMs": 400, "zoom": 1.25, "offsetX": 0, "offsetY": 0, "easing": "smooth" },
+        { "label": "Show vector space", "timeMs": 5000, "holdMs": 0, "zoom": 0.95, "offsetX": 0, "offsetY": 0, "easing": "cinematic" }
+      ],
+      "cameraFollowElementId": "data-packet",
+      "cameraFollowDeadZone": 120,
+      "elements": [
+        { "id": "f2-title", "type": "text", "x": 330, "y": 75, "w": 940, "h": 58, "text": "FRAME 2 · EMBEDDINGS → VECTORS", "stroke": "#0f172a", "fill": "transparent", "opacity": 1, "fontSize": 42, "lineHeight": 52, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "parentId": null, "richText": [], "animation": { "type": "fadeIn", "durationMs": 600, "delayMs": 0, "loop": false } },
+        { "id": "embedding-card", "type": "rect", "x": 160, "y": 260, "w": 500, "h": 290, "stroke": "#7c3aed", "fill": "#ede9fe", "strokeWidth": 5, "strokeDash": "solid", "cornerRadius": 24, "opacity": 1, "animation": { "type": "glow", "durationMs": 1300, "delayMs": 0, "loop": true } },
+        { "id": "embedding-label", "type": "text", "x": 205, "y": 310, "w": 410, "h": 150, "text": "EMBEDDING LOOKUP\n\nToken ID → learned meaning", "stroke": "#4c1d95", "fill": "transparent", "opacity": 1, "fontSize": 31, "lineHeight": 42, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "parentId": "embedding-card", "richText": [], "animation": { "type": "fadeIn", "durationMs": 700, "delayMs": 400, "loop": false } },
+        { "id": "vector-card", "type": "rect", "x": 900, "y": 260, "w": 550, "h": 290, "stroke": "#db2777", "fill": "#fce7f3", "strokeWidth": 5, "strokeDash": "solid", "cornerRadius": 24, "opacity": 1, "animation": { "type": "scaleIn", "durationMs": 700, "delayMs": 2600, "loop": false } },
+        { "id": "vector-label", "type": "text", "x": 940, "y": 300, "w": 470, "h": 190, "text": "VECTOR DATA\n\nAI      [0.21, −0.44, 0.78]\nlearns  [0.63, 0.12, −0.31]\nfast    [0.47, 0.81, 0.09]", "stroke": "#831843", "fill": "transparent", "opacity": 1, "fontSize": 27, "lineHeight": 37, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "left", "parentId": "vector-card", "richText": [], "animation": { "type": "fadeIn", "durationMs": 700, "delayMs": 2900, "loop": false } },
+        { "id": "f2-flow", "type": "arrow", "x1": 660, "y1": 405, "x2": 900, "y2": 405, "cx1": 740, "cy1": 335, "cx2": 820, "cy2": 475, "stroke": "#a855f7", "fill": "transparent", "strokeWidth": 7, "strokeDash": "solid", "lineStyle": "curved", "arrowStart": false, "arrowEnd": true, "opacity": 1, "animation": { "type": "dataFlow", "durationMs": 1200, "delayMs": 1200, "loop": true } },
+        { "id": "data-packet", "type": "rect", "x": 980, "y": 650, "w": 150, "h": 90, "stroke": "#ffffff", "fill": "#7c3aed", "strokeWidth": 5, "strokeDash": "solid", "cornerRadius": 20, "opacity": 1, "rotation": 35, "transformKeyframes": [
+          { "timeMs": 0, "x": 980, "y": 650, "rotation": 35, "scale2d": 1, "opacity": 1 },
+          { "timeMs": 2500, "x": 720, "y": 535, "rotation": 120, "scale2d": 0.75, "opacity": 0.45 },
+          { "timeMs": 5000, "x": 1110, "y": 625, "rotation": 190, "scale2d": 1.15, "opacity": 1 }
+        ], "animation": { "type": "glow", "durationMs": 900, "delayMs": 0, "loop": true } }
+      ]
+    },
+    {
+      "id": "test-ffn-prediction",
+      "name": "3 · FFN and Prediction · Dead Zone 240",
+      "durationMs": 5500,
+      "gapAfterMs": 1000,
+      "transition": "camera",
+      "cameraTransitionMs": 700,
+      "cameraEasing": "cinematic",
+      "hiddenElementIds": [],
+      "camera": { "zoom": 1, "offsetX": 0, "offsetY": 0 },
+      "cameraKeyframes": [
+        { "label": "Continue from frame 2", "timeMs": 0, "holdMs": 400, "zoom": 0.95, "offsetX": 0, "offsetY": 0, "easing": "smooth" },
+        { "label": "FFN close-up", "timeMs": 2600, "holdMs": 700, "zoom": 1.35, "offsetX": 0, "offsetY": 0, "easing": "cinematic" },
+        { "label": "Final result", "timeMs": 5500, "holdMs": 0, "zoom": 1, "offsetX": 0, "offsetY": 0, "easing": "cinematic" }
+      ],
+      "cameraFollowElementId": "data-packet",
+      "cameraFollowDeadZone": 240,
+      "elements": [
+        { "id": "f3-title", "type": "text", "x": 390, "y": 75, "w": 820, "h": 58, "text": "FRAME 3 · FFN → PREDICTION", "stroke": "#0f172a", "fill": "transparent", "opacity": 1, "fontSize": 43, "lineHeight": 53, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "parentId": null, "richText": [], "animation": { "type": "fadeIn", "durationMs": 600, "delayMs": 0, "loop": false } },
+        { "id": "ffn-card", "type": "rect", "x": 160, "y": 260, "w": 540, "h": 290, "stroke": "#d97706", "fill": "#fef3c7", "strokeWidth": 5, "strokeDash": "solid", "cornerRadius": 24, "opacity": 1, "animation": { "type": "glow", "durationMs": 1300, "delayMs": 0, "loop": true } },
+        { "id": "ffn-label", "type": "text", "x": 205, "y": 305, "w": 450, "h": 170, "text": "FEED-FORWARD NETWORK\n\nExpand → ReLU → Compress\nFFN(x) = ReLU(xW₁+b₁)W₂+b₂", "stroke": "#78350f", "fill": "transparent", "opacity": 1, "fontSize": 28, "lineHeight": 39, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "parentId": "ffn-card", "richText": [], "animation": { "type": "fadeIn", "durationMs": 700, "delayMs": 300, "loop": false } },
+        { "id": "prediction-card", "type": "rect", "x": 930, "y": 260, "w": 510, "h": 290, "stroke": "#059669", "fill": "#d1fae5", "strokeWidth": 5, "strokeDash": "solid", "cornerRadius": 24, "opacity": 1, "animation": { "type": "scaleIn", "durationMs": 700, "delayMs": 3000, "loop": false } },
+        { "id": "prediction-label", "type": "text", "x": 970, "y": 310, "w": 430, "h": 160, "text": "PREDICTION\n\nNext token: “better”\nProbability: 75%", "stroke": "#064e3b", "fill": "transparent", "opacity": 1, "fontSize": 32, "lineHeight": 43, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "parentId": "prediction-card", "richText": [], "animation": { "type": "fadeIn", "durationMs": 700, "delayMs": 3300, "loop": false } },
+        { "id": "f3-flow", "type": "arrow", "x1": 700, "y1": 405, "x2": 930, "y2": 405, "cx1": 777, "cy1": 335, "cx2": 853, "cy2": 475, "stroke": "#f59e0b", "fill": "transparent", "strokeWidth": 7, "strokeDash": "solid", "lineStyle": "curved", "arrowStart": false, "arrowEnd": true, "opacity": 1, "animation": { "type": "dataFlow", "durationMs": 1200, "delayMs": 1600, "loop": true } },
+        { "id": "data-packet", "type": "rect", "x": 1110, "y": 625, "w": 150, "h": 90, "stroke": "#ffffff", "fill": "#f59e0b", "strokeWidth": 5, "strokeDash": "solid", "cornerRadius": 20, "opacity": 1, "rotation": 190, "transformKeyframes": [
+          { "timeMs": 0, "x": 1110, "y": 625, "rotation": 190, "scale2d": 1.15, "opacity": 1 },
+          { "timeMs": 2200, "x": 610, "y": 540, "rotation": 260, "scale2d": 1.35, "opacity": 0.55 },
+          { "timeMs": 3600, "x": 830, "y": 600, "rotation": 315, "scale2d": 0.8, "opacity": 0.35 },
+          { "timeMs": 5500, "x": 1160, "y": 650, "rotation": 360, "scale2d": 1, "opacity": 1 }
+        ], "animation": { "type": "glow", "durationMs": 900, "delayMs": 0, "loop": true } }
+      ]
+    }
+  ],
+  "activeFrameIndex": 0,
+  "currentFrameIndex": 0
+}

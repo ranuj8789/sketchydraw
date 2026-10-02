@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 2,
+  "app": "SketchyDraw",
+  "name": "3D Movement Rotation Scale Opacity Test",
+  "createdAt": "2026-09-15T23:00:00.000Z",
+  "updatedAt": "2026-09-15T23:00:00.000Z",
+  "canvas": { "width": 1600, "height": 900, "background": "blank" },
+  "canvasProps": { "backgroundColor": "#07111f", "pattern": "grid", "cornerRadius": 16, "pageMode": false, "pageCount": 1, "currentPageIndex": 0, "pageViewMode": "single" },
+  "viewport": { "zoom": 1, "offsetX": 0, "offsetY": 0 },
+  "frames": [
+    {
+      "id": "movement-xyz",
+      "name": "1 · X Y Z Movement",
+      "durationMs": 6000,
+      "gapAfterMs": 1000,
+      "transition": "none",
+      "hiddenElementIds": [],
+      "camera": { "zoom": 1, "offsetX": 0, "offsetY": 0 },
+      "cameraKeyframes": [],
+      "cameraFollowElementId": null,
+      "cameraFollowDeadZone": 0,
+      "elements": [
+        { "id": "move-title", "type": "text", "x": 350, "y": 45, "w": 900, "h": 58, "text": "3D MOVEMENT · X / Y / Z", "stroke": "#f8fafc", "fill": "transparent", "opacity": 1, "fontSize": 44, "lineHeight": 54, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "parentId": null, "richText": [], "animation": { "type": "fadeIn", "durationMs": 500, "delayMs": 0, "loop": false } },
+        { "id": "x-label", "type": "text", "x": 170, "y": 700, "w": 300, "h": 48, "text": "X AXIS · RED", "stroke": "#fca5a5", "fill": "transparent", "opacity": 1, "fontSize": 30, "lineHeight": 38, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "parentId": null, "richText": [], "animation": { "type": "none" } },
+        { "id": "y-label", "type": "text", "x": 650, "y": 700, "w": 300, "h": 48, "text": "Y AXIS · GREEN", "stroke": "#86efac", "fill": "transparent", "opacity": 1, "fontSize": 30, "lineHeight": 38, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "parentId": null, "richText": [], "animation": { "type": "none" } },
+        { "id": "z-label", "type": "text", "x": 1130, "y": 700, "w": 300, "h": 48, "text": "Z DEPTH · BLUE", "stroke": "#93c5fd", "fill": "transparent", "opacity": 1, "fontSize": 30, "lineHeight": 38, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "parentId": null, "richText": [], "animation": { "type": "none" } },
+        { "id": "move-x-box", "type": "webgl3d", "primitive3d": "box", "renderer": "webgl", "x": 120, "y": 320, "w": 190, "h": 190, "depth": 130, "z": 0, "rotationX": -16, "rotationY": 25, "rotationZ": 0, "scale3d": 1, "stroke": "#ef4444", "fill": "#ef4444", "materialColor": "#ef4444", "opacity": 1, "metalness": 0.22, "roughness": 0.38, "motion3d": "none", "projection3d": "perspective", "lightingPreset": "studio", "cameraFov": 48, "cameraDistance": 1050, "cameraPitch": 10, "cameraYaw": 0, "showLabels": false, "transformKeyframes": [
+          { "timeMs": 0, "x": 120, "y": 320, "z": 0, "rotationX": -16, "rotationY": 25, "rotationZ": 0, "scale3d": 1, "opacity": 1 },
+          { "timeMs": 3000, "x": 380, "y": 320, "z": 0, "rotationX": -16, "rotationY": 25, "rotationZ": 0, "scale3d": 1, "opacity": 1 },
+          { "timeMs": 6000, "x": 120, "y": 320, "z": 0, "rotationX": -16, "rotationY": 25, "rotationZ": 0, "scale3d": 1, "opacity": 1 }
+        ], "animation": { "type": "none" }, "webglPrimitive": true, "pageIndex": 0 },
+        { "id": "move-y-box", "type": "webgl3d", "primitive3d": "box", "renderer": "webgl", "x": 705, "y": 180, "w": 190, "h": 190, "depth": 130, "z": 0, "rotationX": -16, "rotationY": 25, "rotationZ": 0, "scale3d": 1, "stroke": "#22c55e", "fill": "#22c55e", "materialColor": "#22c55e", "opacity": 1, "metalness": 0.22, "roughness": 0.38, "motion3d": "none", "projection3d": "perspective", "lightingPreset": "studio", "showLabels": false, "transformKeyframes": [
+          { "timeMs": 0, "x": 705, "y": 180, "z": 0, "rotationX": -16, "rotationY": 25, "rotationZ": 0, "scale3d": 1, "opacity": 1 },
+          { "timeMs": 3000, "x": 705, "y": 470, "z": 0, "rotationX": -16, "rotationY": 25, "rotationZ": 0, "scale3d": 1, "opacity": 1 },
+          { "timeMs": 6000, "x": 705, "y": 180, "z": 0, "rotationX": -16, "rotationY": 25, "rotationZ": 0, "scale3d": 1, "opacity": 1 }
+        ], "animation": { "type": "none" }, "webglPrimitive": true, "pageIndex": 0 },
+        { "id": "z-reference", "type": "webgl3d", "primitive3d": "box", "renderer": "webgl", "x": 1195, "y": 320, "w": 190, "h": 190, "depth": 130, "z": -260, "rotationX": -16, "rotationY": 25, "rotationZ": 0, "scale3d": 1, "fill": "#1e3a8a", "materialColor": "#1e3a8a", "opacity": 0.35, "metalness": 0.1, "roughness": 0.55, "motion3d": "none", "projection3d": "perspective", "lightingPreset": "studio", "showLabels": false, "animation": { "type": "none" }, "webglPrimitive": true, "pageIndex": 0 },
+        { "id": "move-z-box", "type": "webgl3d", "primitive3d": "box", "renderer": "webgl", "x": 1195, "y": 320, "w": 190, "h": 190, "depth": 130, "z": -220, "rotationX": -16, "rotationY": 25, "rotationZ": 0, "scale3d": 1, "stroke": "#3b82f6", "fill": "#3b82f6", "materialColor": "#3b82f6", "opacity": 1, "metalness": 0.25, "roughness": 0.32, "motion3d": "none", "projection3d": "perspective", "lightingPreset": "studio", "showLabels": false, "transformKeyframes": [
+          { "timeMs": 0, "x": 1195, "y": 320, "z": -220, "rotationX": -16, "rotationY": 25, "rotationZ": 0, "scale3d": 1, "opacity": 1 },
+          { "timeMs": 3000, "x": 1195, "y": 320, "z": 420, "rotationX": -16, "rotationY": 25, "rotationZ": 0, "scale3d": 1, "opacity": 1 },
+          { "timeMs": 6000, "x": 1195, "y": 320, "z": -220, "rotationX": -16, "rotationY": 25, "rotationZ": 0, "scale3d": 1, "opacity": 1 }
+        ], "animation": { "type": "none" }, "webglPrimitive": true, "pageIndex": 0 }
+      ]
+    },
+    {
+      "id": "rotation-axes",
+      "name": "2 · X Y Z and XYZ Rotation",
+      "durationMs": 6000,
+      "gapAfterMs": 1000,
+      "transition": "none",
+      "hiddenElementIds": [],
+      "camera": { "zoom": 1, "offsetX": 0, "offsetY": 0 },
+      "cameraKeyframes": [],
+      "cameraFollowElementId": null,
+      "cameraFollowDeadZone": 0,
+      "elements": [
+        { "id": "rotate-title", "type": "text", "x": 300, "y": 45, "w": 1000, "h": 58, "text": "3D ROTATION · CHECK FOR SUDDEN FLIPS", "stroke": "#f8fafc", "fill": "transparent", "opacity": 1, "fontSize": 42, "lineHeight": 52, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "parentId": null, "richText": [], "animation": { "type": "fadeIn", "durationMs": 500, "delayMs": 0, "loop": false } },
+        { "id": "rx-label", "type": "text", "x": 95, "y": 650, "w": 300, "h": 45, "text": "ROTATE X", "stroke": "#fca5a5", "fill": "transparent", "opacity": 1, "fontSize": 30, "lineHeight": 38, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "richText": [], "animation": { "type": "none" } },
+        { "id": "ry-label", "type": "text", "x": 465, "y": 650, "w": 300, "h": 45, "text": "ROTATE Y", "stroke": "#86efac", "fill": "transparent", "opacity": 1, "fontSize": 30, "lineHeight": 38, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "richText": [], "animation": { "type": "none" } },
+        { "id": "rz-label", "type": "text", "x": 835, "y": 650, "w": 300, "h": 45, "text": "ROTATE Z", "stroke": "#93c5fd", "fill": "transparent", "opacity": 1, "fontSize": 30, "lineHeight": 38, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "richText": [], "animation": { "type": "none" } },
+        { "id": "rxyz-label", "type": "text", "x": 1205, "y": 650, "w": 300, "h": 45, "text": "ROTATE XYZ", "stroke": "#c4b5fd", "fill": "transparent", "opacity": 1, "fontSize": 30, "lineHeight": 38, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "richText": [], "animation": { "type": "none" } },
+        { "id": "rotate-x", "type": "webgl3d", "primitive3d": "box", "renderer": "webgl", "x": 150, "y": 290, "w": 190, "h": 190, "depth": 145, "z": 0, "rotationX": 0, "rotationY": 20, "rotationZ": 0, "scale3d": 1, "fill": "#ef4444", "materialColor": "#ef4444", "opacity": 1, "metalness": 0.28, "roughness": 0.3, "motion3d": "none", "projection3d": "perspective", "lightingPreset": "studio", "cameraFov": 48, "cameraDistance": 1050, "cameraPitch": 10, "cameraYaw": 0, "transformKeyframes": [ { "timeMs": 0, "rotationX": 0, "rotationY": 20, "rotationZ": 0 }, { "timeMs": 3000, "rotationX": 180, "rotationY": 20, "rotationZ": 0 }, { "timeMs": 6000, "rotationX": 360, "rotationY": 20, "rotationZ": 0 } ], "animation": { "type": "none" }, "webglPrimitive": true },
+        { "id": "rotate-y", "type": "webgl3d", "primitive3d": "box", "renderer": "webgl", "x": 520, "y": 290, "w": 190, "h": 190, "depth": 145, "z": 0, "rotationX": -15, "rotationY": 0, "rotationZ": 0, "scale3d": 1, "fill": "#22c55e", "materialColor": "#22c55e", "opacity": 1, "metalness": 0.28, "roughness": 0.3, "motion3d": "none", "projection3d": "perspective", "lightingPreset": "studio", "transformKeyframes": [ { "timeMs": 0, "rotationX": -15, "rotationY": 0, "rotationZ": 0 }, { "timeMs": 3000, "rotationX": -15, "rotationY": 180, "rotationZ": 0 }, { "timeMs": 6000, "rotationX": -15, "rotationY": 360, "rotationZ": 0 } ], "animation": { "type": "none" }, "webglPrimitive": true },
+        { "id": "rotate-z", "type": "webgl3d", "primitive3d": "box", "renderer": "webgl", "x": 890, "y": 290, "w": 190, "h": 190, "depth": 145, "z": 0, "rotationX": -15, "rotationY": 20, "rotationZ": 0, "scale3d": 1, "fill": "#3b82f6", "materialColor": "#3b82f6", "opacity": 1, "metalness": 0.28, "roughness": 0.3, "motion3d": "none", "projection3d": "perspective", "lightingPreset": "studio", "transformKeyframes": [ { "timeMs": 0, "rotationX": -15, "rotationY": 20, "rotationZ": 0 }, { "timeMs": 3000, "rotationX": -15, "rotationY": 20, "rotationZ": 180 }, { "timeMs": 6000, "rotationX": -15, "rotationY": 20, "rotationZ": 360 } ], "animation": { "type": "none" }, "webglPrimitive": true },
+        { "id": "rotate-xyz", "type": "webgl3d", "primitive3d": "box", "renderer": "webgl", "x": 1260, "y": 290, "w": 190, "h": 190, "depth": 145, "z": 0, "rotationX": 0, "rotationY": 0, "rotationZ": 0, "scale3d": 1, "fill": "#8b5cf6", "materialColor": "#8b5cf6", "opacity": 1, "metalness": 0.28, "roughness": 0.3, "motion3d": "none", "projection3d": "perspective", "lightingPreset": "studio", "transformKeyframes": [ { "timeMs": 0, "rotationX": 0, "rotationY": 0, "rotationZ": 0 }, { "timeMs": 3000, "rotationX": 150, "rotationY": 220, "rotationZ": 100 }, { "timeMs": 6000, "rotationX": 300, "rotationY": 440, "rotationZ": 200 } ], "animation": { "type": "none" }, "webglPrimitive": true }
+      ]
+    },
+    {
+      "id": "scale-opacity-movement",
+      "name": "3 · Movement Scale and Opacity",
+      "durationMs": 6000,
+      "gapAfterMs": 1200,
+      "transition": "none",
+      "hiddenElementIds": [],
+      "camera": { "zoom": 1, "offsetX": 0, "offsetY": 0 },
+      "cameraKeyframes": [],
+      "cameraFollowElementId": null,
+      "cameraFollowDeadZone": 0,
+      "elements": [
+        { "id": "combo-title", "type": "text", "x": 260, "y": 45, "w": 1080, "h": 58, "text": "MOVE + ROTATE + SCALE + OPACITY", "stroke": "#f8fafc", "fill": "transparent", "opacity": 1, "fontSize": 43, "lineHeight": 53, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "richText": [], "animation": { "type": "fadeIn", "durationMs": 500, "delayMs": 0, "loop": false } },
+        { "id": "combo-guide", "type": "text", "x": 310, "y": 700, "w": 980, "h": 50, "text": "Scale 0.5 → 1.5 → 1     ·     Opacity 1 → 0.2 → 1", "stroke": "#cbd5e1", "fill": "transparent", "opacity": 1, "fontSize": 31, "lineHeight": 40, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "richText": [], "animation": { "type": "none" } },
+        { "id": "combo-path", "type": "arrow", "x1": 210, "y1": 520, "x2": 1390, "y2": 310, "cx1": 560, "cy1": 140, "cx2": 1040, "cy2": 700, "stroke": "#475569", "fill": "transparent", "strokeWidth": 5, "strokeDash": "dashed", "lineStyle": "curved", "arrowStart": false, "arrowEnd": true, "opacity": 0.85, "animation": { "type": "movingDashes", "durationMs": 1400, "delayMs": 0, "loop": true } },
+        { "id": "combo-box", "type": "webgl3d", "primitive3d": "box", "renderer": "webgl", "x": 170, "y": 420, "w": 220, "h": 220, "depth": 160, "z": -120, "rotationX": 0, "rotationY": 0, "rotationZ": 0, "scale3d": 0.5, "fill": "#06b6d4", "materialColor": "#06b6d4", "opacity": 1, "metalness": 0.32, "roughness": 0.28, "motion3d": "none", "projection3d": "perspective", "lightingPreset": "studio", "cameraFov": 48, "cameraDistance": 1050, "cameraPitch": 10, "cameraYaw": 0, "transformKeyframes": [
+          { "timeMs": 0, "x": 170, "y": 420, "z": -120, "rotationX": 0, "rotationY": 0, "rotationZ": 0, "scale3d": 0.5, "opacity": 1, "materialColor": "#06b6d4" },
+          { "timeMs": 3000, "x": 690, "y": 180, "z": 320, "rotationX": 140, "rotationY": 210, "rotationZ": 70, "scale3d": 1.5, "opacity": 0.2, "materialColor": "#8b5cf6" },
+          { "timeMs": 6000, "x": 1210, "y": 370, "z": 0, "rotationX": 280, "rotationY": 420, "rotationZ": 140, "scale3d": 1, "opacity": 1, "materialColor": "#22c55e" }
+        ], "animation": { "type": "none" }, "webglPrimitive": true, "pageIndex": 0 }
+      ]
+    }
+  ],
+  "activeFrameIndex": 0,
+  "currentFrameIndex": 0
+}

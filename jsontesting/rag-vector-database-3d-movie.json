@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 2,
+  "app": "SketchyDraw",
+  "name": "RAG and Vector Database · 3D Movie",
+  "createdAt": "2026-09-15T23:30:00.000Z",
+  "updatedAt": "2026-09-15T23:30:00.000Z",
+  "canvas": { "width": 1600, "height": 900, "background": "blank" },
+  "canvasProps": { "backgroundColor": "#f8fafc", "pattern": "blank", "cornerRadius": 18, "pageMode": false, "pageCount": 1, "currentPageIndex": 0, "pageViewMode": "single" },
+  "viewport": { "zoom": 1, "offsetX": 0, "offsetY": 0 },
+  "frames": [
+    {
+      "id": "rag-ingestion",
+      "name": "1 · Documents Become Embeddings",
+      "durationMs": 7500,
+      "gapAfterMs": 900,
+      "transition": "camera",
+      "cameraTransitionMs": 800,
+      "cameraEasing": "cinematic",
+      "hiddenElementIds": [],
+      "camera": { "zoom": 1, "offsetX": 0, "offsetY": 0 },
+      "cameraKeyframes": [
+        { "label": "Wide", "timeMs": 0, "holdMs": 500, "zoom": 0.92, "offsetX": 30, "offsetY": 10, "easing": "smooth" },
+        { "label": "Embedding focus", "timeMs": 4200, "holdMs": 900, "zoom": 1.12, "offsetX": -180, "offsetY": -20, "easing": "cinematic" },
+        { "label": "Complete ingestion", "timeMs": 7500, "holdMs": 0, "zoom": 1, "offsetX": 0, "offsetY": 0, "easing": "cinematic" }
+      ],
+      "cameraFollowElementId": null,
+      "cameraFollowDeadZone": 100,
+      "elements": [
+        { "id": "f1-title", "type": "text", "x": 250, "y": 45, "w": 1100, "h": 60, "text": "1 · TURN KNOWLEDGE INTO VECTORS", "stroke": "#0f172a", "fill": "transparent", "opacity": 1, "fontSize": 46, "lineHeight": 56, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "richText": [], "animation": { "type": "typewriter", "durationMs": 1100, "delayMs": 0, "loop": false } },
+        { "id": "f1-subtitle", "type": "text", "x": 300, "y": 115, "w": 1000, "h": 42, "text": "Documents are split into small chunks, then every chunk becomes an embedding", "stroke": "#475569", "fill": "transparent", "opacity": 1, "fontSize": 28, "lineHeight": 36, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "richText": [], "animation": { "type": "fadeIn", "durationMs": 700, "delayMs": 1000, "loop": false } },
+        { "id": "chunks-3d", "type": "webgl3d", "primitive3d": "array3d", "renderer": "webgl", "x": 120, "y": 275, "w": 560, "h": 260, "depth": 90, "z": 0, "rotationX": -16, "rotationY": 25, "rotationZ": 0, "scale3d": 1, "fill": "#2563eb", "materialColor": "#2563eb", "opacity": 1, "metalness": 0.16, "roughness": 0.42, "values": ["Chunk 1", "Chunk 2", "Chunk 3", "Chunk 4"], "motion3d": "wave", "projection3d": "perspective", "lightingPreset": "soft", "cameraFov": 48, "cameraDistance": 1100, "cameraPitch": 10, "cameraYaw": -6, "orbitKeyframes": [ { "timeMs": 0, "yaw": -6, "pitch": 10, "distance": 1100 }, { "timeMs": 7500, "yaw": 7, "pitch": 15, "distance": 1020 } ], "transformKeyframes": [ { "timeMs": 0, "x": 120, "y": 275, "z": 0, "rotationY": 25, "scale3d": 0.75, "opacity": 0.15 }, { "timeMs": 1800, "x": 120, "y": 275, "z": 0, "rotationY": 32, "scale3d": 1, "opacity": 1 }, { "timeMs": 7500, "x": 120, "y": 275, "z": 0, "rotationY": 48, "scale3d": 1, "opacity": 1 } ], "animation": { "type": "fadeIn", "durationMs": 700, "delayMs": 1300, "loop": false }, "webglPrimitive": true },
+        { "id": "embedding-cloud", "type": "webgl3d", "primitive3d": "embedding3d", "renderer": "webgl", "x": 850, "y": 235, "w": 560, "h": 360, "depth": 220, "z": 40, "rotationX": -12, "rotationY": -15, "rotationZ": 0, "scale3d": 1, "fill": "#8b5cf6", "materialColor": "#8b5cf6", "opacity": 1, "metalness": 0.2, "roughness": 0.34, "pointCount": 42, "motion3d": "dataFlow", "projection3d": "perspective", "lightingPreset": "soft", "dataPath3d": [ { "x": -220, "y": 30, "z": 0 }, { "x": -90, "y": -90, "z": 110 }, { "x": 80, "y": 65, "z": 150 }, { "x": 220, "y": -25, "z": 20 } ], "flowColor": "#06b6d4", "pathDurationMs": 2400, "transformKeyframes": [ { "timeMs": 0, "x": 850, "y": 235, "z": 40, "rotationY": -15, "scale3d": 0.65, "opacity": 0 }, { "timeMs": 3500, "x": 850, "y": 235, "z": 40, "rotationY": 0, "scale3d": 1, "opacity": 1 }, { "timeMs": 7500, "x": 850, "y": 235, "z": 40, "rotationY": 32, "scale3d": 1.08, "opacity": 1 } ], "animation": { "type": "scaleIn", "durationMs": 800, "delayMs": 3000, "loop": false }, "webglPrimitive": true },
+        { "id": "chunks-caption", "type": "text", "x": 190, "y": 650, "w": 430, "h": 48, "text": "TEXT CHUNKS", "stroke": "#1d4ed8", "fill": "transparent", "opacity": 1, "fontSize": 32, "lineHeight": 40, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "richText": [], "animation": { "type": "fadeIn", "durationMs": 500, "delayMs": 1600, "loop": false } },
+        { "id": "embedding-caption", "type": "text", "x": 920, "y": 650, "w": 430, "h": 48, "text": "EMBEDDING SPACE", "stroke": "#6d28d9", "fill": "transparent", "opacity": 1, "fontSize": 32, "lineHeight": 40, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "richText": [], "animation": { "type": "fadeIn", "durationMs": 500, "delayMs": 3600, "loop": false } }
+      ]
+    },
+    {
+      "id": "vector-database",
+      "name": "2 · Vector Database Stores Meaning",
+      "durationMs": 7500,
+      "gapAfterMs": 900,
+      "transition": "camera",
+      "cameraTransitionMs": 800,
+      "cameraEasing": "cinematic",
+      "hiddenElementIds": [],
+      "camera": { "zoom": 1, "offsetX": 0, "offsetY": 0 },
+      "cameraKeyframes": [ { "label": "Database wide", "timeMs": 0, "holdMs": 600, "zoom": 0.95, "offsetX": 0, "offsetY": 0, "easing": "smooth" }, { "label": "Nearest neighbours", "timeMs": 4300, "holdMs": 1000, "zoom": 1.22, "offsetX": -50, "offsetY": -40, "easing": "cinematic" }, { "label": "Database complete", "timeMs": 7500, "holdMs": 0, "zoom": 1, "offsetX": 0, "offsetY": 0, "easing": "cinematic" } ],
+      "cameraFollowElementId": null,
+      "cameraFollowDeadZone": 100,
+      "elements": [
+        { "id": "f2-title", "type": "text", "x": 230, "y": 45, "w": 1140, "h": 60, "text": "2 · VECTOR DATABASE STORES MEANING", "stroke": "#0f172a", "fill": "transparent", "opacity": 1, "fontSize": 45, "lineHeight": 55, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "richText": [], "animation": { "type": "typewriter", "durationMs": 1200, "delayMs": 0, "loop": false } },
+        { "id": "f2-subtitle", "type": "text", "x": 280, "y": 115, "w": 1040, "h": 42, "text": "Similar meanings live close together—even when the exact words are different", "stroke": "#475569", "fill": "transparent", "opacity": 1, "fontSize": 28, "lineHeight": 36, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "richText": [], "animation": { "type": "fadeIn", "durationMs": 700, "delayMs": 1000, "loop": false } },
+        { "id": "vector-db-3d", "type": "webgl3d", "primitive3d": "vectordb3d", "renderer": "webgl", "x": 420, "y": 190, "w": 760, "h": 470, "depth": 300, "z": 0, "rotationX": -18, "rotationY": -22, "rotationZ": 0, "scale3d": 1, "fill": "#0ea5e9", "materialColor": "#0ea5e9", "opacity": 1, "metalness": 0.24, "roughness": 0.3, "pointCount": 58, "motion3d": "rotateY", "projection3d": "perspective", "lightingPreset": "soft", "cameraFov": 46, "cameraDistance": 1080, "cameraPitch": 12, "cameraYaw": -10, "orbitKeyframes": [ { "timeMs": 0, "yaw": -10, "pitch": 12, "distance": 1080 }, { "timeMs": 3800, "yaw": 8, "pitch": 18, "distance": 930 }, { "timeMs": 7500, "yaw": 20, "pitch": 10, "distance": 1080 } ], "dataPath3d": [ { "x": -290, "y": 120, "z": -80 }, { "x": -120, "y": -80, "z": 90 }, { "x": 40, "y": 40, "z": 180 }, { "x": 250, "y": -110, "z": 40 } ], "flowColor": "#8b5cf6", "pathDurationMs": 2600, "transformKeyframes": [ { "timeMs": 0, "x": 420, "y": 190, "z": 0, "rotationY": -22, "scale3d": 0.78, "opacity": 0.2 }, { "timeMs": 2200, "x": 420, "y": 190, "z": 0, "rotationY": -5, "scale3d": 1, "opacity": 1 }, { "timeMs": 7500, "x": 420, "y": 190, "z": 0, "rotationY": 35, "scale3d": 1.05, "opacity": 1 } ], "animation": { "type": "scaleIn", "durationMs": 900, "delayMs": 1300, "loop": false }, "webglPrimitive": true },
+        { "id": "similar-label", "type": "text", "x": 390, "y": 690, "w": 820, "h": 52, "text": "Nearest-neighbour search finds the most relevant chunks", "stroke": "#0369a1", "fill": "transparent", "opacity": 1, "fontSize": 32, "lineHeight": 41, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "richText": [], "animation": { "type": "fadeIn", "durationMs": 700, "delayMs": 3900, "loop": false } }
+      ]
+    },
+    {
+      "id": "rag-retrieval",
+      "name": "3 · Query Retrieves Relevant Context",
+      "durationMs": 8000,
+      "gapAfterMs": 900,
+      "transition": "camera",
+      "cameraTransitionMs": 800,
+      "cameraEasing": "cinematic",
+      "hiddenElementIds": [],
+      "camera": { "zoom": 1, "offsetX": 0, "offsetY": 0 },
+      "cameraKeyframes": [ { "label": "Query", "timeMs": 0, "holdMs": 500, "zoom": 1.08, "offsetX": 170, "offsetY": 0, "easing": "smooth" }, { "label": "Retrieve", "timeMs": 4200, "holdMs": 900, "zoom": 1.15, "offsetX": -130, "offsetY": -20, "easing": "cinematic" }, { "label": "RAG flow", "timeMs": 8000, "holdMs": 0, "zoom": 0.95, "offsetX": 0, "offsetY": 0, "easing": "cinematic" } ],
+      "cameraFollowElementId": null,
+      "cameraFollowDeadZone": 100,
+      "elements": [
+        { "id": "f3-title", "type": "text", "x": 230, "y": 45, "w": 1140, "h": 60, "text": "3 · RETRIEVE THE RIGHT CONTEXT", "stroke": "#0f172a", "fill": "transparent", "opacity": 1, "fontSize": 46, "lineHeight": 56, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "richText": [], "animation": { "type": "typewriter", "durationMs": 1100, "delayMs": 0, "loop": false } },
+        { "id": "f3-query", "type": "text", "x": 330, "y": 120, "w": 940, "h": 44, "text": "Question: “How does a vector database find similar meaning?”", "stroke": "#475569", "fill": "transparent", "opacity": 1, "fontSize": 29, "lineHeight": 38, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "richText": [], "animation": { "type": "fadeIn", "durationMs": 700, "delayMs": 1000, "loop": false } },
+        { "id": "rag-retrieval-3d", "type": "webgl3d", "primitive3d": "rag3d", "renderer": "webgl", "x": 210, "y": 230, "w": 1180, "h": 380, "depth": 180, "z": 0, "rotationX": -13, "rotationY": -10, "rotationZ": 0, "scale3d": 1, "fill": "#6366f1", "materialColor": "#6366f1", "opacity": 1, "metalness": 0.2, "roughness": 0.36, "motion3d": "dataFlow", "projection3d": "perspective", "lightingPreset": "soft", "cameraFov": 48, "cameraDistance": 1120, "cameraPitch": 10, "cameraYaw": -7, "orbitKeyframes": [ { "timeMs": 0, "yaw": -7, "pitch": 10, "distance": 1120 }, { "timeMs": 4200, "yaw": 4, "pitch": 16, "distance": 980 }, { "timeMs": 8000, "yaw": 11, "pitch": 11, "distance": 1100 } ], "dataPath3d": [ { "x": -500, "y": 0, "z": 0 }, { "x": -300, "y": -90, "z": 90 }, { "x": -80, "y": 70, "z": 150 }, { "x": 160, "y": -60, "z": 130 }, { "x": 380, "y": 55, "z": 60 }, { "x": 510, "y": 0, "z": 0 } ], "flowColor": "#06b6d4", "pathDurationMs": 3600, "stepDurationMs": 1050, "codeSteps": [ { "action": "highlight", "targetIndex": 0 }, { "action": "highlight", "targetIndex": 1 }, { "action": "highlight", "targetIndex": 2 }, { "action": "visit", "targetIndex": 3 }, { "action": "highlight", "targetIndex": 4 }, { "action": "highlight", "targetIndex": 5 } ], "transformKeyframes": [ { "timeMs": 0, "x": 210, "y": 230, "z": 0, "rotationY": -10, "scale3d": 0.82, "opacity": 0.25 }, { "timeMs": 1700, "x": 210, "y": 230, "z": 0, "rotationY": -4, "scale3d": 1, "opacity": 1 }, { "timeMs": 8000, "x": 210, "y": 230, "z": 0, "rotationY": 18, "scale3d": 1, "opacity": 1 } ], "animation": { "type": "scaleIn", "durationMs": 800, "delayMs": 1300, "loop": false }, "webglPrimitive": true },
+        { "id": "retrieval-caption", "type": "text", "x": 270, "y": 690, "w": 1060, "h": 50, "text": "Query vector → similarity search → top matching chunks", "stroke": "#4338ca", "fill": "transparent", "opacity": 1, "fontSize": 33, "lineHeight": 42, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "richText": [], "animation": { "type": "fadeIn", "durationMs": 700, "delayMs": 4400, "loop": false } }
+      ]
+    },
+    {
+      "id": "grounded-answer",
+      "name": "4 · Context Grounds the LLM Answer",
+      "durationMs": 8500,
+      "gapAfterMs": 1400,
+      "transition": "camera",
+      "cameraTransitionMs": 900,
+      "cameraEasing": "cinematic",
+      "hiddenElementIds": [],
+      "camera": { "zoom": 1, "offsetX": 0, "offsetY": 0 },
+      "cameraKeyframes": [ { "label": "Context plus question", "timeMs": 0, "holdMs": 600, "zoom": 0.95, "offsetX": 80, "offsetY": 0, "easing": "smooth" }, { "label": "LLM", "timeMs": 3900, "holdMs": 800, "zoom": 1.17, "offsetX": -120, "offsetY": -30, "easing": "cinematic" }, { "label": "Grounded answer", "timeMs": 8500, "holdMs": 0, "zoom": 1, "offsetX": 0, "offsetY": -20, "easing": "cinematic" } ],
+      "cameraFollowElementId": null,
+      "cameraFollowDeadZone": 100,
+      "elements": [
+        { "id": "f4-title", "type": "text", "x": 240, "y": 40, "w": 1120, "h": 60, "text": "4 · GENERATE A GROUNDED ANSWER", "stroke": "#0f172a", "fill": "transparent", "opacity": 1, "fontSize": 46, "lineHeight": 56, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "richText": [], "animation": { "type": "typewriter", "durationMs": 1100, "delayMs": 0, "loop": false } },
+        { "id": "rag-answer-3d", "type": "webgl3d", "primitive3d": "rag3d", "renderer": "webgl", "x": 250, "y": 175, "w": 1100, "h": 330, "depth": 180, "z": 0, "rotationX": -12, "rotationY": -8, "rotationZ": 0, "scale3d": 1, "fill": "#0f766e", "materialColor": "#0f766e", "opacity": 1, "metalness": 0.2, "roughness": 0.34, "motion3d": "dataFlow", "projection3d": "perspective", "lightingPreset": "soft", "cameraFov": 48, "cameraDistance": 1120, "cameraPitch": 10, "cameraYaw": -5, "orbitKeyframes": [ { "timeMs": 0, "yaw": -5, "pitch": 10, "distance": 1120 }, { "timeMs": 4200, "yaw": 8, "pitch": 15, "distance": 980 }, { "timeMs": 8500, "yaw": 2, "pitch": 9, "distance": 1080 } ], "dataPath3d": [ { "x": -480, "y": 10, "z": 0 }, { "x": -250, "y": -80, "z": 110 }, { "x": 0, "y": 75, "z": 170 }, { "x": 250, "y": -65, "z": 100 }, { "x": 480, "y": 0, "z": 0 } ], "flowColor": "#22d3ee", "pathDurationMs": 3000, "stepDurationMs": 1000, "codeSteps": [ { "action": "highlight", "targetIndex": 2 }, { "action": "visit", "targetIndex": 3 }, { "action": "highlight", "targetIndex": 4 }, { "action": "highlight", "targetIndex": 5 } ], "transformKeyframes": [ { "timeMs": 0, "x": 250, "y": 175, "z": 0, "rotationY": -8, "scale3d": 0.85, "opacity": 0.3 }, { "timeMs": 1800, "x": 250, "y": 175, "z": 0, "rotationY": 0, "scale3d": 1, "opacity": 1 }, { "timeMs": 8500, "x": 250, "y": 175, "z": 0, "rotationY": 16, "scale3d": 1, "opacity": 1 } ], "animation": { "type": "scaleIn", "durationMs": 800, "delayMs": 1000, "loop": false }, "webglPrimitive": true },
+        { "id": "answer-card", "type": "rect", "x": 240, "y": 620, "w": 1120, "h": 170, "stroke": "#059669", "fill": "#d1fae5", "strokeWidth": 5, "strokeDash": "solid", "cornerRadius": 26, "opacity": 1, "animation": { "type": "elasticPop", "durationMs": 900, "delayMs": 5100, "loop": false } },
+        { "id": "answer-text", "type": "text", "x": 290, "y": 650, "w": 1020, "h": 110, "text": "GROUNDED ANSWER\nA vector database compares embeddings and returns the closest meanings—not exact keyword matches.", "stroke": "#064e3b", "fill": "transparent", "opacity": 1, "fontSize": 30, "lineHeight": 42, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "parentId": "answer-card", "richText": [], "animation": { "type": "fadeIn", "durationMs": 900, "delayMs": 5500, "loop": false } },
+        { "id": "final-brand", "type": "text", "x": 520, "y": 820, "w": 560, "h": 44, "text": "ENGINEERING DEPTH", "stroke": "#0f766e", "fill": "transparent", "opacity": 1, "fontSize": 31, "lineHeight": 40, "fontFamily": "Arial, sans-serif", "bold": true, "textAlign": "center", "richText": [], "animation": { "type": "fadeIn", "durationMs": 800, "delayMs": 6800, "loop": false } }
+      ]
+    }
+  ],
+  "activeFrameIndex": 0,
+  "currentFrameIndex": 0
+}

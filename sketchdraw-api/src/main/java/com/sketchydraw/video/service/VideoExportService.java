@@ -13,6 +13,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.core.io.ClassPathResource;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -25,6 +29,9 @@ import java.util.stream.Stream;
 public class VideoExportService {
 
     private static final Logger log = LoggerFactory.getLogger(VideoExportService.class);
+
+    @Value("${video.export.blender-binary:blender}")
+    private String blenderBinary;
 
     private final Path root;
     private final String ffmpegBinary;
@@ -108,6 +115,7 @@ public class VideoExportService {
         Instant started = Instant.now();
 
         try {
+            if (Files.exists(dir.resolve("scene.json"))) return completeBlender(exportId, dir, state);
             List<Path> inputs;
             try (Stream<Path> stream = Files.list(dir.resolve("segments"))) {
                 inputs = stream
@@ -134,7 +142,8 @@ public class VideoExportService {
                 log.info("[video-export:{}] Applying FFmpeg speed={}x, filter={}", exportId, state.ffmpegSpeed, speedFilter);
                 run(exportId, "convert-continuous", List.of(
                         ffmpegBinary, "-y", "-i", inputs.get(0).toString(),
-                        "-an", "-vf", speedFilter,
+                        "-map", "0:v:0", "-map", "0:a?", "-vf", speedFilter,
+                        "-af", audioSpeedFilter(state.ffmpegSpeed), "-c:a", "aac", "-b:a", "192k",
                         "-c:v", "libx264", "-preset", "medium", "-crf", "18",
                         "-profile:v", "high", "-pix_fmt", "yuv420p",
                         "-movflags", "+faststart", finalFile.toString()
@@ -164,7 +173,8 @@ public class VideoExportService {
 
                 run(exportId, "convert-" + number, List.of(
                         ffmpegBinary, "-y", "-i", inputs.get(i).toString(),
-                        "-an", "-vf", videoSpeedFilter(state.ffmpegSpeed),
+                        "-map", "0:v:0", "-map", "0:a?", "-vf", videoSpeedFilter(state.ffmpegSpeed),
+                        "-af", audioSpeedFilter(state.ffmpegSpeed), "-c:a", "aac", "-b:a", "192k",
                         "-c:v", "libx264", "-preset", "medium", "-crf", "18",
                         "-profile:v", "high", "-pix_fmt", "yuv420p",
                         "-movflags", "+faststart", output.toString()
@@ -210,6 +220,95 @@ public class VideoExportService {
                     Duration.between(started, Instant.now()).toMillis(), exception);
             throw exception;
         }
+    }
+
+    public void saveBackground(String exportId, int index, MultipartFile frame) throws IOException {
+        Path dir = requireJob(exportId);
+        if (index < 0 || index >= 18000 || frame == null || frame.isEmpty() || frame.getSize() > 40L * 1024 * 1024)
+            throw new IllegalArgumentException("Invalid Blender background frame.");
+        Path backgrounds = dir.resolve("backgrounds");
+        Files.createDirectories(backgrounds);
+        try (var input = frame.getInputStream()) {
+            Files.copy(input, backgrounds.resolve(String.format("frame-%06d.png", index)), StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    public void saveBlenderScene(String exportId, MultipartFile file, MultipartFile audio, double audioPlaybackRate) throws IOException {
+        Path dir = requireJob(exportId);
+        if (file == null || file.isEmpty() || file.getSize() > 100L * 1024 * 1024)
+            throw new IllegalArgumentException("Blender scene must be below 100 MB.");
+        if (!Double.isFinite(audioPlaybackRate) || audioPlaybackRate < .025 || audioPlaybackRate > 40)
+            throw new IllegalArgumentException("Invalid narration playback rate.");
+        JsonNode scene;
+        try (var input = file.getInputStream()) { scene = new ObjectMapper().readTree(input); }
+        int count = scene.path("count").asInt();
+        int width = scene.path("width").asInt(), height = scene.path("height").asInt();
+        int fps = scene.path("fps").asInt();
+        if (count < 1 || count > 18000 || width < 320 || width > 7680 || height < 240 || height > 4320 || fps < 1 || fps > 60)
+            throw new IllegalArgumentException("Invalid Blender scene dimensions or duration.");
+        if (!scene.path("segments").isArray()) throw new IllegalArgumentException("Missing Blender scene segments.");
+        int expectedStart = 0;
+        for (JsonNode segment : scene.path("segments")) {
+            if (segment.path("start").asInt(-1) != expectedStart || !segment.path("geometry").isArray() || !segment.path("samples").isArray())
+                throw new IllegalArgumentException("Invalid Blender segment ordering.");
+            for (JsonNode sample : segment.path("samples")) {
+                if (sample.path("nodes").size() != segment.path("geometry").size()) throw new IllegalArgumentException("Invalid Blender node count.");
+            }
+            expectedStart += segment.path("samples").size();
+        }
+        if (expectedStart != count) throw new IllegalArgumentException("Invalid Blender frame count.");
+        for (int i = 0; i < count; i++) {
+            if (!Files.isRegularFile(dir.resolve("backgrounds").resolve(String.format("frame-%06d.png", i))))
+                throw new IllegalArgumentException("Missing Blender background frame " + i);
+        }
+        Files.writeString(dir.resolve("scene.json"), scene.toString(), StandardCharsets.UTF_8);
+        if (audio != null && !audio.isEmpty()) {
+            if (audio.getSize() > 150L * 1024 * 1024) throw new IllegalArgumentException("Narration is too large.");
+            try (var input = audio.getInputStream()) { Files.copy(input, dir.resolve("narration.audio"), StandardCopyOption.REPLACE_EXISTING); }
+        }
+        Files.writeString(dir.resolve("audio-rate.txt"), Double.toString(audioPlaybackRate), StandardCharsets.UTF_8);
+    }
+
+    private Path completeBlender(String exportId, Path dir, ExportState state) throws IOException, InterruptedException {
+        JsonNode scene = new ObjectMapper().readTree(dir.resolve("scene.json").toFile());
+        Path script = dir.resolve("render_scene.py");
+        try (var input = new ClassPathResource("blender/render_scene.py").getInputStream()) {
+            Files.copy(input, script, StandardCopyOption.REPLACE_EXISTING);
+        }
+        state.phase = "RENDERING"; state.progress = 70;
+        state.message = "Blender Cycles is rendering 3D frames (CPU, denoised)";
+        Path rendered = dir.resolve("rendered");
+        Files.createDirectories(rendered);
+        run(exportId, "blender", List.of(blenderBinary, "--background", "--factory-startup", "--python-exit-code", "1", "--python", script.toString(), "--", dir.resolve("scene.json").toString(), rendered.toString()), dir);
+        int count = scene.path("count").asInt(), fps = scene.path("fps").asInt();
+        for (int i = 0; i < count; i++) if (!Files.isRegularFile(rendered.resolve(String.format("frame-%06d.png", i))))
+            throw new IOException("Blender did not render frame " + i);
+        state.phase = "CONVERTING"; state.progress = 94; state.message = "Compositing Blender 3D, 2D backgrounds and narration";
+        Path output = dir.resolve("final.mp4");
+        List<String> command = new ArrayList<>(List.of(ffmpegBinary, "-y", "-framerate", Integer.toString(fps), "-i", dir.resolve("backgrounds/frame-%06d.png").toString(),
+                "-framerate", Integer.toString(fps), "-i", rendered.resolve("frame-%06d.png").toString()));
+        boolean audio = Files.exists(dir.resolve("narration.audio"));
+        if (audio) command.addAll(List.of("-i", dir.resolve("narration.audio").toString()));
+        command.addAll(List.of("-filter_complex", "[0:v][1:v]overlay=shortest=1," + videoSpeedFilter(state.ffmpegSpeed) + "[v]", "-map", "[v]"));
+        if (audio) {
+            double rate = Double.parseDouble(Files.readString(dir.resolve("audio-rate.txt"))) * state.ffmpegSpeed;
+            command.addAll(List.of("-map", "2:a:0", "-af", audioSpeedFilter(rate) + ",apad", "-c:a", "aac", "-b:a", "192k"));
+        }
+        command.addAll(List.of("-t", String.format(java.util.Locale.ROOT, "%.9f", count / (double) fps / state.ffmpegSpeed),
+                "-c:v", "libx264", "-preset", "medium", "-crf", "16", "-pix_fmt", "yuv420p", "-movflags", "+faststart", output.toString()));
+        run(exportId, "blender-compose", command, dir);
+        state.phase = "READY"; state.progress = 100; state.message = "Blender MP4 with narration is ready";
+        return output;
+    }
+
+    private String audioSpeedFilter(double speed) {
+        // atempo accepts 0.5–2 on older FFmpeg; chain factors for larger changes.
+        double remaining = speed;
+        List<String> filters = new ArrayList<>();
+        while (remaining < .5) { filters.add("atempo=0.5"); remaining /= .5; }
+        while (remaining > 2) { filters.add("atempo=2.0"); remaining /= 2; }
+        filters.add(String.format(java.util.Locale.ROOT, "atempo=%.9f", remaining));
+        return String.join(",", filters);
     }
 
     public void delete(String exportId) throws IOException {
