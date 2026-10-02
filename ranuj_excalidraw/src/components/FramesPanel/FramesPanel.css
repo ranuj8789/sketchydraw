@@ -657,13 +657,7 @@
 
 .frame-unified-timeline {
     grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 3px;
-    padding-top: 5px;
+    display: grid; gap: 4px; padding-top: 5px;
 }
-.frame-unified-timeline span { min-height: 6px; border-radius: 99px; padding: 3px 6px; font-size: 9px; text-align: center; }
-.frame-unified-timeline .camera { background: #dbeafe; color: #1d4ed8; }
-.frame-unified-timeline .object { background: #ede9fe; color: #6d28d9; }
-.frame-unified-timeline .data { background: #cffafe; color: #0e7490; }
-.frame-unified-timeline .code { background: #dcfce7; color: #15803d; }
+.unified-track { display:grid; grid-template-columns:44px minmax(80px,1fr) 22px; align-items:center; gap:6px; min-height:18px; font-size:9px; }
+.unified-track strong { text-align:right; font-size:9px; }.unified-track i { position:relative; display:block; height:7px; border-radius:99px; background:#e2e8f0; }.unified-track b { position:absolute; top:50%; width:8px; height:8px; transform:translate(-50%,-50%); border-radius:50%; background:currentColor; box-shadow:0 0 0 2px #fff; }.unified-track small { font-size:9px; font-weight:800; }.unified-track.camera { color:#2563eb; }.unified-track.object { color:#7c3aed; }.unified-track.data { color:#0891b2; }.unified-track.code { color:#16a34a; }

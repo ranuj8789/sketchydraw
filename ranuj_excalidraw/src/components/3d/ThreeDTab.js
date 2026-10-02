@@ -68,6 +68,18 @@ export default function ThreeDTab({ selectedElement, onInsert, onPatch }) {
                 <ThreeDPrimitivePalette onInsert={onInsert} />
             </div>
 
+            <div className="left-tool-card">
+                <div className="left-card-heading"><strong>Course scene starters</strong><span>Insert a ready animated base, then change its data and camera.</span></div>
+                <div className="three-d-template-grid">
+                    <button type="button" onClick={() => onInsert?.("neuralnetwork3d", { projection3d: "perspective", lightingPreset: "neon", motion3d: "layerReveal", dataPath3d: [{ x: -155, y: 35, z: 0 }, { x: 0, y: 0, z: 60 }, { x: 155, y: -35, z: 0 }] })}>Neural network reveal</button>
+                    <button type="button" onClick={() => onInsert?.("embedding3d", { projection3d: "perspective", lightingPreset: "blueprint", motion3d: "dataFlow" })}>Embeddings fly-through</button>
+                    <button type="button" onClick={() => onInsert?.("rag3d", { projection3d: "perspective", lightingPreset: "dark", motion3d: "dataFlow", exploded3d: 130 })}>RAG data flow</button>
+                    <button type="button" onClick={() => onInsert?.("graph3d", { projection3d: "perspective", lightingPreset: "blueprint", motion3d: "nodeFire", traversalMode: "BFS" })}>BFS / DFS traversal</button>
+                    <button type="button" onClick={() => onInsert?.("minheap3d", { projection3d: "perspective", lightingPreset: "studio", motion3d: "nodeFire" })}>Heap operations</button>
+                    <button type="button" onClick={() => onInsert?.("modelpipeline3d", { projection3d: "perspective", lightingPreset: "dark", motion3d: "dataFlow", exploded3d: 180 })}>Exploded architecture</button>
+                </div>
+            </div>
+
             <div className="left-tool-card three-d-code-card">
                 <div className="left-card-heading">
                     <strong>Code → DSA 3D</strong>

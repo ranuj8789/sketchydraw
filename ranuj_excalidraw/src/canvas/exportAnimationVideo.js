@@ -1,3 +1,5 @@
+import { createBlenderScene } from "./blenderScene";
+import { attachExportAudio } from "./exportAudio";
 import { drawElement, preloadDrawingImages } from "../utils/drawing";
 import { apiUrl } from "../config/api";
 import { authHeaders } from "../utils/auth";
@@ -69,6 +71,7 @@ function normalizeTimelineFrames({ timelineFrames = [], historyStates = [], curr
     const fromTimeline = (timelineFrames || [])
         .filter((frame) => frame && Array.isArray(frame.elements))
         .map((frame, index) => ({
+            ...frame,
             id: frame.id || `frame-${index}`,
             name: frame.name || `Frame ${index + 1}`,
             elements: clone(frame.elements),
@@ -78,9 +81,17 @@ function normalizeTimelineFrames({ timelineFrames = [], historyStates = [], curr
             durationMs: Number.isFinite(Number(frame.durationMs))
                 ? Math.max(100, Number(frame.durationMs))
                 : undefined,
+            gapAfterMs: Number.isFinite(Number(frame.gapAfterMs))
+                ? Math.max(0, Number(frame.gapAfterMs))
+                : 0,
             transition: frame.transition || "none",
             cameraTransitionMs: Math.max(100, Number(frame.cameraTransitionMs) || 1200),
             camera: frame.camera ? { ...frame.camera } : null,
+            cameraKeyframes: Array.isArray(frame.cameraKeyframes)
+                ? frame.cameraKeyframes.map((key) => ({ ...key }))
+                : [],
+            cameraFollowElementId: frame.cameraFollowElementId || null,
+            cameraFollowDeadZone: Math.max(0, Number(frame.cameraFollowDeadZone) || 0),
         }));
 
     if (fromTimeline.length) return fromTimeline;
@@ -107,7 +118,7 @@ function normalizeTimelineFrames({ timelineFrames = [], historyStates = [], curr
 function getAnimatedElementIds(elements = []) {
     return new Set(
         elements
-            .filter((el) => el?.animation?.type && el.animation.type !== "none")
+            .filter((el) => (el?.animation?.type && el.animation.type !== "none") || (Array.isArray(el?.transformKeyframes) && el.transformKeyframes.length > 0))
             .map((el) => el.id)
     );
 }
@@ -132,7 +143,16 @@ function getExportAnimationTimeMs(
     // shifted the first animation to time zero, silently removing delayMs from
     // imported drawings and making exported GIF/video timing look faster than
     // the editor preview.
-    return getTimelineSourceTimeMs(elapsed - preDelay, playbackSpeed);
+    return Math.min(
+        getFrameAnimationEndMs(frame),
+        getTimelineSourceTimeMs(elapsed - preDelay, playbackSpeed)
+    );
+}
+
+function getFrameHoldAfterMs(frame, exportHoldAfterMs = 0) {
+    const authoredHoldAfterMs = Math.max(0, Number(frame?.gapAfterMs) || 0);
+    const requestedHoldAfterMs = Math.max(0, Number(exportHoldAfterMs) || 0);
+    return Math.max(authoredHoldAfterMs, requestedHoldAfterMs);
 }
 
 function getFrameDurationMs(
@@ -146,11 +166,11 @@ function getFrameDurationMs(
         1,
         preAnimationDelayMs +
         getTimelinePlaybackDurationMs(animationEnd, playbackSpeed) +
-        holdAfterMs
+        getFrameHoldAfterMs(frame, holdAfterMs) / normalizeTimelinePlaybackSpeed(playbackSpeed)
     );
 }
 
-function drawFrame(canvas, frame, canvasSize, transform, canvasProps = {}, animationTimeMs = 0, previousFrame = null, sourceSize = canvasSize) {
+function drawFrame(canvas, frame, canvasSize, transform, canvasProps = {}, animationTimeMs = 0, previousFrame = null, sourceSize = canvasSize, threeDRenderMode = "fallback2d") {
     const ctx = canvas.getContext("2d", { alpha: false });
     if (!ctx) throw new Error("Could not create export canvas context.");
 
@@ -168,6 +188,7 @@ function drawFrame(canvas, frame, canvasSize, transform, canvasProps = {}, anima
     );
 
     const resolvedAnimationTimings = resolveFrameAnimationTimings(visibleElements);
+    const useWebGL3D = threeDRenderMode === "webgl3d" && isWebGLAvailable();
     const renderOptions = {
         animationMode: true,
         animationTimeMs,
@@ -188,12 +209,16 @@ function drawFrame(canvas, frame, canvasSize, transform, canvasProps = {}, anima
     ctx.translate(viewport.offsetX, viewport.offsetY);
     ctx.scale(viewport.zoom, viewport.zoom);
     visibleElements.forEach((element) => {
-        if (element?.type === "webgl3d" && isWebGLAvailable()) return;
+        if (element?.type === "webgl3d" && (useWebGL3D || threeDRenderMode === "blender")) return;
         if (!isElementVisibleAtTime(element, animationTimeMs, resolvedAnimationTimings.get(element.id))) return;
         drawElement(ctx, element, false, renderOptions);
     });
     ctx.restore();
-    if (isWebGLAvailable()) compositeThreeDFrame(canvas, visibleElements, viewport, animationTimeMs);
+    if (useWebGL3D && !compositeThreeDFrame(canvas, visibleElements.filter(element => isElementVisibleAtTime(element, animationTimeMs, resolvedAnimationTimings.get(element.id))), viewport, animationTimeMs)) {
+        ctx.save(); ctx.translate(viewport.offsetX, viewport.offsetY); ctx.scale(viewport.zoom, viewport.zoom);
+        visibleElements.filter(element => element.type === "webgl3d" && isElementVisibleAtTime(element, animationTimeMs, resolvedAnimationTimings.get(element.id))).forEach(element => drawElement(ctx, element, false, renderOptions));
+        ctx.restore();
+    }
 }
 
 async function preloadImages(frames = []) {
@@ -527,16 +552,21 @@ async function recordTimelineSegment({
                                          sourceSize,
                                          preAnimationDelayMs = 0,
                                          playbackSpeed = DEFAULT_TIMELINE_PLAYBACK_SPEED,
+                                         threeDRenderMode = "fallback2d",
+                                         audioSource, audioPlaybackRate = 1, recordingMimeType,
                                          onTick,
                                      }) {
-    const mimeType = pickWebmMimeType();
+    const mimeType = recordingMimeType || pickWebmMimeType();
     if (!mimeType) throw new Error("Chrome could not create a WebM recording stream.");
 
-    drawFrame(canvas, frames[0], canvasSize, transform, canvasProps, 0, null, sourceSize);
+    drawFrame(canvas, frames[0], canvasSize, transform, canvasProps, 0, null, sourceSize, threeDRenderMode);
     const capture = createCanvasCapture(canvas, fps);
     const { stream } = capture;
     capture.requestFrame();
 
+    let audio;
+    try {
+    audio = await attachExportAudio(stream, audioSource, audioPlaybackRate);
     const recorder = makeRecorder(stream, mimeType, canvasSize);
     const chunks = [];
     recorder.ondataavailable = (event) => {
@@ -548,6 +578,7 @@ async function recordTimelineSegment({
     });
 
     recorder.start(250);
+    audio.start();
     let completedDuration = 0;
     const totalDuration = durations.reduce((sum, value) => sum + value, 0);
 
@@ -570,7 +601,8 @@ async function recordTimelineSegment({
                         playbackSpeed
                     ),
                     index > 0 ? frames[index - 1] : null,
-                    sourceSize
+                    sourceSize,
+                    threeDRenderMode
                 );
             },
             onTick: (elapsed) => onTick?.({
@@ -593,6 +625,10 @@ async function recordTimelineSegment({
     const blob = new Blob(chunks, { type: mimeType });
     if (!blob.size) throw new Error("The recorded video stream was empty.");
     return blob;
+    } finally {
+        stream.getTracks().forEach(track => track.stop());
+        await audio?.dispose();
+    }
 }
 
 async function exportServerVideo({
@@ -613,6 +649,8 @@ async function exportServerVideo({
                                      fitContent,
                                      pan,
                                      textScalePercent,
+                                     threeDRenderMode = "fallback2d",
+                                     audioSource, audioPlaybackRate = 1,
                                      onProgress,
                                      onStatus,
                                  }) {
@@ -696,6 +734,8 @@ async function exportServerVideo({
             sourceSize: canvasSize,
             preAnimationDelayMs,
             playbackSpeed: recordingPlaybackSpeed,
+            threeDRenderMode,
+            audioSource, audioPlaybackRate,
             onTick: ({ completedDuration, elapsed, totalDuration }) => {
                 const progress = ((completedDuration + elapsed) / Math.max(1, totalDuration)) * 90;
                 onProgress?.(Math.max(0, Math.min(90, Math.round(progress))));
@@ -722,6 +762,69 @@ async function exportServerVideo({
     }
 }
 
+async function exportBlenderVideo(options) {
+    const { canvasSize, canvasProps = {}, onProgress, onStatus, fileName = "sketchydraw-blender.mp4" } = options;
+    const size = resolveAnimationExportSize(options.resolution, canvasSize);
+    const fps = 30;
+    const speed = normalizeTimelinePlaybackSpeed(options.playbackSpeed);
+    const frames = normalizeTimelineFrames(options).filter(frame => frame.elements.length).map(frame => ({ ...frame, elements: applyAnimationExportTextScale(frame.elements, options.textScalePercent) }));
+    if (!frames.length) throw new Error("Nothing to export.");
+    const durations = frames.map(frame => getFrameDurationMs(frame, Math.max(0, Number(options.gapSeconds) || 0) * 1000, 0, speed));
+    const counts = durations.map(duration => Math.max(1, Math.ceil(duration * fps / 1000)));
+    const total = counts.reduce((sum, count) => sum + count, 0);
+    if (total > 18000) throw new Error("Blender export supports up to 10 minutes per job. Select a shorter range.");
+    const session = await startExportSession({ width: size.width, height: size.height, fps, frameCount: 1, ffmpegSpeed: options.ffmpegSpeed || 1 });
+    const canvas = createRecordingCanvas(size);
+    let scene;
+    try {
+        await preloadImages(frames);
+        await waitForExportAssets();
+        const transform = getAnimationExportTransform({ frames, sourceSize: canvasSize, outputSize: size, zoomPercent: options.zoomPercent, fitContent: options.fitContent, pan: options.pan });
+        const manifest = { width: size.width, height: size.height, fps, count: total, segments: [] };
+        let index = 0;
+        for (let fi = 0; fi < frames.length; fi += 1) {
+            const frame = frames[fi];
+            const hidden = new Set(frame.hiddenElementIds || []);
+            const elements = frame.elements.filter(element => !hidden.has(element.id));
+            const timings = resolveFrameAnimationTimings(elements);
+            scene = createBlenderScene(elements);
+            const segment = { start: index, geometry: scene.geometry, samples: [] };
+            for (let sample = 0; sample < counts[fi]; sample += 1) {
+                const time = getExportAnimationTimeMs(frame, sample * 1000 / fps, 0, speed);
+                const viewport = resolveFrameCameraViewport({ frame, previousFrame: frames[fi - 1], timeMs: time, sourceSize: canvasSize, outputSize: size, fallbackViewport: { zoom: transform.scale, offsetX: transform.offsetX, offsetY: transform.offsetY } });
+                segment.samples.push(scene.sample(viewport, size, time, element => isElementVisibleAtTime(element, time, timings.get(element.id))));
+                drawFrame(canvas, frame, size, transform, canvasProps, time, frames[fi - 1], canvasSize, "blender");
+                const png = await new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("Could not capture the background frame.")), "image/png"));
+                const data = new FormData(); data.append("frame", png, "frame.png");
+                const response = await fetch(videoApiUrl(`/api/video-exports/${session.exportId}/backgrounds/${index}`), { method: "POST", headers: authHeaders(), body: data });
+                if (!response.ok) throw new Error(await readError(response, "Could not upload Blender background."));
+                index += 1;
+                onProgress?.(Math.round(index / total * 65));
+                onStatus?.({ phase: "UPLOADING", progress: Math.round(index / total * 65), message: `Preparing Blender frame ${index}/${total}` });
+            }
+            manifest.segments.push(segment);
+            scene.dispose(); scene = null;
+        }
+        const data = new FormData();
+        data.append("scene", new Blob([JSON.stringify(manifest)], { type: "application/json" }), "scene.json");
+        if (options.audioSource) {
+            const audio = await fetch(options.audioSource);
+            if (!audio.ok) throw new Error("Could not load narration.");
+            data.append("audio", await audio.blob(), "narration.audio");
+        }
+        data.append("audioPlaybackRate", String(options.audioPlaybackRate || 1));
+        const response = await fetch(videoApiUrl(`/api/video-exports/${session.exportId}/blender-scene`), { method: "POST", headers: authHeaders(), body: data });
+        if (!response.ok) throw new Error(await readError(response, "Could not upload Blender scene."));
+        onStatus?.({ phase: "RENDERING", progress: 70, message: "Blender is rendering the 3D animation on the backend…" });
+        const video = await completeExport(session.exportId, fileName, status => { onStatus?.(status); onProgress?.(status.progress); });
+        downloadBlob(video, fileName.replace(/\.(webm|mp4)$/i, "") + ".mp4");
+        onProgress?.(100);
+    } finally {
+        scene?.dispose(); canvas.remove();
+        try { await fetch(videoApiUrl(`/api/video-exports/${session.exportId}`), { method: "DELETE", headers: authHeaders() }); } catch (_) {}
+    }
+}
+
 async function exportBrowserVideo({
                                       historyStates = [], currentElements = [], timelineFrames = [],
                                       canvasSize = { width: 1200, height: 700 }, canvasProps = {},
@@ -733,6 +836,8 @@ async function exportBrowserVideo({
                                       fitContent,
                                       pan,
                                       textScalePercent,
+                                      threeDRenderMode = "fallback2d",
+                                      audioSource, audioPlaybackRate = 1,
                                       onProgress, onStatus,
                                   }) {
     if (typeof MediaRecorder === "undefined") throw new Error("Browser video export needs Chrome or Edge.");
@@ -785,57 +890,16 @@ async function exportBrowserVideo({
         progress: 0,
     });
 
-    drawFrame(canvas, frames[0], safeCanvasSize, transform, canvasProps, 0, null, canvasSize);
-    const capture = createCanvasCapture(canvas, fps);
-    const { stream } = capture;
-    capture.requestFrame();
-    const recorder = makeRecorder(stream, mimeType, safeCanvasSize);
-    const chunks = [];
-    recorder.ondataavailable = (event) => { if (event.data?.size) chunks.push(event.data); };
-    const stopped = new Promise((resolve, reject) => {
-        recorder.onstop = resolve;
-        recorder.onerror = (event) => reject(event.error || event);
-    });
-    recorder.start(250);
-
-    let completed = 0;
-    for (let index = 0; index < frames.length; index += 1) {
-        const durationMs = durations[index];
-        await renderDeterministicRecording({
-            durationMs,
-            fps,
-            render: (elapsed) => {
-                drawFrame(
-                    canvas,
-                    frames[index],
-                    safeCanvasSize,
-                    transform,
-                    canvasProps,
-                    getExportAnimationTimeMs(
-                        frames[index],
-                        elapsed,
-                        preAnimationDelayMs,
-                        safePlaybackSpeed
-                    ),
-                    index > 0 ? frames[index - 1] : null,
-                    canvasSize
-                );
-            },
-            onTick: (elapsed) => {
-                onProgress?.(Math.round(((completed + elapsed) / totalDuration) * 100));
-            },
-            requestFrame: capture.requestFrame,
+    let blob;
+    try {
+        blob = await recordTimelineSegment({
+            canvas, frames, durations, fps, canvasSize: safeCanvasSize,
+            transform, canvasProps, sourceSize: canvasSize, preAnimationDelayMs,
+            playbackSpeed: safePlaybackSpeed, threeDRenderMode,
+            audioSource, audioPlaybackRate, recordingMimeType: mimeType,
+            onTick: ({ completedDuration, elapsed }) => onProgress?.(Math.round((completedDuration + elapsed) / totalDuration * 100)),
         });
-        completed += durationMs;
-    }
-
-    await wait(Math.ceil(1000 / fps));
-    recorder.requestData?.();
-    recorder.stop();
-    await stopped;
-    stream.getTracks().forEach((track) => track.stop());
-    const blob = new Blob(chunks, { type: mimeType });
-    if (!blob.size) throw new Error("Browser export produced an empty video.");
+    } finally { canvas.remove(); }
     const normalizedName = /\.(mp4|webm)$/i.test(fileName)
         ? fileName.replace(/\.(mp4|webm)$/i, `.${extension}`)
         : `${fileName}.${extension}`;
@@ -850,6 +914,7 @@ async function exportBrowserVideo({
 }
 
 export async function exportUndoRedoAnimationVideo(options = {}) {
+    if (options.threeDRenderMode === "blender") return exportBlenderVideo(options);
     const mode = options.mode === "browser" ? "browser" : "server";
     if (mode === "browser") return exportBrowserVideo(options);
 

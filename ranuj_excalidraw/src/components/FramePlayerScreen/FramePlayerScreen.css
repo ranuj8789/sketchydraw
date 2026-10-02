@@ -57,6 +57,12 @@
     text-transform: uppercase;
 }
 
+.frame-player-frame-selector select {
+    width: 190px;
+    max-width: 190px;
+    text-overflow: ellipsis;
+}
+
 .frame-player-actions select,
 .frame-player-actions input,
 .frame-player-actions button {
@@ -422,4 +428,85 @@
 .frame-player-current-gif-btn:disabled {
     opacity: 0.58;
     cursor: wait;
+}
+
+/* Narration controls remain outside the camera/export settings row. */
+.frame-player-narration {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 18px;
+    border-bottom: 1px solid #dbe3ee;
+    background: #f8fafc;
+    color: #263244;
+    font-size: 12px;
+}
+.frame-player-narration button {
+    min-height: 34px;
+    padding: 7px 12px;
+    border: 1px solid #dbe3ee;
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+    font-weight: 700;
+}
+.frame-player-narration button:disabled { opacity: .55; cursor: default; }
+.frame-player-narration label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.frame-player-narration input { max-width: 220px; }
+.frame-player-narration audio { width: 250px; height: 34px; }
+.frame-player-narration a { color: #0369a1; }
+.frame-player-narration [role="alert"] { color: #b91c1c; }
+
+/* Keep playback controls in normal flow and outside the drawing hit area. */
+.frame-player-screen {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
+    isolation: isolate;
+    pointer-events: auto;
+}
+.frame-player-storyboard-heading {
+    position: relative;
+    top: auto;
+    left: auto;
+    flex: 0 0 auto;
+    margin: 8px 18px;
+    align-self: flex-start;
+    pointer-events: none;
+}
+.frame-player-narration,
+.frame-player-topbar {
+    position: relative;
+    z-index: 10;
+    flex: 0 0 auto;
+    pointer-events: auto;
+}
+.frame-player-topbar {
+    min-height: 0;
+    padding: 10px 18px;
+    flex-wrap: wrap;
+}
+.frame-player-actions { flex-wrap: wrap; }
+.frame-player-stage {
+    z-index: 0;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    padding: 12px;
+}
+.frame-player-stage canvas {
+    width: auto !important;
+    height: auto !important;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+.frame-player-hint,
+.frame-player-audio { flex: 0 0 auto; }
+@media (max-height: 640px) {
+    .frame-player-narration, .frame-player-topbar { padding: 6px 12px; }
+    .frame-player-storyboard-heading { margin: 4px 12px; }
 }

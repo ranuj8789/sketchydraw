@@ -765,10 +765,7 @@ export default function FramesPanel({
                                 <button type="button" className="danger-link" disabled={frames.length <= 1} onClick={(event) => { event.stopPropagation(); onDeleteFrame?.(index); }}>Delete</button>
                             </div>
                             <div className="frame-unified-timeline" title="Camera, object transforms, data paths and code steps share this frame timeline">
-                                <span className="camera">Camera {(frame.cameraKeyframes || []).length}</span>
-                                <span className="object">Object {(frame.elements || []).reduce((sum, element) => sum + (element.transformKeyframes?.length || 0), 0)}</span>
-                                <span className="data">Data {(frame.elements || []).filter((element) => element.dataPath3d?.length > 1).length}</span>
-                                <span className="code">Code {(frame.elements || []).reduce((sum, element) => sum + (element.codeSteps?.length || 0), 0)}</span>
+                                {[["camera", "Camera", (frame.cameraKeyframes || []).map((key) => key.timeMs)], ["object", "Object", (frame.elements || []).flatMap((element) => (element.transformKeyframes || []).map((key) => key.timeMs))], ["data", "Data", (frame.elements || []).filter((element) => element.dataPath3d?.length > 1).map((element) => element.pathDurationMs || 0)], ["code", "Code", (frame.elements || []).flatMap((element) => (element.codeSteps || []).map((_, step) => step * (element.stepDurationMs || 900))) ]].map(([kind, label, keys]) => <div className={`unified-track ${kind}`} key={kind}><strong>{label}</strong><i>{keys.map((time, keyIndex) => <b key={keyIndex} style={{ left: `${Math.min(100, Math.max(0, Number(time) || 0) / Math.max(1, Number(frame.durationMs) || 1300) * 100)}%` }} />)}</i><small>{keys.length}</small></div>)}
                             </div>
                         </div>
                     ))}

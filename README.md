@@ -1,3 +1,6 @@
+Last login: Fri Oct  2 11:09:52 on ttys002
+ranujmahajan@ranujs-MacBook-Pro ~ % ssh -p 2222 -N -L 15432:127.0.0.1:5432 ranuj@192.168.1.10
+
 The strongest next additions would be:
 
 ### Zoom and camera

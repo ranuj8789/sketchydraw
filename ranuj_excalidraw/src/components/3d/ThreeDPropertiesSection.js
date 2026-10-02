@@ -130,12 +130,17 @@ export default function ThreeDPropertiesSection({ element, onPatch }) {
                     <NumberField label="Distance" value={element.cameraDistance || 900} min="200" step="20" onChange={(value) => onPatch?.({ cameraDistance: Math.max(200, value) })} />
                     <NumberField label="Explode" value={element.exploded3d || 0} min="0" step="10" onChange={(value) => onPatch?.({ exploded3d: Math.max(0, value) })} />
                 </div>
+                <div className="webgl-number-grid">
+                    <NumberField label="Orbit yaw" value={element.cameraYaw || 0} step="1" onChange={(value) => onPatch?.({ cameraYaw: value })} />
+                    <NumberField label="Orbit pitch" value={element.cameraPitch || 12} step="1" onChange={(value) => onPatch?.({ cameraPitch: Math.max(-85, Math.min(85, value)) })} />
+                    <NumberField label="Target Z" value={element.cameraTargetZ || 0} step="10" onChange={(value) => onPatch?.({ cameraTargetZ: value })} />
+                </div>
                 <div className="three-d-depth-actions">
                     <button type="button" onClick={() => {
                         const keys = Array.isArray(element.orbitKeyframes) ? element.orbitKeyframes : [];
                         const timeMs = keys.length ? (Number(keys[keys.length - 1].timeMs) || 0) + 1000 : 0;
                         onPatch?.({ orbitKeyframes: [...keys, { timeMs, yaw: element.cameraYaw || 0, pitch: element.cameraPitch || 12, distance: element.cameraDistance || 900, targetX: element.cameraTargetX || 0, targetY: element.cameraTargetY || 0, targetZ: element.cameraTargetZ || 0 }] });
-                    }}>+ Orbit key</button>
+                    }}>+ Camera orbit key</button>
                     <button type="button" onClick={() => onPatch?.({ orbitKeyframes: [] })}>Clear orbit</button>
                     <button type="button" onClick={() => onPatch?.({ exploded3d: element.exploded3d ? 0 : 180 })}>{element.exploded3d ? "Assemble" : "Explode"}</button>
                 </div>
@@ -152,7 +157,7 @@ export default function ThreeDPropertiesSection({ element, onPatch }) {
                     <button type="button" onClick={() => onPatch?.({ transformKeyframes: [] })}>Clear keys</button>
                     <button type="button" onClick={() => onPatch?.({ dataPath3d: [{ x: -80, y: 0, z: 20 }, { x: 0, y: -60, z: 80 }, { x: 80, y: 0, z: 20 }], pathDurationMs: 2200 })}>Add flow path</button>
                 </div>
-                <small className="property-help">Move/rotate the object, then add another key. Values interpolate during playback.</small>
+                <small className="property-help">Move/rotate the object, then add another key. Values interpolate during playback. In Perspective mode, orbit keys move the real WebGL camera and export identically.</small>
                 <label><span>Animated material colour</span><input type="color" value={element.materialColor || element.fill || "#e2e8f0"} onChange={(event) => onPatch?.({ materialColor: event.target.value })}/></label>
             </div>
 
@@ -160,13 +165,13 @@ export default function ThreeDPropertiesSection({ element, onPatch }) {
                 <div className="property-section">
                     <label>Code-synchronised steps</label>
                     <NumberField label="Step duration (ms)" value={element.stepDurationMs || 900} min="100" step="100" onChange={(value) => onPatch?.({ stepDurationMs: Math.max(100, value) })} />
-                    <pre className="three-d-code-step-list">{element.codeSteps.map((step, index) => `${index + 1}. ${step.line}`).join("\n")}</pre>
+                    <div className="three-d-code-step-list">{element.codeSteps.map((step, index) => <button type="button" key={`${step.index || index}-${step.line}`} onClick={() => window.dispatchEvent(new CustomEvent("sketchydraw:3d-step", { detail: { action: "seek", elementId: element.id, timeMs: index * (element.stepDurationMs || 900) } }))}>{index + 1}. {step.line}</button>)}</div>
                     <textarea rows="6" value={JSON.stringify(element.codeSteps, null, 2)} onChange={(event) => { try { onPatch?.({ codeSteps: JSON.parse(event.target.value) }); } catch (_) { /* Keep the last valid line-to-object mapping. */ } }} />
                     <small className="property-help">Map each line with targetIndex/targetId and action: highlight, swap, insert, extract or visit.</small>
                     <div className="three-d-depth-actions">
-                        <button type="button" onClick={() => window.dispatchEvent(new CustomEvent("sketchydraw:3d-step", { detail: { action: "previous", durationMs: element.stepDurationMs || 900 } }))}>◀ Step</button>
-                        <button type="button" onClick={() => window.dispatchEvent(new CustomEvent("sketchydraw:3d-step", { detail: { action: "toggle" } }))}>Play / pause</button>
-                        <button type="button" onClick={() => window.dispatchEvent(new CustomEvent("sketchydraw:3d-step", { detail: { action: "next", durationMs: element.stepDurationMs || 900 } }))}>Step ▶</button>
+                    <button type="button" onClick={() => window.dispatchEvent(new CustomEvent("sketchydraw:3d-step", { detail: { action: "previous", elementId: element.id, durationMs: element.stepDurationMs || 900 } }))}>◀ Step</button>
+                    <button type="button" onClick={() => window.dispatchEvent(new CustomEvent("sketchydraw:3d-step", { detail: { action: "toggle", elementId: element.id } }))}>Play / pause</button>
+                    <button type="button" onClick={() => window.dispatchEvent(new CustomEvent("sketchydraw:3d-step", { detail: { action: "next", elementId: element.id, durationMs: element.stepDurationMs || 900 } }))}>Step ▶</button>
                     </div>
                 </div>
             )}

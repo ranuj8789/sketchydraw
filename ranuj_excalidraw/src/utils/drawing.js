@@ -1,5 +1,6 @@
 import { drawElement2D, hitTest2D, preloadDrawingImages2D } from "./drawing2d";
 import { drawElement3D, hitTest3D, is3DElement } from "./drawing3d";
+import { resolve2DElementTransform } from "./elementTransform2d";
 
 export async function preloadDrawingImages(elements = []) {
     return preloadDrawingImages2D((elements || []).filter((element) => !is3DElement(element)));
@@ -16,5 +17,8 @@ export function drawElement(ctx, element, selected = false, renderOptions = {}) 
         drawElement3D(ctx, element, selected, renderOptions);
         return;
     }
-    drawElement2D(ctx, element, selected, renderOptions);
+    const renderedElement = renderOptions?.animationMode
+        ? resolve2DElementTransform(element, renderOptions.animationTimeMs || 0)
+        : element;
+    drawElement2D(ctx, renderedElement, selected, renderOptions);
 }

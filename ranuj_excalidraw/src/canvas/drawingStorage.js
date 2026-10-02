@@ -48,9 +48,19 @@ export function createDrawingJson({
         },
         elements: elements.map(normalizeElementForSave),
         frames: (Array.isArray(frames) ? frames : []).map((frame, index) => ({
+            ...frame,
             id: frame?.id || `frame_${index + 1}`,
             name: frame?.name || `Frame ${index + 1}`,
             durationMs: Math.max(1000, Number(frame?.durationMs) || 10000),
+            gapAfterMs: Math.max(0, Number(frame?.gapAfterMs) || 0),
+            transition: frame?.transition || "none",
+            camera: frame?.camera ? { ...frame.camera } : null,
+            cameraKeyframes: Array.isArray(frame?.cameraKeyframes)
+                ? frame.cameraKeyframes.map((key) => ({ ...key }))
+                : [],
+            cameraTemplate: frame?.cameraTemplate || null,
+            cameraFollowElementId: frame?.cameraFollowElementId || null,
+            cameraFollowDeadZone: Math.max(0, Number(frame?.cameraFollowDeadZone) || 0),
             hiddenElementIds: Array.isArray(frame?.hiddenElementIds)
                 ? [...frame.hiddenElementIds]
                 : [],
@@ -74,6 +84,9 @@ export function normalizeElementForSave(element) {
         codeIllustrator: !!element.codeIllustrator,
         animation: element.animation
             ? { ...element.animation }
+            : undefined,
+        transformKeyframes: Array.isArray(element.transformKeyframes)
+            ? element.transformKeyframes.map((key) => ({ ...key }))
             : undefined,
     };
 

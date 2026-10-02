@@ -1382,6 +1382,28 @@ function SketchyDrawPage() {
   }, [timelineFrames.length]);
 
   useEffect(() => {
+    const control3DStep = (event) => {
+      const detail = event.detail || {};
+      const duration = Math.max(100, Number(detail.durationMs) || 900);
+      setSelectedIds(detail.elementId ? [detail.elementId] : selectedIds);
+      if (detail.action === "seek") {
+        setFrameAnimationPlaying(false);
+        setFrameAnimationTimeMs(Math.max(0, Number(detail.timeMs) || 0));
+      } else if (detail.action === "previous") {
+        setFrameAnimationPlaying(false);
+        setFrameAnimationTimeMs((time) => Math.max(0, time - duration));
+      } else if (detail.action === "next") {
+        setFrameAnimationPlaying(false);
+        setFrameAnimationTimeMs((time) => time + duration);
+      } else if (detail.action === "toggle") {
+        setFrameAnimationPlaying((playing) => !playing);
+      }
+    };
+    window.addEventListener("sketchydraw:3d-step", control3DStep);
+    return () => window.removeEventListener("sketchydraw:3d-step", control3DStep);
+  }, [selectedIds]);
+
+  useEffect(() => {
     const openAnimationStoryboard = () => {
       openAnimationPlayer("current");
     };
@@ -1438,6 +1460,31 @@ function SketchyDrawPage() {
     setAnimationPlayerWaitingForNext(false);
     setAnimationPlayerPlaying(true);
   }, [timelineFrames]);
+
+  const selectAnimationPlayerFrame = useCallback((selection) => {
+    if (selection === "all") {
+      restartAllAnimationPlayerFrames();
+      return;
+    }
+
+    const requestedIndex = Number(selection);
+    const safeIndex = Math.max(0, Math.min(
+        Number.isFinite(requestedIndex) ? requestedIndex : 0,
+        timelineFrames.length - 1
+    ));
+    if (animationPlayerAdvanceTimeoutRef.current) {
+      window.clearTimeout(animationPlayerAdvanceTimeoutRef.current);
+      animationPlayerAdvanceTimeoutRef.current = null;
+    }
+    setAnimationPlayerMode("current");
+    setAnimationPlayerFrameIndex(safeIndex);
+    setCurrentFrameIndex(safeIndex);
+    setElements(cloneElements(timelineFrames[safeIndex]?.elements || []));
+    setSelectedIds([]);
+    setAnimationPlayerTimeMs(0);
+    setAnimationPlayerWaitingForNext(false);
+    setAnimationPlayerPlaying(true);
+  }, [restartAllAnimationPlayerFrames, timelineFrames]);
 
   // The hand/pan position and zoom are part of the active frame. This makes a
   // large canvas camera move reproducible in preview, GIF and video export.
@@ -1534,6 +1581,9 @@ function SketchyDrawPage() {
         textScalePercent: normalizeAnimationExportTextScalePercent(
             options.textScalePercent || animationExportTextScalePercent
         ),
+        threeDRenderMode: ["webgl3d", "blender"].includes(options.threeDRenderMode) ? options.threeDRenderMode : "fallback2d",
+        audioSource: options.audioSource,
+        audioPlaybackRate: options.audioPlaybackRate,
         trimTrailingPause: true,
         timelineFrames: JSON.parse(JSON.stringify(timelineFrames)),
         mode,
@@ -2461,6 +2511,7 @@ function SketchyDrawPage() {
                   onRestart={restartAnimationPlayerFrame}
                   onRestartAll={restartAllAnimationPlayerFrames}
                   onNext={advanceAnimationPlayerFrame}
+                  onSelectPlaybackFrame={selectAnimationPlayerFrame}
                   onAdvanceModeChange={setFrameAdvanceMode}
                   onExportGIF={exportGif}
                   onExportVideo={exportVideoFromPlayer}

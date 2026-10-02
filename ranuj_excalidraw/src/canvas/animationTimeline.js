@@ -3,6 +3,11 @@ function clampMs(value, fallback = 0) {
   return Number.isFinite(parsed) ? Math.max(0, parsed) : fallback;
 }
 
+function getTransformEndMs(element) {
+  return (Array.isArray(element?.transformKeyframes) ? element.transformKeyframes : [])
+      .reduce((maximum, key) => Math.max(maximum, clampMs(key?.timeMs, 0)), 0);
+}
+
 export const DEFAULT_TIMELINE_PLAYBACK_SPEED = 0.5;
 export const TIMELINE_PLAYBACK_SPEED_OPTIONS = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2];
 
@@ -64,6 +69,7 @@ export function getFrameTimelineEndMs(elements = []) {
   const timings = resolveFrameAnimationTimings(elements);
   let endMs = 0;
   timings.forEach((timing) => { endMs = Math.max(endMs, timing.endMs); });
+  (elements || []).forEach((element) => { endMs = Math.max(endMs, getTransformEndMs(element)); });
   return endMs;
 }
 
@@ -72,7 +78,7 @@ export function getFramePlaybackDurationMs(frame, staticFallbackMs = 1300) {
   const cameraEndMs = (Array.isArray(frame?.cameraKeyframes) ? frame.cameraKeyframes : [])
       .reduce((maximum, key) => Math.max(maximum, clampMs(key?.timeMs, 0) + clampMs(key?.holdMs, 0)), 0);
   const hasAnimatedElements = elements.some(
-      (element) => element?.animation?.type && element.animation.type !== "none"
+      (element) => (element?.animation?.type && element.animation.type !== "none") || getTransformEndMs(element) > 0
   );
 
   if (hasAnimatedElements) {

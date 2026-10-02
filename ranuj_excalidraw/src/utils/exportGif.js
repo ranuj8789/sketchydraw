@@ -117,7 +117,7 @@ function getFrameAnimationDurationMs(frame) {
 function getAnimatedElementIds(elements = []) {
     return new Set(
         (elements || [])
-            .filter((el) => el?.animation?.type && el.animation.type !== "none")
+            .filter((el) => (el?.animation?.type && el.animation.type !== "none") || (Array.isArray(el?.transformKeyframes) && el.transformKeyframes.length > 0))
             .map((el) => el.id)
     );
 }
@@ -262,9 +262,11 @@ export async function exportTimelineGif({
 
     exportFrames.forEach((frame, frameIndex) => {
         const sourceDurationMs = getFrameAnimationDurationMs(frame);
-        const durationMs = getTimelinePlaybackDurationMs(sourceDurationMs, safePlaybackSpeed);
+        const animationDurationMs = getTimelinePlaybackDurationMs(sourceDurationMs, safePlaybackSpeed);
+        const holdAfterMs = Math.max(0, Number(frame?.gapAfterMs) || 0);
+        const durationMs = animationDurationMs + holdAfterMs;
         const hasAnimatedObjects = (frame?.elements || []).some(
-            (element) => element?.animation?.type && element.animation.type !== "none"
+            (element) => (element?.animation?.type && element.animation.type !== "none") || (Array.isArray(element?.transformKeyframes) && element.transformKeyframes.length > 0)
         );
         const hasCameraTransition = (frame?.cameraKeyframes || []).length > 1 || (frameIndex > 0 && frame?.camera && ["camera", "zoom"].includes(frame?.transition));
         const viewportAt = (sourceTimeMs) => resolveFrameCameraViewport({
@@ -295,7 +297,7 @@ export async function exportTimelineGif({
         // configured delay/duration values.
         for (let timeMs = 0; timeMs < durationMs; timeMs += frameDelayMs) {
             const remainingMs = durationMs - timeMs;
-            const renderTimeMs = remainingMs <= frameDelayMs
+            const renderTimeMs = timeMs >= animationDurationMs || remainingMs <= frameDelayMs
                 ? sourceDurationMs
                 : getTimelineSourceTimeMs(timeMs, safePlaybackSpeed);
             renderGifFrame({

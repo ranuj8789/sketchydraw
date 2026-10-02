@@ -1,0 +1,552 @@
+{
+  "schemaVersion": "3.0",
+  "kind": "sketchydraw-course-document",
+  "id": "master-3d-2d-education-demo",
+  "title": "SketchyDraw Master Education Demo",
+  "description": "Master test document for 2D, 3D, camera, code sync, simulations, quizzes and export parity.",
+  "durationMs": 42000,
+  "fps": 30,
+
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "background": "#07111F",
+    "safeArea": { "top": 70, "right": 100, "bottom": 90, "left": 100 }
+  },
+
+  "theme": {
+    "id": "engineering-depth-dark",
+    "colors": {
+      "background": "#07111F",
+      "surface": "#10233D",
+      "surfaceMuted": "#183555",
+      "text": "#F6FAFF",
+      "textMuted": "#A9C1DB",
+      "primary": "#2FA8FF",
+      "secondary": "#7B61FF",
+      "success": "#42D392",
+      "warning": "#F7C948",
+      "danger": "#FF6270",
+      "flow": "#64D9FF"
+    },
+    "effects": {
+      "glow": true,
+      "glowBlur": 18,
+      "roundedCorners": 18,
+      "grid": true,
+      "gridOpacity": 0.08
+    }
+  },
+
+  "course": {
+    "mode": "guided",
+    "showCaptions": true,
+    "allowReplayStep": true,
+    "allowFreeExplore": true,
+    "showMiniMap": true,
+    "showProgress": true,
+    "showCodePanel": true
+  },
+
+  "assets": {
+    "images": [],
+    "videos": [],
+    "audio": [],
+    "fonts": []
+  },
+
+  "components": [
+    {
+      "id": "client",
+      "type": "node",
+      "dimension": "2d",
+      "label": "Client",
+      "position": { "x": 170, "y": 470, "z": 0 },
+      "size": { "width": 240, "height": 130, "depth": 0 },
+      "style": {
+        "fill": "#163E68",
+        "stroke": "#64D9FF",
+        "strokeWidth": 3,
+        "glow": true,
+        "icon": "user"
+      },
+      "teaching": {
+        "title": "Client request",
+        "description": "A user starts the request from a browser or mobile app."
+      }
+    },
+    {
+      "id": "api-gateway",
+      "type": "node",
+      "dimension": "3d",
+      "label": "API Gateway",
+      "position": { "x": -4.5, "y": 0, "z": 0 },
+      "size": { "width": 2.4, "height": 1.3, "depth": 0.7 },
+      "style": {
+        "fill": "#164B7A",
+        "stroke": "#64D9FF",
+        "strokeWidth": 0.05,
+        "glow": true,
+        "icon": "gateway"
+      },
+      "teaching": {
+        "title": "API Gateway",
+        "description": "Authentication, routing, rate limiting and request validation happen here."
+      },
+      "codeRefs": ["code-request-handler"]
+    },
+    {
+      "id": "cache",
+      "type": "node",
+      "dimension": "3d",
+      "label": "Redis Cache",
+      "position": { "x": 0, "y": 1.7, "z": 0 },
+      "size": { "width": 2.3, "height": 1.2, "depth": 0.7 },
+      "style": {
+        "fill": "#4A245A",
+        "stroke": "#CE8CFF",
+        "strokeWidth": 0.05,
+        "glow": true,
+        "icon": "cache"
+      },
+      "states": {
+        "healthy": { "fill": "#4A245A", "glow": true },
+        "hot": { "fill": "#7A3D1D", "glow": true },
+        "failed": { "fill": "#54202A", "stroke": "#FF6270", "glow": false }
+      },
+      "codeRefs": ["code-cache-lookup"]
+    },
+    {
+      "id": "service",
+      "type": "group",
+      "dimension": "3d",
+      "label": "URL Service Cluster",
+      "position": { "x": 0, "y": -1.4, "z": 0 },
+      "children": [
+        {
+          "id": "service-1",
+          "type": "node",
+          "label": "Service A",
+          "position": { "x": -1.2, "y": 0, "z": 0 },
+          "size": { "width": 1.4, "height": 0.8, "depth": 0.5 }
+        },
+        {
+          "id": "service-2",
+          "type": "node",
+          "label": "Service B",
+          "position": { "x": 1.2, "y": 0, "z": 0 },
+          "size": { "width": 1.4, "height": 0.8, "depth": 0.5 }
+        }
+      ],
+      "style": {
+        "fill": "#12344D",
+        "stroke": "#37C6E8",
+        "strokeWidth": 0.04,
+        "groupPadding": 0.5,
+        "groupLabel": true
+      }
+    },
+    {
+      "id": "database",
+      "type": "node",
+      "dimension": "3d",
+      "label": "Primary Database",
+      "position": { "x": 4.4, "y": 0, "z": 0 },
+      "size": { "width": 2.4, "height": 1.4, "depth": 0.9 },
+      "style": {
+        "fill": "#164E43",
+        "stroke": "#42D392",
+        "strokeWidth": 0.05,
+        "glow": true,
+        "icon": "database"
+      },
+      "states": {
+        "healthy": { "fill": "#164E43" },
+        "replicationLag": { "fill": "#765624", "stroke": "#F7C948" },
+        "failed": { "fill": "#54202A", "stroke": "#FF6270" }
+      },
+      "codeRefs": ["code-db-fallback"]
+    }
+  ],
+
+  "connections": [
+    {
+      "id": "gateway-to-cache",
+      "from": "api-gateway",
+      "to": "cache",
+      "dimension": "3d",
+      "path": {
+        "type": "bezier",
+        "controlPoints": [
+          { "x": -2.3, "y": 1.8, "z": 0.8 },
+          { "x": -1.1, "y": 2.2, "z": 0.8 }
+        ]
+      },
+      "style": {
+        "stroke": "#CE8CFF",
+        "strokeWidth": 0.07,
+        "glow": true,
+        "arrowEnd": true
+      }
+    },
+    {
+      "id": "gateway-to-service",
+      "from": "api-gateway",
+      "to": "service",
+      "dimension": "3d",
+      "path": { "type": "tube", "curve": "easeInOut" },
+      "style": {
+        "stroke": "#64D9FF",
+        "strokeWidth": 0.08,
+        "glow": true,
+        "arrowEnd": true
+      }
+    },
+    {
+      "id": "service-to-db",
+      "from": "service",
+      "to": "database",
+      "dimension": "3d",
+      "path": { "type": "bezier" },
+      "style": {
+        "stroke": "#42D392",
+        "strokeWidth": 0.08,
+        "glow": true,
+        "arrowEnd": true
+      }
+    }
+  ],
+
+  "code": {
+    "language": "java",
+    "files": [
+      {
+        "id": "url-service-java",
+        "name": "UrlService.java",
+        "lines": [
+          {
+            "id": "code-request-handler",
+            "line": 12,
+            "text": "public String resolve(String shortCode) {",
+            "componentRefs": ["api-gateway"]
+          },
+          {
+            "id": "code-cache-lookup",
+            "line": 14,
+            "text": "String url = redis.get(shortCode);",
+            "componentRefs": ["cache"]
+          },
+          {
+            "id": "code-db-fallback",
+            "line": 18,
+            "text": "url = repository.findUrl(shortCode);",
+            "componentRefs": ["database"]
+          }
+        ]
+      }
+    ],
+    "sync": {
+      "clickCodeLineFocusesComponent": true,
+      "clickComponentHighlightsCode": true,
+      "autoScrollCode": true
+    }
+  },
+
+  "simulations": [
+    {
+      "id": "request-load",
+      "type": "request-flow",
+      "enabled": true,
+      "parameters": {
+        "requestsPerSecond": 40,
+        "cacheHitRate": 0.78,
+        "latencyMs": {
+          "gateway": 8,
+          "cache": 4,
+          "service": 18,
+          "database": 65
+        }
+      },
+      "visualization": {
+        "showCounters": true,
+        "showLatency": true,
+        "showHeatmap": true,
+        "showPackets": true
+      }
+    },
+    {
+      "id": "cache-failure",
+      "type": "failure",
+      "enabled": true,
+      "target": "cache",
+      "atMs": 23500,
+      "behavior": {
+        "changeStateTo": "failed",
+        "rerouteTo": ["service", "database"],
+        "showRetry": true,
+        "showAlert": true
+      }
+    }
+  ],
+
+  "interactions": [
+    {
+      "id": "inspect-cache",
+      "trigger": "click",
+      "target": "cache",
+      "action": {
+        "type": "focusAndExplain",
+        "cameraPreset": "cache-detail",
+        "caption": "Redis serves cache hits in a few milliseconds."
+      }
+    },
+    {
+      "id": "explore-system",
+      "trigger": "toggle",
+      "action": {
+        "type": "setMode",
+        "mode": "free-explore"
+      }
+    }
+  ],
+
+  "quizzes": [
+    {
+      "id": "cache-quiz",
+      "atMs": 15500,
+      "type": "multiple-choice",
+      "pauseTimeline": true,
+      "question": "Where should the URL service look first for a short-code mapping?",
+      "options": [
+        { "id": "a", "text": "Primary database", "correct": false },
+        { "id": "b", "text": "Redis cache", "correct": true },
+        { "id": "c", "text": "Load balancer", "correct": false }
+      ],
+      "explanation": "The cache is checked first because it is faster and reduces database load."
+    },
+    {
+      "id": "build-route",
+      "atMs": 30000,
+      "type": "build-it-yourself",
+      "pauseTimeline": true,
+      "instruction": "Connect the service to the database fallback path.",
+      "requiredConnection": {
+        "from": "service",
+        "to": "database"
+      },
+      "successCaption": "Correct. A cache miss falls back to the persistent database."
+    }
+  ],
+
+  "captions": [
+    {
+      "id": "caption-01",
+      "startMs": 0,
+      "endMs": 5500,
+      "text": "A request enters through the API gateway."
+    },
+    {
+      "id": "caption-02",
+      "startMs": 5500,
+      "endMs": 14000,
+      "text": "Redis answers most requests before the database is needed."
+    },
+    {
+      "id": "caption-03",
+      "startMs": 14000,
+      "endMs": 23500,
+      "text": "On a cache miss, the service reads from the database."
+    },
+    {
+      "id": "caption-04",
+      "startMs": 23500,
+      "endMs": 34000,
+      "text": "When Redis fails, traffic bypasses it and the database takes more load."
+    }
+  ],
+
+  "camera": {
+    "dimension": "3d",
+    "default": {
+      "position": { "x": 0, "y": 3, "z": 13 },
+      "target": { "x": 0, "y": 0, "z": 0 },
+      "fov": 42
+    },
+    "presets": [
+      {
+        "id": "system-overview",
+        "position": { "x": 0, "y": 3, "z": 13 },
+        "target": { "x": 0, "y": 0, "z": 0 },
+        "fov": 42
+      },
+      {
+        "id": "cache-detail",
+        "position": { "x": -0.4, "y": 3.3, "z": 6.2 },
+        "target": { "x": 0, "y": 1.5, "z": 0 },
+        "fov": 34
+      },
+      {
+        "id": "database-detail",
+        "position": { "x": 6.5, "y": 2.2, "z": 6.8 },
+        "target": { "x": 4.4, "y": 0, "z": 0 },
+        "fov": 32
+      }
+    ]
+  },
+
+  "timeline": {
+    "lanes": [
+      { "id": "camera", "type": "camera", "label": "Camera" },
+      { "id": "objects", "type": "object-transform", "label": "Objects" },
+      { "id": "flows", "type": "packet-flow", "label": "Data Flows" },
+      { "id": "code", "type": "code-sync", "label": "Code" },
+      { "id": "captions", "type": "captions", "label": "Teaching" },
+      { "id": "simulation", "type": "simulation", "label": "Simulation" },
+      { "id": "quiz", "type": "interaction", "label": "Quiz" }
+    ],
+    "keyframes": [
+      {
+        "id": "kf-01",
+        "laneId": "camera",
+        "startMs": 0,
+        "durationMs": 1800,
+        "action": {
+          "type": "cameraMove",
+          "toPreset": "system-overview",
+          "easing": "cinematicInOut"
+        }
+      },
+      {
+        "id": "kf-02",
+        "laneId": "flows",
+        "startMs": 2800,
+        "durationMs": 2200,
+        "action": {
+          "type": "sendPacket",
+          "connectionId": "gateway-to-cache",
+          "packet": {
+            "label": "GET /abc123",
+            "color": "#CE8CFF",
+            "size": 0.16,
+            "trail": true
+          }
+        }
+      },
+      {
+        "id": "kf-03",
+        "laneId": "camera",
+        "startMs": 5800,
+        "durationMs": 1500,
+        "action": {
+          "type": "cameraMove",
+          "toPreset": "cache-detail",
+          "easing": "cubicInOut"
+        }
+      },
+      {
+        "id": "kf-04",
+        "laneId": "code",
+        "startMs": 7600,
+        "durationMs": 1800,
+        "action": {
+          "type": "highlightCode",
+          "fileId": "url-service-java",
+          "lineIds": ["code-cache-lookup"],
+          "componentIds": ["cache"]
+        }
+      },
+      {
+        "id": "kf-05",
+        "laneId": "flows",
+        "startMs": 14500,
+        "durationMs": 2600,
+        "action": {
+          "type": "sendPacket",
+          "connectionId": "service-to-db",
+          "packet": {
+            "label": "Cache miss",
+            "color": "#42D392",
+            "size": 0.18,
+            "trail": true
+          }
+        }
+      },
+      {
+        "id": "kf-06",
+        "laneId": "simulation",
+        "startMs": 23500,
+        "durationMs": 2800,
+        "action": {
+          "type": "runSimulation",
+          "simulationId": "cache-failure"
+        }
+      },
+      {
+        "id": "kf-07",
+        "laneId": "camera",
+        "startMs": 28500,
+        "durationMs": 1700,
+        "action": {
+          "type": "cameraMove",
+          "toPreset": "database-detail",
+          "easing": "cinematicInOut"
+        }
+      },
+      {
+        "id": "kf-08",
+        "laneId": "camera",
+        "startMs": 36000,
+        "durationMs": 2200,
+        "action": {
+          "type": "cameraMove",
+          "toPreset": "system-overview",
+          "easing": "cinematicInOut"
+        }
+      }
+    ]
+  },
+
+  "export": {
+    "parityMode": true,
+    "includeCamera": true,
+    "includeLighting": true,
+    "includeOpacity": true,
+    "includePackets": true,
+    "includeCaptions": true,
+    "defaults": {
+      "format": "mp4",
+      "resolution": { "width": 1920, "height": 1080 },
+      "fps": 30,
+      "quality": "high",
+      "fit": "camera-framing"
+    }
+  },
+
+  "templates": [
+    {
+      "id": "system-design-exploded",
+      "name": "System Design Exploded Architecture",
+      "category": "system-design"
+    },
+    {
+      "id": "neural-network-3d",
+      "name": "Neural Network 3D",
+      "category": "ai"
+    },
+    {
+      "id": "rag-pipeline",
+      "name": "RAG Pipeline",
+      "category": "ai"
+    },
+    {
+      "id": "bfs-dfs",
+      "name": "BFS and DFS Traversal",
+      "category": "dsa"
+    },
+    {
+      "id": "heap-operations",
+      "name": "Heap Operations",
+      "category": "dsa"
+    }
+  ]
+}

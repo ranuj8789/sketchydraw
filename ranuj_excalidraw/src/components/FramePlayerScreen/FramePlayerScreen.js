@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { isElementVisibleAtTime, resolveFrameAnimationTimings } from "../../canvas/animationTimeline";
 import { renderCanvas } from "../../canvas/canvasRender";
 import {
     ANIMATION_EXPORT_RESOLUTION_OPTIONS,
@@ -10,7 +12,9 @@ import {
     resolveAnimationExportSize,
 } from "../../canvas/animationExportSettings";
 import { resolveFrameCameraViewport } from "../../canvas/frameCameraTransition";
+import { compositeThreeDFrame, isWebGLAvailable } from "../3d/ThreeDWebGLLayer";
 import "./FramePlayerScreen.css";
+import useNarrationRecording from "./useNarrationRecording";
 
 export default function FramePlayerScreen({
                                               open,
@@ -45,6 +49,7 @@ export default function FramePlayerScreen({
                                               onRestart,
                                               onRestartAll,
                                               onNext,
+                                              onSelectPlaybackFrame,
                                               onAdvanceModeChange,
                                               onExportGIF,
                                               onExportVideo,
@@ -53,15 +58,25 @@ export default function FramePlayerScreen({
                                               audioDataUrl = "",
                                               audioName = "",
                                           }) {
+    const narration = useNarrationRecording(open);
+    const [narrationSpeed, setNarrationSpeed] = useState(playbackSpeed);
     const canvasRef = useRef(null);
     const playerRef = useRef(null);
     const audioRef = useRef(null);
+    const narrationAudioRef = useRef(null);
     const panDragRef = useRef(null);
     const [isBrowserFullscreen, setIsBrowserFullscreen] = useState(false);
     const [isPanning, setIsPanning] = useState(false);
     const [videoExportState, setVideoExportState] = useState({ exporting: false, progress: 0, status: "" });
     const [playbackSpeedDraft, setPlaybackSpeedDraft] = useState(String(playbackSpeed));
     const [backendSpeedDraft, setBackendSpeedDraft] = useState(String(videoBackendSpeed));
+    const [threeDRenderMode, setThreeDRenderMode] = useState(() => {
+        try {
+            return window.localStorage.getItem("sketchydraw.threeDExportRenderMode") || "blender";
+        } catch {
+            return "blender";
+        }
+    });
     const [screenSize, setScreenSize] = useState({
         width: typeof window !== "undefined" ? window.innerWidth : 1200,
         height: typeof window !== "undefined" ? window.innerHeight : 800,
@@ -173,6 +188,12 @@ export default function FramePlayerScreen({
         canvas.style.width = `${viewWidth}px`;
         canvas.style.height = `${viewHeight}px`;
 
+        const webglAvailable = ["webgl3d", "blender"].includes(threeDRenderMode) && isWebGLAvailable();
+        const hiddenIds = new Set(frame?.hiddenElementIds || []);
+        const visibleElements = (frame?.elements || []).filter(
+            (element) => !hiddenIds.has(element.id)
+        );
+
         renderCanvas({
             canvas,
             canvasSize: {
@@ -191,9 +212,19 @@ export default function FramePlayerScreen({
             canvasProps,
             renderOptions: {
                 ...renderOptions,
-                hiddenElementIds: new Set(frame?.hiddenElementIds || []),
+                hiddenElementIds: hiddenIds,
+                pixelRatio: 1,
+                webglOverlayActive: webglAvailable,
             },
         });
+
+        // The player and GIF/video exporters must use the same Three.js
+        // renderer. Previously the player drew a 2D approximation while the
+        // exporter composited real WebGL, so the two views could never match.
+        if (webglAvailable) {
+            const timings = resolveFrameAnimationTimings(visibleElements);
+            compositeThreeDFrame(canvas, visibleElements.filter(element => isElementVisibleAtTime(element, timeMs, timings.get(element.id))), cameraViewport, timeMs);
+        }
     }, [
         open,
         frame,
@@ -210,11 +241,13 @@ export default function FramePlayerScreen({
         exportCameraPan,
         exportFrames,
         exportTextScalePercent,
+        threeDRenderMode,
     ]);
 
     useEffect(() => {
         const audio = audioRef.current;
         if (!open || !audio || !audioDataUrl) return;
+        if (narration.recording || videoExportState.exporting) { audio.pause(); return; }
         audio.playbackRate = playbackSpeed;
 
         if (timeMs <= 80) {
@@ -223,13 +256,23 @@ export default function FramePlayerScreen({
                 // Browsers may require the user to press Play audio once.
             });
         }
-    }, [open, frameIndex, audioDataUrl, timeMs, playbackSpeed]);
+    }, [open, frameIndex, audioDataUrl, timeMs, playbackSpeed, narration.recording, videoExportState.exporting]);
+
+    useEffect(() => {
+        if (narration.recording && !playing && frameIndex === totalFrames - 1) narration.stop();
+    }, [playing, frameIndex, totalFrames, narration.recording]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+        if ((!open || narration.recording || videoExportState.exporting || (!playing && frameIndex === totalFrames - 1)) && narrationAudioRef.current) {
+            narrationAudioRef.current.pause();
+        }
+    }, [open, playing, frameIndex, totalFrames, narration.recording, videoExportState.exporting]);
 
     if (!open) return null;
 
     const hasNextFrame = mode === "all" && frameIndex < totalFrames - 1;
     const hasAnimatedObjects = (frame?.elements || []).some(
-        (element) => element?.animation?.type && element.animation.type !== "none"
+        (element) => (element?.animation?.type && element.animation.type !== "none") || (Array.isArray(element?.transformKeyframes) && element.transformKeyframes.length > 0)
     );
     const currentZoom = Math.round(Number(exportZoomPercent) || 100);
     const zoomChoices = [...new Set([...ANIMATION_EXPORT_ZOOM_OPTIONS, currentZoom])]
@@ -286,8 +329,8 @@ export default function FramePlayerScreen({
         setIsPanning(false);
     };
 
-    return (
-        <div className="frame-player-screen" ref={playerRef}>
+    return createPortal(
+        <div className="frame-player-screen" ref={playerRef} role="dialog" aria-modal="true" aria-label="Animation player">
             <div className="frame-player-storyboard-heading">
                 <div>
                     <span>Animation storyboard</span>
@@ -296,6 +339,24 @@ export default function FramePlayerScreen({
                 <small>
                     Frame {frameIndex + 1} of {totalFrames}
                 </small>
+            </div>
+            <div className="frame-player-narration">
+                    <button type="button" disabled={videoExportState.exporting} onClick={() => {
+                        if (narration.recording) narration.stop();
+                        else { setNarrationSpeed(playbackSpeed); onAdvanceModeChange?.("auto"); narration.start(onRestartAll || onRestart); }
+                    }}>{narration.recording ? "■ Stop recording" : "🎙 Record + Play all"}</button>
+                    <label>Audio file <input type="file" accept="audio/*" disabled={narration.recording || videoExportState.exporting} onChange={event => {
+                        const file = event.target.files?.[0];
+                        if (file) { setNarrationSpeed(playbackSpeed); narration.load(file); }
+                        event.target.value = "";
+                    }} /></label>
+                    {narration.audioUrl && <>
+                        <audio ref={narrationAudioRef} controls src={narration.audioUrl} aria-label="Narration preview" />
+                        <a href={narration.audioUrl} download={narration.audioName}>Download audio</a>
+                        <button type="button" onClick={narration.clear} disabled={videoExportState.exporting || narration.recording}>Remove audio</button>
+                    </>}
+                    {threeDRenderMode === "blender" && <small>WebGL preview · final video rendered with Blender on the backend</small>}
+                    {narration.error && <span role="alert">{narration.error}</span>}
             </div>
             <div className="frame-player-topbar">
                 <div>
@@ -309,6 +370,42 @@ export default function FramePlayerScreen({
                 </div>
 
                 <div className="frame-player-actions">
+                    <label>
+                        Render style
+                        <select
+                            value={threeDRenderMode}
+                            onChange={(event) => {
+                                const nextMode = event.target.value;
+                                setThreeDRenderMode(nextMode);
+                                try {
+                                    window.localStorage.setItem("sketchydraw.threeDExportRenderMode", nextMode);
+                                } catch {}
+                            }}
+                            disabled={videoExportState.exporting}
+                            title="Choose how 3D elements look in preview and exported video"
+                        >
+                            <option value="fallback2d">Classic 2D</option>
+                            <option value="blender">Blender · backend high quality</option>
+                            <option value="webgl3d">Three.js 3D</option>
+                        </select>
+                    </label>
+
+                    <label className="frame-player-frame-selector">
+                        Play frame
+                        <select
+                            value={mode === "all" ? "all" : String(frameIndex)}
+                            onChange={(event) => onSelectPlaybackFrame?.(event.target.value)}
+                            title="Choose one frame to play, or play the complete movie"
+                        >
+                            <option value="all">All frames</option>
+                            {exportFrames.map((candidate, index) => (
+                                <option key={candidate?.id || index} value={index}>
+                                    {index + 1} · {candidate?.name || `Frame ${index + 1}`}
+                                </option>
+                            ))}
+                        </select>
+                    </label>
+
                     <label>
                         Next frame
                         <select
@@ -425,7 +522,16 @@ export default function FramePlayerScreen({
                     </button>
 
                     {mode === "all" && (
-                        <button type="button" className="frame-player-replay-all-btn" onClick={onRestartAll}>
+                        <button type="button" className="frame-player-replay-all-btn" onClick={() => {
+                            const audio = narrationAudioRef.current;
+                            if (audio && !narration.recording) {
+                                audio.currentTime = 0;
+                                audio.playbackRate = Math.max(.1, Math.min(4, playbackSpeed / narrationSpeed));
+                                audio.play().catch(() => {});
+                            }
+                            onAdvanceModeChange?.("auto");
+                            onRestartAll?.();
+                        }}>
                             Replay all frames
                         </button>
                     )}
@@ -495,9 +601,12 @@ export default function FramePlayerScreen({
                                 fitContent: exportFitContent,
                                 pan: exportCameraPan,
                                 textScalePercent: exportTextScalePercent,
+                                threeDRenderMode,
+                                audioSource: narration.audioUrl || audioDataUrl,
+                                audioPlaybackRate: narration.audioUrl ? playbackSpeed / narrationSpeed : 1,
                             });
                         }}
-                        disabled={videoExportState.exporting}
+                        disabled={videoExportState.exporting || narration.recording}
                         title="Export all frames with the same camera framing"
                     >
                         {videoExportState.exporting
@@ -593,5 +702,5 @@ export default function FramePlayerScreen({
                 )}
             </div>
         </div>
-    );
+    , document.body);
 }
