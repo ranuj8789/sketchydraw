@@ -82,6 +82,7 @@ export function normalizeElementForSave(element) {
         strokeDash: element.strokeDash || "solid",
         opacity: element.opacity ?? 1,
         codeIllustrator: !!element.codeIllustrator,
+        creatorLocked: !!element.creatorLocked,
         animation: element.animation
             ? { ...element.animation }
             : undefined,

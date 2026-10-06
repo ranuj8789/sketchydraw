@@ -1,6 +1,8 @@
 import React, { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import "./App.css";
 
+import CreatorStudio from './components/CreatorStudio/CreatorStudio';
+import { preserveLocked } from './components/CreatorStudio/creatorTools';
 import Toolbar from "./components/Toolbar/Toolbar";
 import Sidebar from "./components/Sidebar/Sidebar";
 import CanvasBoard from "./components/CanvasBoard/CanvasBoard";
@@ -1922,7 +1924,7 @@ function SketchyDrawPage() {
     let touchedText = false;
 
     const next = elements.map((el) => {
-      if (!selectedSet.has(el.id)) return el;
+      if (el.creatorLocked || !selectedSet.has(el.id)) return el;
 
       const updated = {
         ...el,
@@ -2151,11 +2153,11 @@ function SketchyDrawPage() {
         )
         .map((el) => el.id);
 
-    let next = elements.filter((el) => !selectedSet.has(el.id));
+    let next = elements.filter((el) => el.creatorLocked || !selectedSet.has(el.id));
 
     if (parentShapeIds.length > 0) {
       const parentSet = new Set(parentShapeIds);
-      next = next.filter((el) => !parentSet.has(el.parentId));
+      next = next.filter((el) => el.creatorLocked || !parentSet.has(el.parentId));
     }
 
     setElements(next);
@@ -2233,6 +2235,15 @@ function SketchyDrawPage() {
               offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
             }]}
         />
+        {workspaceMode === "canvas" && !focusMode && <CreatorStudio
+            elements={elements} selectedIds={selectedIds} frames={timelineFrames} currentFrameIndex={currentFrameIndex}
+            canvasSize={canvasSize} canvasProps={canvasProps}
+            onSelect={setSelectedIds}
+            onElements={next => { setElements(next); commitHistory(next); updateCurrentTimelineFrame(next); }}
+            onDocument={doc => { setCanvasSize(doc.canvas); setCanvasProps(prev => ({...prev,...doc.canvasProps})); restoreTimelineFrames(doc.frames,0); setViewport({zoom:1,offsetX:0,offsetY:0}); }}
+            onAudio={(source,meta) => updateFrameAudio(currentFrameIndex,source,meta)}
+            onFrameDuration={durationMs => setTimelineFrames(prev => prev.map((f,i) => i === currentFrameIndex ? {...f,durationMs} : f))}
+        />}
         <div className={`app-shell ${focusMode ? "focus-mode" : ""}`}>
           <SketchyAlert
               alert={sketchyAlert}
@@ -2360,10 +2371,10 @@ function SketchyDrawPage() {
                   setTool={setTool}
                   stroke={stroke}
                   elements={elements}
-                  setElements={setElements}
+                  setElements={next => setElements(prev => preserveLocked(prev, typeof next === "function" ? next(prev) : next))}
                   selectedIds={selectedIds}
                   setSelectedIds={setSelectedIds}
-                  commitHistory={commitHistory}
+                  commitHistory={next => commitHistory(preserveLocked(elements,next))}
                   onExport={exportPNG}
                   history={history}
                   showGrid={showGrid}

@@ -147,5 +147,14 @@ export function mapFrameCameraToOutput(camera, sourceSize, outputSize) {
 
 export function resolveFrameCameraViewport({ frame, previousFrame, timeMs, sourceSize, outputSize, fallbackViewport }) {
     if (!frame?.camera) return fallbackViewport;
-    return mapFrameCameraToOutput(applyCameraFollow(frame, getFrameCameraAtTime(frame, previousFrame, timeMs), timeMs, sourceSize), sourceSize, outputSize);
+    const camera = applyCameraFollow(frame, getFrameCameraAtTime(frame, previousFrame, timeMs), timeMs, sourceSize);
+    if (!fallbackViewport) return mapFrameCameraToOutput(camera, sourceSize, outputSize);
+    // The authored camera operates in source coordinates. Apply the user's
+    // export framing afterwards so zoom, fit and pan remain effective.
+    const framing = normalizeFrameCamera(fallbackViewport);
+    return {
+        zoom: framing.zoom * camera.zoom,
+        offsetX: framing.offsetX + camera.offsetX * framing.zoom,
+        offsetY: framing.offsetY + camera.offsetY * framing.zoom,
+    };
 }
